@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div class="auth-form">
+    <h1>Sign In</h1>
+    <div class="auth-subtitle">PS4 Save Management</div>
+    <form method="POST">
+        <label>Username
+            <input type="text" name="username" required autofocus>
+        </label>
+        <label>Password
+            <input type="password" name="password" required>
+        </label>
+        <button type="submit">Sign In</button>
+    </form>
+    <p>Don't have an account? <a href="{{ url_for('auth.register') }}">Register</a></p>
+</div>
+{% endblock %}

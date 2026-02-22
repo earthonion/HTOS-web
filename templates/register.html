@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Register{% endblock %}
+{% block content %}
+<div class="auth-form">
+    <h1>Create Account</h1>
+    <div class="auth-subtitle">Get started with garlicsaves</div>
+    <form method="POST">
+        {% if invite_only %}
+        <label>Invite Code
+            <input type="text" name="invite_code" required autofocus>
+        </label>
+        {% endif %}
+        <label>Username
+            <input type="text" name="username" required minlength="3" maxlength="30" {% if not invite_only %}autofocus{% endif %}>
+        </label>
+        <label>Password
+            <input type="password" name="password" required minlength="6">
+        </label>
+        <label>Confirm Password
+            <input type="password" name="confirm" required minlength="6">
+        </label>
+        <button type="submit">Create Account</button>
+    </form>
+    <p>Already have an account? <a href="{{ url_for('auth.login') }}">Sign in</a></p>
+</div>
+{% endblock %}

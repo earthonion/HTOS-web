@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>Welcome, {{ username }}</h1>
+
+<section class="panel">
+    <h2>PS4 Profiles</h2>
+    <form method="POST" action="{{ url_for('main.create_profile') }}" class="inline-form">
+        <input type="text" name="name" placeholder="Profile name" required maxlength="20">
+        <input type="text" name="account_id" placeholder="Account ID (16 hex chars)" required pattern="[0-9a-fA-F]{16}" maxlength="16">
+        <button type="submit">Add Profile</button>
+    </form>
+
+    {% if profiles %}
+    <table>
+        <thead>
+            <tr><th>Name</th><th>Account ID</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for p in profiles %}
+            <tr>
+                <td>{{ p.name }}</td>
+                <td><code>{{ p.account_id }}</code></td>
+                <td>
+                    <form method="POST" action="{{ url_for('main.delete_profile', profile_id=p.id) }}">
+                        <button type="submit" class="btn-small btn-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No profiles yet. Add one to get started.</p>
+    {% endif %}
+</section>
+
+<section class="panel">
+    <h2>Recent Jobs</h2>
+    {% if jobs %}
+    <table>
+        <thead>
+            <tr><th>Operation</th><th>Status</th><th>Created</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for job in jobs %}
+            <tr>
+                <td>{{ job.operation }}</td>
+                <td><span class="status-{{ job.status }}">{{ job.status }}</span></td>
+                <td>{{ job.created_at }}</td>
+                <td><a href="{{ url_for('jobs.job_status', job_id=job.id) }}">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No jobs yet.</p>
+    {% endif %}
+</section>
+{% endblock %}

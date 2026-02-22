@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>garlicsaves - {% block title %}Home{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=11">
+</head>
+<body>
+    {% if session.get('user_id') %}
+    <nav class="sidebar">
+        <div class="nav-header">
+            <div class="nav-brand">garlicsaves</div>
+            <button type="button" class="hamburger" id="hamburger" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+        <div class="nav-collapse" id="nav-collapse">
+            <div class="nav-links">
+                <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
+                {% if workers_online > 0 %}
+                <a href="{{ url_for('decrypt.decrypt') }}">Decrypt</a>
+                <a href="{{ url_for('encrypt.encrypt') }}">Encrypt</a>
+                <a href="{{ url_for('resign.resign') }}">Resign</a>
+                <a href="{{ url_for('reregion.reregion') }}">Re-region</a>
+                <a href="{{ url_for('createsave.createsave') }}">Create Save</a>
+                <a href="{{ url_for('convert.convert') }}">Convert</a>
+                <a href="{{ url_for('quickcodes.quickcodes') }}">Quick Codes</a>
+                {% endif %}
+                <a href="{{ url_for('contribute.contribute') }}">Contribute</a>
+            </div>
+            <div class="nav-workers">
+                {% if workers_online > 0 %}
+                <span style="color: var(--green);">&#9679;</span> Workers online: {{ workers_online }}
+                {% else %}
+                <span style="color: var(--red);">&#9679;</span> No workers online
+                {% endif %}
+            </div>
+            <form method="POST" action="{{ url_for('auth.logout') }}" class="nav-logout">
+                <button type="submit">Logout ({{ session.get('username', '') }})</button>
+            </form>
+        </div>
+    </nav>
+    {% else %}
+    <nav class="topbar">
+        <div class="nav-brand">garlicsaves</div>
+    </nav>
+    {% endif %}
+
+    <main>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        {% if workers_online == 0 and session.get('user_id') %}
+        <div class="flash flash-warning">No workers available. <a href="{{ url_for('contribute.contribute') }}">Consider contributing!</a></div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <p>Based on <a href="https://github.com/hzhreal/HTOS" target="_blank">HTOS</a> & <a href="https://github.com/hzhreal/cecie.nim" target="_blank">cecie.nim</a> by hzh</p>
+    </footer>
+
+    <script>
+    const hamburger = document.getElementById('hamburger');
+    const navCollapse = document.getElementById('nav-collapse');
+    if (hamburger) {
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            navCollapse.classList.toggle('open');
+        });
+    }
+
+    document.querySelectorAll('.file-drop').forEach(drop => {
+        const input = drop.querySelector('input[type="file"]');
+        const sel = drop.querySelector('.file-drop-selected');
+        if (!input) return;
+
+        drop.addEventListener('click', e => {
+            if (e.target === input) return;
+            input.click();
+        });
+
+        drop.addEventListener('dragover', e => {
+            e.preventDefault();
+            drop.classList.add('dragover');
+        });
+
+        drop.addEventListener('dragleave', e => {
+            if (!drop.contains(e.relatedTarget)) drop.classList.remove('dragover');
+        });
+
+        drop.addEventListener('drop', e => {
+            e.preventDefault();
+            drop.classList.remove('dragover');
+            input.files = e.dataTransfer.files;
+            input.dispatchEvent(new Event('change'));
+        });
+
+        input.addEventListener('change', () => {
+            if (!input.files.length) { sel.textContent = ''; return; }
+            if (input.files.length === 1) {
+                sel.textContent = input.files[0].name;
+            } else {
+                sel.textContent = input.files.length + ' files selected';
+            }
+            drop.style.borderColor = 'var(--cyan)';
+            drop.style.borderStyle = 'solid';
+            setTimeout(() => { drop.style.borderColor = ''; drop.style.borderStyle = ''; }, 800);
+        });
+    });
+    </script>
+</body>
+</html>

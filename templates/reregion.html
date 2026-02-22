@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Re-region{% endblock %}
+{% block content %}
+<h1>Re-region Saves</h1>
+<p>Change the region of save files. Upload the saves to re-region AND a sample save pair from the target region.</p>
+
+<form method="POST" enctype="multipart/form-data" class="operation-form">
+    <div class="profile-select-wrap">
+        <span>Profile</span>
+        <div class="profile-cards">
+            {% for p in profiles %}
+            <label class="profile-card">
+                <input type="radio" name="profile_id" value="{{ p.id }}" required>
+                <span class="profile-card-dot"></span>
+                <span class="profile-card-info">
+                    <span class="profile-card-name">{{ p.name }}</span>
+                    <span class="profile-card-id">{{ p.account_id }}</span>
+                </span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="file-drop">
+        <input type="file" name="saves" multiple required>
+        <svg class="file-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <div class="file-drop-text">Drop saves to re-region here or <strong>browse</strong></div>
+        <div class="file-drop-hint">.bin + matching save file</div>
+        <div class="file-drop-selected"></div>
+    </div>
+
+    <div class="file-drop">
+        <input type="file" name="sample" multiple required>
+        <svg class="file-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <div class="file-drop-text">Drop sample save pair here or <strong>browse</strong></div>
+        <div class="file-drop-hint">From target region, .bin + matching file</div>
+        <div class="file-drop-selected"></div>
+    </div>
+
+    <button type="submit">Start Re-region</button>
+</form>
+
+{% if not profiles %}
+<p class="hint">You need to <a href="{{ url_for('main.dashboard') }}">create a profile</a> first.</p>
+{% endif %}
+{% endblock %}

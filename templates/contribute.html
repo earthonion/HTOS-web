@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Contribute{% endblock %}
+{% block content %}
+<h1>Contribute</h1>
+<p>Run a PS4 worker to help process jobs. Generate a worker key and set it in your worker's <code>config.ini</code> as <code>workerKey=...</code></p>
+
+{% if new_key %}
+<section class="panel" style="border-color: var(--green); background: var(--green-bg);">
+    <h2>New Worker Key</h2>
+    <p style="color: var(--text-1); margin-bottom: 0.5rem;">Copy this key now. It will not be shown again.</p>
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <code id="new-key" style="flex: 1; padding: 0.5rem 0.75rem; font-size: 0.82rem; word-break: break-all;">{{ new_key }}</code>
+        <button type="button" onclick="copyKey()" class="btn-small" style="white-space: nowrap;">Copy</button>
+    </div>
+</section>
+<section class="panel">
+    <h2>Config File</h2>
+    <p style="color: var(--text-1); margin-bottom: 0.5rem;">Save this as <code>/data/cecie/config.ini</code> on your PS4.</p>
+    <div style="position: relative;">
+        <pre id="config-text" style="background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 1rem; font-family: 'Fira Code', monospace; font-size: 0.82rem; line-height: 1.7; color: var(--text-1); overflow-x: auto;">saveDirectory=/data/htos/upload
+port=1234
+workerEnabled=true
+serverHost=garlicsaves.com
+serverPort=80
+workerKey={{ new_key }}
+pollInterval=30</pre>
+        <button type="button" onclick="copyConfig()" class="btn-small" style="position: absolute; top: 0.5rem; right: 0.5rem;">Copy</button>
+    </div>
+</section>
+<script>
+function copyKey() {
+    const key = document.getElementById('new-key').textContent;
+    navigator.clipboard.writeText(key);
+    const btn = event.target;
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+}
+function copyConfig() {
+    const config = document.getElementById('config-text').textContent;
+    navigator.clipboard.writeText(config);
+    const btn = event.target;
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+}
+</script>
+{% endif %}
+
+<section class="panel">
+    <h2>Generate Key</h2>
+    <form method="POST" action="{{ url_for('contribute.contribute') }}" class="inline-form">
+        <input type="text" name="name" placeholder="Key name (e.g. My PS4)" required maxlength="64">
+        <button type="submit">Generate</button>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>PS4 Setup</h2>
+    <p><a href="{{ url_for('static', filename='cecie.pkg') }}" download>Download cecie.pkg</a></p>
+    <ol style="color: var(--text-2); font-size: 0.85rem; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.4rem;">
+        <li>Install <strong>cecie.pkg</strong> on your jailbroken PS4</li>
+        <li>Via FTP, create the directory <code>/data/cecie/</code></li>
+        <li>Create the directory <code>/data/htos/upload/</code></li>
+        <li>Generate a worker key above and save the config as <code>/data/cecie/config.ini</code></li>
+        <li>Launch cecie from the PS4 home screen — it will start polling for jobs</li>
+    </ol>
+</section>
+
+<section class="panel">
+    <h2>Your Worker Keys</h2>
+    {% if keys %}
+    <table>
+        <thead>
+            <tr><th>Name</th><th>Status</th><th>Created</th><th>Last Used</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for k in keys %}
+            <tr>
+                <td>{{ k.name }}</td>
+                <td>
+                    {% if k.is_active %}
+                    <span class="status-done">active</span>
+                    {% else %}
+                    <span class="status-failed">revoked</span>
+                    {% endif %}
+                </td>
+                <td>{{ k.created_at }}</td>
+                <td>{{ k.last_used or 'never' }}</td>
+                <td>
+                    {% if k.is_active %}
+                    <form method="POST" action="{{ url_for('contribute.revoke_key', key_id=k.id) }}">
+                        <button type="submit" class="btn-small btn-danger">Revoke</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No worker keys yet. Generate one to get started.</p>
+    {% endif %}
+</section>
+{% endblock %}

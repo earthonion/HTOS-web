@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Encrypt{% endblock %}
+{% block content %}
+<h1>Encrypt</h1>
+<p>Upload a zip containing a decrypted save folder (with sce_sys). The save name and size are auto-detected from the zip.</p>
+
+<form method="POST" enctype="multipart/form-data">
+    <div class="profile-select-wrap">
+        <span>Profile (Account ID)</span>
+        <div class="profile-cards">
+            {% for p in profiles %}
+            <label class="profile-card">
+                <input type="radio" name="profile_id" value="{{ p.id }}" required>
+                <span class="profile-card-dot"></span>
+                <span class="profile-card-info">
+                    <span class="profile-card-name">{{ p.name }}</span>
+                    <span class="profile-card-id">{{ p.account_id }}</span>
+                </span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="file-drop">
+        <input type="file" name="zipfile" accept=".zip" required>
+        <svg class="file-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M10 3v18"/><path d="M14 3v18"/><path d="M10 12h4"/></svg>
+        <div class="file-drop-text">Drop zip file here or <strong>browse</strong></div>
+        <div class="file-drop-hint">.zip containing decrypted save folder</div>
+        <div class="file-drop-selected"></div>
+    </div>
+
+    <button type="submit">Encrypt</button>
+</form>
+
+{% if not profiles %}
+<p class="hint">You need to <a href="{{ url_for('main.dashboard') }}">create a profile</a> first.</p>
+{% endif %}
+{% endblock %}

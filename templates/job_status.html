@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Job Status{% endblock %}
+{% block content %}
+<h1>Job: {{ job.operation }} <span class="status-{{ job.status }}" id="status-badge">{{ job.status }}</span></h1>
+
+{% if job.status == "waiting_input" and job.operation == "encrypt" %}
+<section class="panel">
+    <h2>Upload Files to Encrypt</h2>
+    {% if job.file_list %}
+    <p>Available files in save:</p>
+    <ul class="file-list">
+        {% for f in job.file_list %}
+        <li><code>{{ f }}</code></li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    <form method="POST" action="{{ url_for('encrypt.encrypt_continue', job_id=job.job_id) }}" enctype="multipart/form-data">
+        <div class="file-drop">
+            <input type="file" name="encrypt_files" multiple required>
+            <svg class="file-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <div class="file-drop-text">Drop modified files here or <strong>browse</strong></div>
+            <div class="file-drop-hint">Upload your edited save files</div>
+            <div class="file-drop-selected"></div>
+        </div>
+        <button type="submit">Continue Encrypt</button>
+    </form>
+</section>
+{% endif %}
+
+<section class="panel" id="download-section" style="{% if not (job.status == 'done' and job.result_path) %}display:none{% endif %}">
+    {% if job.params %}
+    {% if job.operation == 'encrypt' and job.params.get('sfo_account_id') and job.params.get('account_id') %}
+    <p style="margin-bottom: 0.5rem;">Previous Account ID: <code>{{ job.params.sfo_account_id }}</code></p>
+    <p style="margin-bottom: 0.75rem;">New Account ID: <code>{{ job.params.account_id }}</code></p>
+    {% elif job.params.get('sfo_account_id') %}
+    <p style="margin-bottom: 0.75rem;">Account ID: <code>{{ job.params.sfo_account_id }}</code></p>
+    {% endif %}
+    {% endif %}
+    <a href="{{ url_for('jobs.job_download', job_id=job.job_id) }}" class="btn btn-primary">Download Result</a>
+</section>
+
+<section class="panel">
+    <h2>Log</h2>
+    <div id="log" class="log-area"></div>
+</section>
+
+<script>
+const logEl = document.getElementById('log');
+const statusBadge = document.getElementById('status-badge');
+const currentStatus = statusBadge.textContent.trim();
+const isFinished = (currentStatus === 'done' || currentStatus === 'failed');
+
+// Always connect to SSE to load historical log messages
+const evtSource = new EventSource("{{ url_for('jobs.job_stream', job_id=job.job_id) }}");
+
+evtSource.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    if (data.level === 'STATUS') {
+        statusBadge.textContent = data.msg;
+        statusBadge.className = 'status-' + data.msg;
+        if (data.msg === 'done' || data.msg === 'failed') {
+            evtSource.close();
+            if (!isFinished) {
+                location.reload();
+            }
+        }
+        return;
+    }
+    const line = document.createElement('div');
+    line.className = 'log-line log-' + data.level.toLowerCase();
+    line.textContent = '[' + data.level + '] ' + data.msg;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+};
+
+evtSource.onerror = function() {
+    evtSource.close();
+};
+</script>
+{% endblock %}

@@ -1,0 +1,40 @@
+from quart import Blueprint, render_template, request, session, redirect, url_for, flash
+
+from auth import login_required
+from services.jobs import create_job
+from services.files import save_uploaded_files, extract_account_id, FileTooLargeError
+
+decrypt_bp = Blueprint("decrypt", __name__)
+
+@decrypt_bp.route("/decrypt", methods=["GET", "POST"])
+@login_required
+async def decrypt():
+    if request.method == "POST":
+        form = await request.form
+        files = (await request.files).getlist("saves")
+        include_sce_sys = form.get("include_sce_sys") == "on"
+        ignore_secondlayer = form.get("ignore_secondlayer") == "on"
+
+        if not files or not files[0].filename:
+            await flash("Please upload save files.", "error")
+            return await render_template("decrypt.html")
+
+        user_id = session["user_id"]
+        job = await create_job(user_id, "decrypt", {
+            "include_sce_sys": include_sce_sys,
+            "ignore_secondlayer": ignore_secondlayer,
+        })
+        try:
+            upload_dir = await save_uploaded_files(files, user_id, job.job_id)
+        except FileTooLargeError as e:
+            await flash(f"Save file too large: {e}. Worker cannot process files this big.", "error")
+            return await render_template("decrypt.html")
+        params = {"upload_dir": upload_dir}
+        acct = extract_account_id(upload_dir)
+        if acct:
+            params["sfo_account_id"] = acct
+        await job.update_params(params)
+
+        return redirect(url_for("jobs.job_status", job_id=job.job_id))
+
+    return await render_template("decrypt.html")
