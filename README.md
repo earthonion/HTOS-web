@@ -17,7 +17,7 @@ All PS4 operations (resign, decrypt, encrypt, re-region) communicate with a jail
 ## Requirements
 
 - Python 3.12+
-- A jailbroken PS4 running an FTP server and [Cecie](https://github.com/cecie-dev) save tools
+- A jailbroken PS4 running an FTP server and [Cecie](https://github.com/earthonion/cecie.nim-garlicsaves) save tools
 
 ## Setup
 
@@ -112,3 +112,4 @@ HTOS-web/
 - **Server-Sent Events (SSE)** stream real-time logs from jobs to the browser
 - **aioftp** communicates with the PS4's FTP server
 - **Custom TCP socket** sends commands to Cecie on the PS4
+
