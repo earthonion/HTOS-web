@@ -8,6 +8,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=11">
+    <style>
+    .chunked-progress-wrapper { margin-top: 0.5rem; }
+    .chunked-progress { margin-bottom: 0.25rem; }
+    .chunked-progress-label { font-size: 0.8rem; color: var(--fg-dim, #888); margin-bottom: 2px; }
+    .chunked-progress-track { background: var(--bg-alt, #222); border-radius: 4px; height: 6px; overflow: hidden; }
+    .chunked-progress-fill { background: var(--cyan, #0ff); height: 100%; width: 0; transition: width 0.2s; border-radius: 4px; }
+    </style>
 </head>
 <body>
     {% if session.get('user_id') %}
@@ -69,9 +76,10 @@
     </main>
 
     <footer>
-        <p>Based on <a href="https://github.com/hzhreal/HTOS" target="_blank">HTOS</a> & <a href="https://github.com/hzhreal/cecie.nim" target="_blank">cecie.nim</a> by hzh</p>
+        <p>Based on <a href="https://github.com/hzhreal/HTOS" target="_blank">HTOS</a> & <a href="https://github.com/hzhreal/cecie.nim" target="_blank">cecie.nim</a> by hzh | Originally based on <a href="https://github.com/Team-Alua/cecie.nim" target="_blank">cecie.nim</a> by Team-Alua</p>
     </footer>
 
+    <script src="{{ url_for('static', filename='chunked-upload.js') }}"></script>
     <script>
     const hamburger = document.getElementById('hamburger');
     const navCollapse = document.getElementById('nav-collapse');

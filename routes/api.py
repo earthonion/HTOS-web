@@ -1,12 +1,14 @@
 import json
 import os
+import shutil
+import uuid
 import zipfile
 from functools import wraps
 from io import BytesIO
 
 from quart import Blueprint, request, abort, send_file, Response
 
-from config import WORKER_KEY
+from config import WORKER_KEY, CHUNK_DIR
 from models import get_db
 from services.jobs import push_log, get_or_create_job_logger
 
@@ -201,6 +203,106 @@ async def upload_result(job_id):
         await db.close()
 
     # Update in-memory job too
+    job = get_or_create_job_logger(job_id)
+    if job:
+        job.result_path = result_path
+
+    return {"ok": True, "result_path": result_path}
+
+
+@api_bp.route("/jobs/<job_id>/result/init", methods=["POST"])
+@require_worker_key
+async def init_result_upload(job_id):
+    """Start a chunked result upload."""
+    data = await request.get_json()
+    if not data or "total_size" not in data:
+        abort(400)
+
+    upload_id = str(uuid.uuid4())
+    chunk_dir = os.path.join(CHUNK_DIR, upload_id)
+    os.makedirs(chunk_dir, exist_ok=True)
+
+    meta = {
+        "job_id": job_id,
+        "total_size": data["total_size"],
+    }
+    import time
+    meta["created_at"] = time.time()
+    with open(os.path.join(chunk_dir, "meta.json"), "w") as f:
+        json.dump(meta, f)
+
+    return {"upload_id": upload_id}
+
+
+@api_bp.route("/jobs/<job_id>/result/chunk/<int:index>", methods=["POST"])
+@require_worker_key
+async def upload_result_chunk(job_id, index):
+    """Upload one chunk of a result file."""
+    # Find the upload_id from query param
+    upload_id = request.args.get("upload_id", "")
+    if not upload_id:
+        abort(400)
+
+    chunk_dir = os.path.join(CHUNK_DIR, upload_id)
+    if not os.path.isdir(chunk_dir):
+        abort(404)
+
+    body = await request.get_data()
+    if not body:
+        abort(400)
+
+    chunk_path = os.path.join(chunk_dir, f"{index}.part")
+    with open(chunk_path, "wb") as f:
+        f.write(body)
+
+    return {"ok": True, "index": index}
+
+
+@api_bp.route("/jobs/<job_id>/result/complete", methods=["POST"])
+@require_worker_key
+async def complete_result_upload(job_id):
+    """Assemble chunked result and set result_path."""
+    data = await request.get_json()
+    if not data or "upload_id" not in data:
+        abort(400)
+
+    upload_id = data["upload_id"]
+    chunk_dir = os.path.join(CHUNK_DIR, upload_id)
+    if not os.path.isdir(chunk_dir):
+        abort(404)
+
+    # Sort and assemble chunks
+    parts = sorted(
+        [f for f in os.listdir(chunk_dir) if f.endswith(".part")],
+        key=lambda x: int(x.replace(".part", "")),
+    )
+    if not parts:
+        abort(400)
+
+    result_dir = os.path.join("workspace", "results")
+    os.makedirs(result_dir, exist_ok=True)
+    result_path = os.path.join(result_dir, f"{job_id}.zip")
+
+    with open(result_path, "wb") as out:
+        for part in parts:
+            part_path = os.path.join(chunk_dir, part)
+            with open(part_path, "rb") as inp:
+                shutil.copyfileobj(inp, out)
+
+    # Clean up chunk dir
+    shutil.rmtree(chunk_dir, ignore_errors=True)
+
+    # Update job with result path
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE jobs SET result_path = ? WHERE id = ?",
+            (result_path, job_id)
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
     job = get_or_create_job_logger(job_id)
     if job:
         job.result_path = result_path

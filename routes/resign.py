@@ -3,7 +3,7 @@ from quart import Blueprint, render_template, request, session, redirect, url_fo
 from auth import login_required
 from models import get_db
 from services.jobs import create_job
-from services.files import save_uploaded_files
+from services.files import save_uploaded_files, resolve_chunked_uploads
 
 resign_bp = Blueprint("resign", __name__)
 
@@ -29,7 +29,9 @@ async def resign():
             await flash("Please select a profile.", "error")
             return await render_template("resign.html", profiles=profiles)
 
-        if not files or not files[0].filename:
+        upload_ids_json = form.get("upload_ids")
+
+        if not upload_ids_json and (not files or not files[0].filename):
             await flash("Please upload save files.", "error")
             return await render_template("resign.html", profiles=profiles)
 
@@ -49,7 +51,12 @@ async def resign():
 
         account_id = profile["account_id"]
         job = await create_job(user_id, "resign", {"account_id": account_id})
-        upload_dir = await save_uploaded_files(files, user_id, job.job_id)
+        if upload_ids_json:
+            import json
+            upload_ids = json.loads(upload_ids_json)
+            upload_dir = await resolve_chunked_uploads(upload_ids, user_id, job.job_id)
+        else:
+            upload_dir = await save_uploaded_files(files, user_id, job.job_id)
         await job.update_params({"upload_dir": upload_dir})
 
         return redirect(url_for("jobs.job_status", job_id=job.job_id))

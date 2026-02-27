@@ -3,7 +3,7 @@ from quart import Blueprint, render_template, request, session, redirect, url_fo
 from auth import login_required
 from models import get_db
 from services.jobs import create_job
-from services.files import save_uploaded_files
+from services.files import save_uploaded_files, resolve_chunked_uploads
 from utils.constants import SAVEBLOCKS_MIN, SAVEBLOCKS_MAX
 from utils.orbis import validate_savedirname
 from utils.conversions import mb_to_saveblocks
@@ -36,7 +36,9 @@ async def createsave():
             await flash("Please select a profile.", "error")
             return await render_template("createsave.html", profiles=profiles)
 
-        if not files or not files[0].filename:
+        upload_ids_json = form.get("upload_ids")
+
+        if not upload_ids_json and (not files or not files[0].filename):
             await flash("Please upload files.", "error")
             return await render_template("createsave.html", profiles=profiles)
 
@@ -83,7 +85,12 @@ async def createsave():
             "saveblocks": saveblocks,
             "ignore_secondlayer": ignore_secondlayer,
         })
-        upload_dir = await save_uploaded_files(files, user_id, job.job_id)
+        if upload_ids_json:
+            import json
+            upload_ids = json.loads(upload_ids_json)
+            upload_dir = await resolve_chunked_uploads(upload_ids, user_id, job.job_id)
+        else:
+            upload_dir = await save_uploaded_files(files, user_id, job.job_id)
         await job.update_params({"upload_dir": upload_dir})
 
         return redirect(url_for("jobs.job_status", job_id=job.job_id))

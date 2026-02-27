@@ -10,7 +10,7 @@ from utils.constants import (
     SCE_SYS_NAME, PARAM_NAME,
 )
 from utils.orbis import validate_savedirname, sfo_ctx_create
-from services.files import _read_account_id_from_sfo, FileTooLargeError, _check_file_sizes, _strip_sdimg_prefix
+from services.files import _read_account_id_from_sfo, FileTooLargeError, _check_file_sizes, _strip_sdimg_prefix, resolve_chunked_uploads
 
 encrypt_bp = Blueprint("encrypt", __name__)
 
@@ -32,16 +32,17 @@ async def encrypt():
         form = await request.form
         profile_id = form.get("profile_id")
         zipfile_upload = (await request.files).get("zipfile")
+        upload_ids_json = form.get("upload_ids")
 
         if not profile_id:
             await flash("Please select a profile.", "error")
             return await render_template("encrypt.html", profiles=profiles)
 
-        if not zipfile_upload or not zipfile_upload.filename:
+        if not upload_ids_json and (not zipfile_upload or not zipfile_upload.filename):
             await flash("Please upload a zip file.", "error")
             return await render_template("encrypt.html", profiles=profiles)
 
-        if not zipfile_upload.filename.endswith(".zip"):
+        if not upload_ids_json and not zipfile_upload.filename.endswith(".zip"):
             await flash("File must be a .zip file.", "error")
             return await render_template("encrypt.html", profiles=profiles)
 
@@ -65,8 +66,24 @@ async def encrypt():
         # Save the zip to workspace
         upload_dir = os.path.join("workspace", "uploads", str(user_id), job.job_id)
         os.makedirs(upload_dir, exist_ok=True)
-        zip_path = os.path.join(upload_dir, zipfile_upload.filename)
-        await zipfile_upload.save(zip_path)
+
+        if upload_ids_json:
+            import json as _json
+            upload_ids = _json.loads(upload_ids_json)
+            # Move chunked file to upload dir
+            chunked_dir = await resolve_chunked_uploads(upload_ids, user_id, job.job_id)
+            # Find the zip file in the upload dir
+            zip_path = None
+            for f in os.listdir(chunked_dir):
+                if f.endswith(".zip"):
+                    zip_path = os.path.join(chunked_dir, f)
+                    break
+            if not zip_path:
+                await flash("No .zip file found in upload.", "error")
+                return await render_template("encrypt.html", profiles=profiles)
+        else:
+            zip_path = os.path.join(upload_dir, zipfile_upload.filename)
+            await zipfile_upload.save(zip_path)
 
         # Extract
         extract_dir = os.path.join(upload_dir, "extracted")

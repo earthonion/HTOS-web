@@ -22,6 +22,8 @@ def create_app():
     from routes.jobs import jobs_bp
     from routes.api import api_bp
     from routes.contribute import contribute_bp
+    from routes.rest_api import rest_bp
+    from routes.chunked import chunked_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -35,6 +37,8 @@ def create_app():
     app.register_blueprint(jobs_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(contribute_bp)
+    app.register_blueprint(rest_bp)
+    app.register_blueprint(chunked_bp)
 
     @app.context_processor
     async def inject_worker_count():
@@ -58,7 +62,7 @@ def create_app():
     @app.before_serving
     async def startup():
         await init_db()
-        for d in ["workspace/uploads", "workspace/results", "workspace/processing"]:
+        for d in ["workspace/uploads", "workspace/results", "workspace/processing", "workspace/chunks"]:
             os.makedirs(d, exist_ok=True)
 
     return app
