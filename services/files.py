@@ -1,7 +1,8 @@
+import json
 import os
 import shutil
 import zipfile
-from config import UPLOAD_DIR, RESULT_DIR, MAX_SAVE_FILE_SIZE
+from config import UPLOAD_DIR, RESULT_DIR, MAX_SAVE_FILE_SIZE, CHUNK_DIR
 
 
 def _extract_zips_in_dir(directory: str):
@@ -63,6 +64,37 @@ def _strip_sdimg_prefix(directory: str):
             dst = os.path.join(directory, stripped)
             if os.path.isfile(src) and not os.path.exists(dst):
                 os.rename(src, dst)
+
+
+async def resolve_chunked_uploads(upload_ids: list, user_id: int, job_id: str) -> str:
+    """Move assembled files from chunk staging to the job's upload dir.
+    Returns the upload directory path."""
+    upload_dir = os.path.join(UPLOAD_DIR, str(user_id), job_id)
+    os.makedirs(upload_dir, exist_ok=True)
+
+    for uid in upload_ids:
+        chunk_dir = os.path.join(CHUNK_DIR, uid)
+        if not os.path.isdir(chunk_dir):
+            continue
+        meta_path = os.path.join(chunk_dir, "meta.json")
+        if not os.path.isfile(meta_path):
+            continue
+        with open(meta_path) as f:
+            meta = json.load(f)
+        filename = meta["filename"]
+        src = os.path.join(chunk_dir, filename)
+        if os.path.isfile(src):
+            shutil.move(src, os.path.join(upload_dir, filename))
+        # Clean up chunk dir
+        shutil.rmtree(chunk_dir, ignore_errors=True)
+
+    # Auto-extract zips, flatten, strip prefix, check sizes
+    _extract_zips_in_dir(upload_dir)
+    _flatten_single_subdirs(upload_dir)
+    _strip_sdimg_prefix(upload_dir)
+    _check_file_sizes(upload_dir)
+
+    return upload_dir
 
 
 async def save_uploaded_files(files, user_id: int, job_id: str) -> str:

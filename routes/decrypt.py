@@ -2,7 +2,7 @@ from quart import Blueprint, render_template, request, session, redirect, url_fo
 
 from auth import login_required
 from services.jobs import create_job
-from services.files import save_uploaded_files, extract_account_id, FileTooLargeError
+from services.files import save_uploaded_files, extract_account_id, FileTooLargeError, resolve_chunked_uploads
 
 decrypt_bp = Blueprint("decrypt", __name__)
 
@@ -15,7 +15,9 @@ async def decrypt():
         include_sce_sys = form.get("include_sce_sys") == "on"
         ignore_secondlayer = form.get("ignore_secondlayer") == "on"
 
-        if not files or not files[0].filename:
+        upload_ids_json = form.get("upload_ids")
+
+        if not upload_ids_json and (not files or not files[0].filename):
             await flash("Please upload save files.", "error")
             return await render_template("decrypt.html")
 
@@ -25,7 +27,12 @@ async def decrypt():
             "ignore_secondlayer": ignore_secondlayer,
         })
         try:
-            upload_dir = await save_uploaded_files(files, user_id, job.job_id)
+            if upload_ids_json:
+                import json
+                upload_ids = json.loads(upload_ids_json)
+                upload_dir = await resolve_chunked_uploads(upload_ids, user_id, job.job_id)
+            else:
+                upload_dir = await save_uploaded_files(files, user_id, job.job_id)
         except FileTooLargeError as e:
             await flash(f"Save file too large: {e}. Worker cannot process files this big.", "error")
             return await render_template("decrypt.html")

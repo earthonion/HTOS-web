@@ -52,4 +52,11 @@
 {% if not profiles %}
 <p class="hint">You need to <a href="{{ url_for('main.dashboard') }}">create a profile</a> first.</p>
 {% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.querySelector('form.operation-form');
+    if (form) setupChunkedForm(form, { files: 'upload_ids' });
+});
+</script>
 {% endblock %}

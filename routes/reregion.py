@@ -1,7 +1,10 @@
+import json
 import os
+import shutil
 from quart import Blueprint, render_template, request, session, redirect, url_for, flash
 
 from auth import login_required
+from config import CHUNK_DIR
 from models import get_db
 from services.jobs import create_job
 
@@ -25,16 +28,18 @@ async def reregion():
         profile_id = form.get("profile_id")
         saves = (await request.files).getlist("saves")
         sample_files = (await request.files).getlist("sample")
+        saves_upload_ids_json = form.get("saves_upload_ids")
+        sample_upload_ids_json = form.get("sample_upload_ids")
 
         if not profile_id:
             await flash("Please select a profile.", "error")
             return await render_template("reregion.html", profiles=profiles)
 
-        if not saves or not saves[0].filename:
+        if not saves_upload_ids_json and (not saves or not saves[0].filename):
             await flash("Please upload save files to re-region.", "error")
             return await render_template("reregion.html", profiles=profiles)
 
-        if not sample_files or not sample_files[0].filename:
+        if not sample_upload_ids_json and (not sample_files or not sample_files[0].filename):
             await flash("Please upload a sample save pair from the target region.", "error")
             return await render_template("reregion.html", profiles=profiles)
 
@@ -62,10 +67,35 @@ async def reregion():
         os.makedirs(saves_dir, exist_ok=True)
         os.makedirs(sample_dir, exist_ok=True)
 
-        for f in saves:
-            await f.save(os.path.join(saves_dir, f.filename))
-        for f in sample_files:
-            await f.save(os.path.join(sample_dir, f.filename))
+        if saves_upload_ids_json:
+            for uid in json.loads(saves_upload_ids_json):
+                chunk_dir = os.path.join(CHUNK_DIR, uid)
+                meta_path = os.path.join(chunk_dir, "meta.json")
+                if os.path.isfile(meta_path):
+                    with open(meta_path) as mf:
+                        meta = json.load(mf)
+                    src = os.path.join(chunk_dir, meta["filename"])
+                    if os.path.isfile(src):
+                        shutil.move(src, os.path.join(saves_dir, meta["filename"]))
+                shutil.rmtree(chunk_dir, ignore_errors=True)
+        else:
+            for f in saves:
+                await f.save(os.path.join(saves_dir, f.filename))
+
+        if sample_upload_ids_json:
+            for uid in json.loads(sample_upload_ids_json):
+                chunk_dir = os.path.join(CHUNK_DIR, uid)
+                meta_path = os.path.join(chunk_dir, "meta.json")
+                if os.path.isfile(meta_path):
+                    with open(meta_path) as mf:
+                        meta = json.load(mf)
+                    src = os.path.join(chunk_dir, meta["filename"])
+                    if os.path.isfile(src):
+                        shutil.move(src, os.path.join(sample_dir, meta["filename"]))
+                shutil.rmtree(chunk_dir, ignore_errors=True)
+        else:
+            for f in sample_files:
+                await f.save(os.path.join(sample_dir, f.filename))
 
         await job.update_params({
             "saves_dir": saves_dir,

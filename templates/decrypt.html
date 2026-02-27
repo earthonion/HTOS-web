@@ -25,4 +25,11 @@
 
     <button type="submit">Start Decrypt</button>
 </form>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.querySelector('form.operation-form');
+    if (form) setupChunkedForm(form, { saves: 'upload_ids' });
+});
+</script>
 {% endblock %}
