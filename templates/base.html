@@ -40,6 +40,7 @@
                 <a href="{{ url_for('quickcodes.quickcodes') }}">Quick Codes</a>
                 {% endif %}
                 <a href="{{ url_for('contribute.contribute') }}">Contribute</a>
+                <a href="{{ url_for('main.about') }}">About</a>
             </div>
             <div class="nav-workers">
                 {% if workers_online > 0 %}
@@ -82,7 +83,7 @@
             <span title="PS4 workers online">PS4: {{ ps4_workers }}</span>
             <span title="PS5 workers online">PS5: {{ ps5_workers }}</span>
         </div>
-        <p><a href="{{ url_for('main.about') }}">About</a></p>
+        <p>garlicsaves</p>
     </footer>
 
     <script src="{{ url_for('static', filename='chunked-upload.js') }}"></script>
