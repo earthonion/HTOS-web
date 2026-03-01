@@ -64,7 +64,7 @@ def create_app():
                 await db.close()
         except Exception:
             pass
-        return dict(workers_online=ps4_count + ps5_count, ps4_workers=ps4_count, ps5_workers=ps5_count)
+        return dict(workers_online=ps4_count + ps5_count, ps4_workers=ps4_count, ps5_workers=ps5_count, ps5_workers_online=ps5_count > 0)
 
     @app.before_serving
     async def startup():
