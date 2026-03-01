@@ -59,7 +59,7 @@
 
 /* ═══ BODY ═══ */
 body {
-    font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+    font-family: 'Fira Code', 'JetBrains Mono', monospace;
     background: var(--bg-0);
     color: var(--text-1);
     min-height: 100vh;
