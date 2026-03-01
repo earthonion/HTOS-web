@@ -42,7 +42,7 @@
             </div>
             <div class="nav-workers">
                 {% if workers_online > 0 %}
-                <span style="color: var(--green);">&#9679;</span> Workers online: {{ workers_online }}
+                <span style="color: var(--green);">&#9679;</span> Workers: {{ workers_online }} (PS4: {{ ps4_workers }}, PS5: {{ ps5_workers }})
                 {% else %}
                 <span style="color: var(--red);">&#9679;</span> No workers online
                 {% endif %}
