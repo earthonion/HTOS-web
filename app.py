@@ -43,21 +43,28 @@ def create_app():
     @app.context_processor
     async def inject_worker_count():
         from models import get_db
+        ps4_count = 0
+        ps5_count = 0
         try:
             db = await get_db()
             try:
                 cursor = await db.execute(
-                    "SELECT COUNT(DISTINCT user_id) as cnt FROM worker_keys "
+                    "SELECT last_platform, COUNT(*) as cnt FROM worker_keys "
                     "WHERE is_active = 1 AND last_used IS NOT NULL "
-                    "AND last_used > datetime('now', '-90 seconds')"
+                    "AND last_used > datetime('now', '-90 seconds') "
+                    "GROUP BY last_platform"
                 )
-                row = await cursor.fetchone()
-                count = row["cnt"] if row else 0
+                rows = await cursor.fetchall()
+                for row in rows:
+                    if row["last_platform"] == "ps5":
+                        ps5_count = row["cnt"]
+                    else:
+                        ps4_count = row["cnt"]
             finally:
                 await db.close()
         except Exception:
-            count = 0
-        return dict(workers_online=count)
+            pass
+        return dict(workers_online=ps4_count + ps5_count, ps4_workers=ps4_count, ps5_workers=ps5_count)
 
     @app.before_serving
     async def startup():

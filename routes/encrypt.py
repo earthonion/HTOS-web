@@ -10,7 +10,8 @@ from utils.constants import (
     SCE_SYS_NAME, PARAM_NAME,
 )
 from utils.orbis import validate_savedirname, sfo_ctx_create
-from services.files import _read_account_id_from_sfo, FileTooLargeError, _check_file_sizes, _strip_sdimg_prefix, resolve_chunked_uploads
+from services.files import _read_account_id_from_sfo, FileTooLargeError, _check_file_sizes, _strip_sdimg_prefix, resolve_chunked_uploads, detect_platform_in_dir
+from services.workers import ps5_workers_online
 
 encrypt_bp = Blueprint("encrypt", __name__)
 
@@ -162,10 +163,15 @@ async def encrypt():
         # Read account ID from param.sfo (8 bytes at 0x15C, little-endian)
         sfo_account_id = _read_account_id_from_sfo(sfo_path)
 
+        platform = "ps5" if form.get("platform") == "ps5" else "ps4"
+        if platform == "ps5" and not await ps5_workers_online():
+            await flash("PS5 saves not currently supported!", "error")
+            return await render_template("encrypt.html", profiles=profiles)
         params = {
             "savename": savename,
             "saveblocks": saveblocks,
             "upload_dir": save_dir,
+            "platform": platform,
         }
         if sfo_account_id:
             params["sfo_account_id"] = sfo_account_id

@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS worker_keys (
     name TEXT DEFAULT '',
     is_active BOOLEAN DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_used TIMESTAMP
+    last_used TIMESTAMP,
+    last_platform TEXT DEFAULT 'ps4'
 );
 
 CREATE TABLE IF NOT EXISTS settings (
@@ -55,9 +56,18 @@ CREATE TABLE IF NOT EXISTS invite_codes (
 INSERT OR IGNORE INTO settings (key, value) VALUES ('invite_only', '0');
 """
 
+MIGRATIONS = [
+    "ALTER TABLE worker_keys ADD COLUMN last_platform TEXT DEFAULT 'ps4'",
+]
+
 async def init_db():
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.executescript(SCHEMA)
+        for sql in MIGRATIONS:
+            try:
+                await db.execute(sql)
+            except Exception:
+                pass  # column already exists
         await db.commit()
 
 async def get_db():

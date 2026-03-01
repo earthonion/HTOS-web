@@ -3,7 +3,8 @@ from quart import Blueprint, render_template, request, session, redirect, url_fo
 from auth import login_required
 from models import get_db
 from services.jobs import create_job
-from services.files import save_uploaded_files, resolve_chunked_uploads
+from services.files import save_uploaded_files, detect_platform_in_dir, resolve_chunked_uploads
+from services.workers import ps5_workers_online
 
 resign_bp = Blueprint("resign", __name__)
 
@@ -57,7 +58,16 @@ async def resign():
             upload_dir = await resolve_chunked_uploads(upload_ids, user_id, job.job_id)
         else:
             upload_dir = await save_uploaded_files(files, user_id, job.job_id)
-        await job.update_params({"upload_dir": upload_dir})
+        platform = detect_platform_in_dir(upload_dir)
+        await job.update_params({"upload_dir": upload_dir, "platform": platform})
+
+        if platform == "ps5":
+            if not await ps5_workers_online():
+                await flash("PS5 saves not currently supported!", "error")
+                return await render_template("resign.html", profiles=profiles)
+            job.logger.info("Resigning PS5 save...")
+        else:
+            job.logger.info("Resigning PS4 save...")
 
         return redirect(url_for("jobs.job_status", job_id=job.job_id))
 

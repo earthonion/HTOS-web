@@ -34,12 +34,40 @@ async def validate_worker_key(key):
     return None
 
 
+async def _ensure_global_key_in_db():
+    """Insert or update the global worker key in the DB so worker count tracking works."""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT id FROM worker_keys WHERE key = ?", (WORKER_KEY,)
+        )
+        row = await cursor.fetchone()
+        if row:
+            await db.execute(
+                "UPDATE worker_keys SET last_used = CURRENT_TIMESTAMP WHERE id = ?",
+                (row["id"],)
+            )
+        else:
+            await db.execute(
+                "INSERT INTO worker_keys (user_id, key, name, is_active) VALUES (NULL, ?, 'global', 1)",
+                (WORKER_KEY,)
+            )
+            await db.execute(
+                "UPDATE worker_keys SET last_used = CURRENT_TIMESTAMP WHERE key = ?",
+                (WORKER_KEY,)
+            )
+        await db.commit()
+    finally:
+        await db.close()
+
+
 def require_worker_key(f):
     @wraps(f)
     async def decorated(*args, **kwargs):
         key = request.headers.get("X-Worker-Key", "")
         # Global key (backward compat)
         if WORKER_KEY and key == WORKER_KEY:
+            await _ensure_global_key_in_db()
             return await f(*args, **kwargs)
         # User-generated key from DB
         if key and await validate_worker_key(key):
@@ -51,25 +79,49 @@ def require_worker_key(f):
 @api_bp.route("/next", methods=["GET"])
 @require_worker_key
 async def next_job():
-    """Return the next queued job, or 204 if none."""
+    """Return the next queued job, or 204 if none.
+    Workers can pass ?platform=ps5 to only receive jobs for that platform."""
+    worker_platform = request.args.get("platform", "ps4")
+
+    # Track worker platform on heartbeat
+    worker_key = request.headers.get("X-Worker-Key", "")
+    if worker_key:
+        db = await get_db()
+        try:
+            await db.execute(
+                "UPDATE worker_keys SET last_platform = ? WHERE key = ?",
+                (worker_platform, worker_key)
+            )
+            await db.commit()
+        finally:
+            await db.close()
+
     db = await get_db()
     try:
         cursor = await db.execute(
             "SELECT id, user_id, operation, params, created_at FROM jobs "
-            "WHERE status = 'queued' ORDER BY created_at ASC LIMIT 1"
+            "WHERE status = 'queued' ORDER BY created_at ASC LIMIT 20"
         )
-        row = await cursor.fetchone()
-        if not row:
+        rows = await cursor.fetchall()
+        if not rows:
             return Response(status=204)
 
-        job = dict(row)
-        # Parse params JSON
-        if job["params"]:
-            job["params"] = json.loads(job["params"])
-        else:
-            job["params"] = {}
+        for row in rows:
+            job = dict(row)
+            if job["params"]:
+                job["params"] = json.loads(job["params"])
+            else:
+                job["params"] = {}
 
-        return job
+            # Filter by platform (defaults to ps4 for legacy workers)
+            job_platform = job["params"].get("platform", "ps4")
+            if job_platform != worker_platform:
+                continue
+
+            return job
+
+        # No matching jobs
+        return Response(status=204)
     finally:
         await db.close()
 

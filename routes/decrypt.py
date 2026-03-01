@@ -2,7 +2,8 @@ from quart import Blueprint, render_template, request, session, redirect, url_fo
 
 from auth import login_required
 from services.jobs import create_job
-from services.files import save_uploaded_files, extract_account_id, FileTooLargeError, resolve_chunked_uploads
+from services.files import save_uploaded_files, extract_account_id, detect_platform_in_dir, FileTooLargeError, resolve_chunked_uploads
+from services.workers import ps5_workers_online
 
 decrypt_bp = Blueprint("decrypt", __name__)
 
@@ -36,11 +37,20 @@ async def decrypt():
         except FileTooLargeError as e:
             await flash(f"Save file too large: {e}. Worker cannot process files this big.", "error")
             return await render_template("decrypt.html")
-        params = {"upload_dir": upload_dir}
-        acct = extract_account_id(upload_dir)
+        platform = detect_platform_in_dir(upload_dir)
+        params = {"upload_dir": upload_dir, "platform": platform}
+        acct = extract_account_id(upload_dir, platform)
         if acct:
             params["sfo_account_id"] = acct
         await job.update_params(params)
+
+        if platform == "ps5":
+            if not await ps5_workers_online():
+                await flash("PS5 saves not currently supported!", "error")
+                return await render_template("decrypt.html")
+            job.logger.info("Decrypting PS5 save...")
+        else:
+            job.logger.info("Decrypting PS4 save...")
 
         return redirect(url_for("jobs.job_status", job_id=job.job_id))
 

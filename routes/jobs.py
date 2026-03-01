@@ -50,7 +50,8 @@ async def job_status(job_id):
     # Extract account ID from result zip if not already in params
     if job.status == "done" and job.result_path and not job.params.get("sfo_account_id"):
         if os.path.exists(job.result_path):
-            acct = extract_account_id_from_zip(job.result_path)
+            platform = job.params.get("platform", "ps4")
+            acct = extract_account_id_from_zip(job.result_path, platform)
             if acct:
                 job.params["sfo_account_id"] = acct
                 await job.update_params({"sfo_account_id": acct})

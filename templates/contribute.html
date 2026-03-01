@@ -2,7 +2,7 @@
 {% block title %}Contribute{% endblock %}
 {% block content %}
 <h1>Contribute</h1>
-<p>Run a PS4 worker to help process jobs. Generate a worker key and set it in your worker's <code>config.ini</code> as <code>workerKey=...</code></p>
+<p>Run a worker on your PS4 or PS5 to help process save jobs. Generate a worker key and set it in your worker's <code>config.ini</code>.</p>
 
 {% if new_key %}
 <section class="panel" style="border-color: var(--green); background: var(--green-bg);">
@@ -14,17 +14,14 @@
     </div>
 </section>
 <section class="panel">
-    <h2>Config File</h2>
-    <p style="color: var(--text-1); margin-bottom: 0.5rem;">Save this as <code>/data/cecie/config.ini</code> on your PS4.</p>
+    <h2>Config</h2>
+    <p style="color: var(--text-1); margin-bottom: 0.5rem;">Save as <code>/data/garlic/config.ini</code> on your console.</p>
     <div style="position: relative;">
-        <pre id="config-text" style="background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 1rem; font-family: 'Fira Code', monospace; font-size: 0.82rem; line-height: 1.7; color: var(--text-1); overflow-x: auto;">saveDirectory=/data/htos/upload
-port=1234
-workerEnabled=true
-serverHost=garlicsaves.com
+        <pre id="config-worker" style="background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 1rem; font-family: 'Fira Code', monospace; font-size: 0.82rem; line-height: 1.7; color: var(--text-1); overflow-x: auto;">serverHost=garlicsaves.com
 serverPort=80
 workerKey={{ new_key }}
 pollInterval=30</pre>
-        <button type="button" onclick="copyConfig()" class="btn-small" style="position: absolute; top: 0.5rem; right: 0.5rem;">Copy</button>
+        <button type="button" onclick="copyEl('config-worker')" class="btn-small" style="position: absolute; top: 0.5rem; right: 0.5rem;">Copy</button>
     </div>
 </section>
 <script>
@@ -35,9 +32,9 @@ function copyKey() {
     btn.textContent = 'Copied!';
     setTimeout(() => btn.textContent = 'Copy', 1500);
 }
-function copyConfig() {
-    const config = document.getElementById('config-text').textContent;
-    navigator.clipboard.writeText(config);
+function copyEl(id) {
+    const text = document.getElementById(id).textContent;
+    navigator.clipboard.writeText(text);
     const btn = event.target;
     btn.textContent = 'Copied!';
     setTimeout(() => btn.textContent = 'Copy', 1500);
@@ -53,24 +50,28 @@ function copyConfig() {
     </form>
 </section>
 
-<section class="panel">
-    <h2>PS4 Setup</h2>
-    <p><a href="{{ url_for('static', filename='cecie.pkg') }}" download>Download cecie.pkg</a></p>
+<details class="panel setup-dropdown">
+    <summary><h2>Worker Setup (PS4 &amp; PS5)</h2></summary>
+    <p><a href="https://github.com/earthonion/garlicsaves-worker/releases" target="_blank">Download garlic-worker from GitHub</a> — grab <code>garlic-worker-ps4.elf</code> or <code>garlic-worker-ps5.elf</code> for your console.</p>
     <ol style="color: var(--text-2); font-size: 0.85rem; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.4rem;">
-        <li>Install <strong>cecie.pkg</strong> on your jailbroken PS4</li>
-        <li>Via FTP, create the directory <code>/data/cecie/</code></li>
-        <li>Create the directory <code>/data/htos/upload/</code></li>
-        <li>Generate a worker key above and save the config as <code>/data/cecie/config.ini</code></li>
-        <li>Launch cecie from the PS4 home screen — it will start polling for jobs</li>
+        <li>Make sure your console is jailbroken and running a payload loader — <a href="https://github.com/ps4-payload-dev/elfldr" target="_blank">PS4 elfldr</a> / <a href="https://github.com/ps5-payload-dev/elfldr" target="_blank">PS5 elfldr</a> (port 9021)</li>
+        <li>Generate a worker key above</li>
+        <li>Via FTP, create the directory <code>/data/garlic/</code></li>
+        <li>Save your config as <code>/data/garlic/config.ini</code> (or launch the worker once and it will create a default config to edit)</li>
+        <li>Send the ELF to your console: <code>cat garlic-worker-ps4.elf | nc -w 2 &lt;CONSOLE_IP&gt; 9021</code></li>
+        <li>The worker will show a notification and start polling for jobs</li>
+        <li><strong>Recommended:</strong> For PS5, add the ELF to your Y2JB <code>autoloader.txt</code>. For PS4, add it to your Vue-After-Free <code>config.json</code>. This way the worker runs automatically in the background while you play games</li>
+        <li><strong>Tip:</strong> Increase <code>pollInterval</code> in your config (e.g. 60 or 120) to reduce resource usage</li>
+        <li><strong>Tip:</strong> Go to Settings &gt; Power Save Settings and set your console to not enter rest mode automatically, so the worker stays running</li>
     </ol>
-</section>
+</details>
 
 <section class="panel">
     <h2>Your Worker Keys</h2>
     {% if keys %}
     <table>
         <thead>
-            <tr><th>Name</th><th>Status</th><th>Created</th><th>Last Used</th><th></th></tr>
+            <tr><th>Name</th><th>Status</th><th>Online</th><th>Created</th><th>Last Used</th><th></th></tr>
         </thead>
         <tbody>
             {% for k in keys %}
@@ -81,6 +82,13 @@ function copyConfig() {
                     <span class="status-done">active</span>
                     {% else %}
                     <span class="status-failed">revoked</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if k.is_online %}
+                    <span class="status-done">{{ k.last_platform | upper }}</span>
+                    {% else %}
+                    <span style="color: var(--text-2);">offline</span>
                     {% endif %}
                 </td>
                 <td>{{ k.created_at }}</td>

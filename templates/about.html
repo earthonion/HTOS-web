@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}About{% endblock %}
+{% block content %}
+<h1>About</h1>
+
+<section class="panel">
+    <h2>Credits</h2>
+    <ul style="color: var(--text-2); font-size: 0.9rem; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem;">
+        <li><strong>Garlic Saves</strong> by <a href="https://github.com/earthonion" target="_blank">earthonion</a></li>
+        <li><strong>PS5 Save Reverse Engineering</strong> by <a href="https://github.com/c0w-ar" target="_blank">c0w-ar</a></li>
+        <li><strong>HTOS</strong> by <a href="https://github.com/hzhreal" target="_blank">hzh</a></li>
+        <li><strong>cecie.nim</strong> by <a href="https://github.com/Team-Alua" target="_blank">Team-Alua</a></li>
+    </ul>
+</section>
+
+<section class="panel">
+    <h2>Source Code</h2>
+    <ul style="color: var(--text-2); font-size: 0.9rem; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem;">
+        <li><a href="https://github.com/earthonion/garlicsaves-worker" target="_blank">Garlic Worker (PS4 & PS5)</a> — Save processing worker</li>
+        <li><a href="https://github.com/hzhreal/HTOS" target="_blank">HTOS</a> — PS4/PS5 save tool</li>
+        <li><a href="https://github.com/hzhreal/cecie.nim" target="_blank">cecie.nim</a> — PS4 save worker (legacy)</li>
+        <li><a href="https://github.com/ps4-payload-dev/elfldr" target="_blank">PS4 elfldr</a> — PS4 ELF loader</li>
+        <li><a href="https://github.com/ps5-payload-dev/elfldr" target="_blank">PS5 elfldr</a> — PS5 ELF loader</li>
+    </ul>
+</section>
+{% endblock %}
