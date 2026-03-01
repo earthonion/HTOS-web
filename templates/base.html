@@ -22,7 +22,7 @@
     {% if session.get('user_id') %}
     <nav class="sidebar">
         <div class="nav-header">
-            <div class="nav-brand">garlicsaves</div>
+            <div class="nav-brand"><img src="{{ url_for('static', filename='favicon.svg') }}" alt="" style="height:1.4em;vertical-align:middle;margin-right:0.3em;">garlicsaves</div>
             <button type="button" class="hamburger" id="hamburger" aria-label="Menu">
                 <span></span><span></span><span></span>
             </button>
@@ -55,7 +55,7 @@
     </nav>
     {% else %}
     <nav class="topbar">
-        <div class="nav-brand">garlicsaves</div>
+        <div class="nav-brand"><img src="{{ url_for('static', filename='favicon.svg') }}" alt="" style="height:1.4em;vertical-align:middle;margin-right:0.3em;">garlicsaves</div>
     </nav>
     {% endif %}
 
