@@ -92,6 +92,11 @@ async def next_job():
                 "UPDATE worker_keys SET last_platform = ? WHERE key = ?",
                 (worker_platform, worker_key)
             )
+            if worker_platform == "ps5":
+                await db.execute(
+                    "INSERT INTO settings (key, value) VALUES ('last_ps5_worker', datetime('now')) "
+                    "ON CONFLICT(key) DO UPDATE SET value = datetime('now')"
+                )
             await db.commit()
         finally:
             await db.close()
