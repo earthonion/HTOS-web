@@ -7,6 +7,8 @@ from auth import login_required
 from config import CHUNK_DIR
 from models import get_db
 from services.jobs import create_job
+from services.files import detect_platform_in_dir
+from services.workers import ps5_workers_online
 
 reregion_bp = Blueprint("reregion", __name__)
 
@@ -97,10 +99,20 @@ async def reregion():
             for f in sample_files:
                 await f.save(os.path.join(sample_dir, f.filename))
 
+        platform = detect_platform_in_dir(saves_dir)
         await job.update_params({
             "saves_dir": saves_dir,
             "sample_dir": sample_dir,
+            "platform": platform,
         })
+
+        if platform == "ps5":
+            if not await ps5_workers_online():
+                await flash("PS5 saves not currently supported!", "error")
+                return await render_template("reregion.html", profiles=profiles)
+            job.logger.info("Re-regioning PS5 save...")
+        else:
+            job.logger.info("Re-regioning PS4 save...")
 
         return redirect(url_for("jobs.job_status", job_id=job.job_id))
 

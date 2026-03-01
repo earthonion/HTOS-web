@@ -27,6 +27,10 @@ async def dashboard():
         username=session.get("username", "")
     )
 
+@main_bp.route("/about")
+async def about():
+    return await render_template("about.html")
+
 @main_bp.route("/profiles", methods=["POST"])
 @login_required
 async def create_profile():

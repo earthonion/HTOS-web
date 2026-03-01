@@ -63,7 +63,8 @@ async def contribute():
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT id, name, is_active, created_at, last_used "
+            "SELECT id, name, is_active, created_at, last_used, last_platform, "
+            "CASE WHEN last_used IS NOT NULL AND last_used > datetime('now', '-90 seconds') THEN 1 ELSE 0 END as is_online "
             "FROM worker_keys WHERE user_id = ? ORDER BY created_at DESC",
             (user_id,)
         )

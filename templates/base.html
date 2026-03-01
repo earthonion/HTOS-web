@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=11">
+    {% block extra_head %}{% endblock %}
     <style>
     .chunked-progress-wrapper { margin-top: 0.5rem; }
     .chunked-progress { margin-bottom: 0.25rem; }
@@ -75,8 +76,12 @@
         {% block content %}{% endblock %}
     </main>
 
-    <footer>
-        <p>Based on <a href="https://github.com/hzhreal/HTOS" target="_blank">HTOS</a> & <a href="https://github.com/hzhreal/cecie.nim" target="_blank">cecie.nim</a> by hzh | Originally based on <a href="https://github.com/Team-Alua/cecie.nim" target="_blank">cecie.nim</a> by Team-Alua</p>
+    <footer style="position: relative;">
+        <div style="position: absolute; left: 1rem; bottom: 0; top: 0; display: flex; align-items: center; gap: 0.75rem; font-size: 0.75rem; color: var(--text-2);">
+            <span title="PS4 workers online">PS4: {{ ps4_workers }}</span>
+            <span title="PS5 workers online">PS5: {{ ps5_workers }}</span>
+        </div>
+        <p><a href="{{ url_for('main.about') }}">About</a></p>
     </footer>
 
     <script src="{{ url_for('static', filename='chunked-upload.js') }}"></script>

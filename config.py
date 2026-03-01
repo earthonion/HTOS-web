@@ -6,6 +6,7 @@ load_dotenv()
 # Worker authentication
 WORKER_KEY = os.getenv("WORKER_KEY", "")
 WORKER_SIGNING_KEY = os.getenv("WORKER_SIGNING_KEY", "")
+PS5_WORKERS_ENABLED = os.getenv("PS5_WORKERS_ENABLED", "0").lower() in ("1", "true", "yes")
 
 # Web server
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")

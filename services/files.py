@@ -127,35 +127,70 @@ async def save_uploaded_files_to(files, dest_dir: str) -> str:
     return dest_dir
 
 
-def extract_account_id(directory: str) -> str | None:
-    """Find param.sfo in directory and read account ID (8 bytes at 0x15C)."""
+def detect_save_platform(filepath: str) -> str:
+    """Detect PS4 vs PS5 by reading first byte of save file.
+    PS4 saves start with 0x01, PS5 with 0x02.
+    Returns 'ps4', 'ps5', or 'unknown'."""
+    try:
+        with open(filepath, "rb") as f:
+            header = f.read(4)
+            if len(header) >= 1:
+                if header[0] == 0x01:
+                    return "ps4"
+                elif header[0] == 0x02:
+                    return "ps5"
+    except (OSError, IOError):
+        pass
+    return "unknown"
+
+
+def detect_platform_in_dir(directory: str) -> str:
+    """Detect platform from save files in a directory.
+    Returns 'ps4', 'ps5', or 'unknown'."""
+    for name in os.listdir(directory):
+        filepath = os.path.join(directory, name)
+        if os.path.isfile(filepath) and not name.endswith(".bin"):
+            platform = detect_save_platform(filepath)
+            if platform != "unknown":
+                return platform
+    return "unknown"
+
+
+def extract_account_id(directory: str, platform: str = "ps4") -> str | None:
+    """Find param.sfo in directory and read account ID.
+    PS4: 8 bytes at 0x15C, PS5: 8 bytes at 0x1B8."""
     for root, dirs, files in os.walk(directory):
         for f in files:
             if f.lower() == "param.sfo":
                 sfo_path = os.path.join(root, f)
-                return _read_account_id_from_sfo(sfo_path)
+                return _read_account_id_from_sfo(sfo_path, platform)
     return None
 
 
-def extract_account_id_from_zip(zip_path: str) -> str | None:
-    """Find param.sfo inside a zip and read account ID (8 bytes at 0x15C)."""
+def extract_account_id_from_zip(zip_path: str, platform: str = "ps4") -> str | None:
+    """Find param.sfo inside a zip and read account ID.
+    PS4: 8 bytes at 0x15C, PS5: 8 bytes at 0x1B8."""
+    offset = 0x1B8 if platform == "ps5" else 0x15C
+    end = offset + 8
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
             for name in zf.namelist():
                 if name.lower().endswith("param.sfo"):
                     data = zf.read(name)
-                    if len(data) > 0x163:
-                        return data[0x15C:0x164][::-1].hex()
+                    if len(data) > end:
+                        return data[offset:end][::-1].hex()
     except (zipfile.BadZipFile, OSError):
         pass
     return None
 
 
-def _read_account_id_from_sfo(sfo_path: str) -> str | None:
-    """Read account ID (8 bytes at 0x15C) from a param.sfo file."""
+def _read_account_id_from_sfo(sfo_path: str, platform: str = "ps4") -> str | None:
+    """Read account ID from a param.sfo file.
+    PS4: 8 bytes at 0x15C, PS5: 8 bytes at 0x1B8."""
+    offset = 0x1B8 if platform == "ps5" else 0x15C
     try:
         with open(sfo_path, "rb") as fh:
-            fh.seek(0x15C)
+            fh.seek(offset)
             data = fh.read(8)
             if len(data) == 8:
                 return data[::-1].hex()

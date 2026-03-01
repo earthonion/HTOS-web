@@ -46,6 +46,12 @@
         Ignore second-layer checks
     </label>
 
+    {% if ps5_workers_online %}
+    <label class="checkbox-label">
+        <input type="checkbox" name="platform" value="ps5"> PS5 save
+    </label>
+    {% endif %}
+
     <button type="submit">Create Save</button>
 </form>
 

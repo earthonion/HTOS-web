@@ -29,6 +29,12 @@
         <div class="file-drop-selected"></div>
     </div>
 
+    {% if ps5_workers_online %}
+    <label class="checkbox-label">
+        <input type="checkbox" name="platform" value="ps5"> PS5 save
+    </label>
+    {% endif %}
+
     <button type="submit">Encrypt</button>
 </form>
 

@@ -342,6 +342,34 @@ a:hover { color: var(--cyan); }
     margin-bottom: 1.25rem;
 }
 
+details.setup-dropdown {
+    cursor: default;
+}
+details.setup-dropdown summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+details.setup-dropdown summary::-webkit-details-marker { display: none; }
+details.setup-dropdown summary::before {
+    content: '\25B6';
+    font-size: 0.7rem;
+    color: var(--text-2);
+    transition: transform 0.2s;
+}
+details[open].setup-dropdown summary::before {
+    transform: rotate(90deg);
+}
+details.setup-dropdown summary h2 {
+    margin: 0;
+    display: inline;
+}
+details.setup-dropdown > :not(summary) {
+    margin-top: 0.75rem;
+}
+
 /* ═══════════════════ AUTH ═══════════════════ */
 .auth-form {
     max-width: 360px;
@@ -876,4 +904,13 @@ footer a {
 }
 footer a:hover {
     text-decoration: underline;
+}
+
+/* No sidebar (login/register pages) */
+.topbar ~ main {
+    margin-left: auto;
+    margin-right: auto;
+}
+.topbar ~ footer {
+    padding-left: 0;
 }
