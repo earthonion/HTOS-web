@@ -77,29 +77,33 @@ async def delete_user(username):
 async def list_keys(username=None):
     db = await get_db()
     try:
+        query = (
+            "SELECT wk.id, u.username, wk.name, wk.is_active, wk.created_at, wk.last_used, "
+            "wk.last_platform, "
+            "CASE WHEN wk.is_active = 1 AND wk.last_used IS NOT NULL "
+            "AND wk.last_used > datetime('now', '-90 seconds') THEN 1 ELSE 0 END as is_online "
+            "FROM worker_keys wk JOIN users u ON wk.user_id = u.id "
+        )
         if username:
-            cursor = await db.execute(
-                "SELECT wk.id, u.username, wk.name, wk.is_active, wk.created_at, wk.last_used "
-                "FROM worker_keys wk JOIN users u ON wk.user_id = u.id "
-                "WHERE u.username = ? ORDER BY wk.id",
-                (username,)
-            )
+            query += "WHERE u.username = ? ORDER BY wk.id"
+            cursor = await db.execute(query, (username,))
         else:
-            cursor = await db.execute(
-                "SELECT wk.id, u.username, wk.name, wk.is_active, wk.created_at, wk.last_used "
-                "FROM worker_keys wk JOIN users u ON wk.user_id = u.id "
-                "ORDER BY wk.id"
-            )
+            query += "ORDER BY wk.id"
+            cursor = await db.execute(query)
         rows = await cursor.fetchall()
         if not rows:
             print("No worker keys.")
             return
-        print(f"{'ID':<6}{'User':<16}{'Name':<20}{'Active':<8}{'Created':<22}{'Last Used'}")
-        print("-" * 90)
+        print(f"{'ID':<6}{'User':<16}{'Name':<20}{'Active':<8}{'Status':<12}{'Created':<22}{'Last Used'}")
+        print("-" * 100)
         for r in rows:
             active = "yes" if r["is_active"] else "no"
             last = r["last_used"] or "never"
-            print(f"{r['id']:<6}{r['username']:<16}{r['name']:<20}{active:<8}{r['created_at']:<22}{last}")
+            if r["is_online"]:
+                status = f"online/{r['last_platform'] or 'ps4'}"
+            else:
+                status = "offline"
+            print(f"{r['id']:<6}{r['username']:<16}{r['name']:<20}{active:<8}{status:<12}{r['created_at']:<22}{last}")
     finally:
         await db.close()
 
