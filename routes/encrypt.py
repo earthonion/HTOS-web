@@ -160,10 +160,10 @@ async def encrypt():
             await flash(f"Invalid save blocks: {saveblocks}", "error")
             return await render_template("encrypt.html", profiles=profiles)
 
-        # Read account ID from param.sfo (8 bytes at 0x15C, little-endian)
-        sfo_account_id = _read_account_id_from_sfo(sfo_path)
-
         platform = "ps5" if form.get("platform") == "ps5" else "ps4"
+
+        # Read account ID from param.sfo (PS4: 0x15C, PS5: 0x1B8)
+        sfo_account_id = _read_account_id_from_sfo(sfo_path, platform)
         if platform == "ps5" and not await ps5_workers_online():
             await flash("PS5 saves not currently supported!", "error")
             return await render_template("encrypt.html", profiles=profiles)
