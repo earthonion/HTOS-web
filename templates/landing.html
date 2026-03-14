@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% block title %}PS4 & PS5 Save Tools{% endblock %}
+{% block extra_head %}
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4655695509534120"
+     crossorigin="anonymous"></script>
+<style>
+.landing-hero {
+    text-align: center;
+    padding: 3rem 0 2rem;
+}
+.landing-hero h1 {
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+    margin-bottom: 0.75rem;
+}
+.landing-hero h1 span {
+    background: linear-gradient(135deg, var(--indigo-light), var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.landing-hero .subtitle {
+    font-size: 1rem;
+    color: var(--text-2);
+    max-width: 520px;
+    margin: 0 auto 1.5rem;
+    line-height: 1.7;
+}
+.landing-cta {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 1.5rem;
+}
+.landing-cta .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-2);
+}
+.landing-cta .btn-outline:hover {
+    border-color: var(--indigo);
+    color: var(--text-1);
+    background: var(--indigo-glow);
+    box-shadow: none;
+}
+.how-it-works {
+    margin: 2rem 0;
+}
+.how-it-works h2 {
+    text-align: center;
+    margin-bottom: 1.25rem;
+}
+.step-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.step {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+}
+.step-num {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--indigo-glow);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--indigo-light);
+}
+.step-content h3 {
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+}
+.step-content p {
+    font-size: 0.82rem;
+    color: var(--text-2);
+    margin-bottom: 0;
+}
+.faq-section {
+    margin: 2rem 0 1rem;
+}
+.faq-section h2 {
+    text-align: center;
+    margin-bottom: 1.25rem;
+}
+.faq-item {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+}
+.faq-item summary {
+    padding: 0.85rem 1rem;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-1);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary::before {
+    content: '+';
+    color: var(--indigo-light);
+    font-size: 1rem;
+    font-weight: 400;
+    flex-shrink: 0;
+    width: 1rem;
+    text-align: center;
+}
+.faq-item[open] summary::before { content: '-'; }
+.faq-item .faq-body {
+    padding: 0 1rem 1rem 2.5rem;
+    font-size: 0.82rem;
+    color: var(--text-2);
+    line-height: 1.7;
+}
+.community-section {
+    text-align: center;
+    margin: 2rem 0 1rem;
+}
+.community-section p {
+    font-size: 0.88rem;
+}
+.stat-row {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    margin: 1.5rem 0;
+    flex-wrap: wrap;
+}
+.stat-item {
+    text-align: center;
+}
+.stat-num {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--indigo-light);
+    display: block;
+}
+.stat-label {
+    font-size: 0.72rem;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+@media (max-width: 768px) {
+    .landing-hero { padding: 1.5rem 0 1rem; }
+    .landing-hero h1 { font-size: 1.5rem; }
+.stat-row { gap: 1.25rem; }
+}
+</style>
+{% endblock %}
+{% block content %}
+
+<div class="landing-hero">
+    <h1>Free & open source <span>PS4 & PS5</span> save tools</h1>
+    <p class="subtitle">
+        Decrypt, encrypt, resign, and re-region your PlayStation saves — right from your browser.
+        No PC tools needed. Just upload, pick what you want, and download.
+        Or run it <a href="https://github.com/earthonion/garlic-savemgr" target="_blank">locally on your PS5</a>.
+    </p>
+    <div class="stat-row">
+        <div class="stat-item">
+            <span class="stat-num">{{ total_workers }}</span>
+            <span class="stat-label">Workers Online</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-num">{{ total_jobs }}</span>
+            <span class="stat-label">Jobs Processed</span>
+        </div>
+    </div>
+    <div class="landing-cta">
+        <a href="{{ url_for('auth.register') }}" class="btn">Get Started</a>
+        <a href="{{ url_for('auth.login') }}" class="btn btn-outline">Sign In</a>
+    </div>
+</div>
+
+<div class="how-it-works">
+    <h2>How It Works</h2>
+    <div class="step-list">
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+                <h3>Upload your save</h3>
+                <p>Grab the save from your console via FTP and upload it here. We accept both PS4 and PS5 save formats — encrypted or decrypted.</p>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-content">
+                <h3>Pick an operation</h3>
+                <p>Choose what you need — decrypt, encrypt, resign, re-region, or create a new save. Set any options like the target account ID or region.</p>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-content">
+                <h3>A worker handles it</h3>
+                <p>Your job gets sent to a real PS4 or PS5 console running in the background. The console processes the save using the actual system libraries — no emulation, no guesswork.</p>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-content">
+                <h3>Download the result</h3>
+                <p>Once it's done (usually a few seconds), download your processed save and FTP it back to your console. That's it.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="faq-section">
+    <h2>Frequently Asked Questions</h2>
+
+    <details class="faq-item">
+        <summary>What do I need to use this?</summary>
+        <div class="faq-body">
+            A jailbroken PS4 or PS5 with FTP access so you can pull saves off the console. You'll also need a free account here. That's really it — no special software on your PC required.
+        </div>
+    </details>
+
+    <details class="faq-item">
+        <summary>Is this free?</summary>
+        <div class="faq-body">
+            Yep, totally free. The processing is done by community-contributed consoles. If you want to help keep things running, you can contribute your own console as a worker or sponsor the project.
+        </div>
+    </details>
+
+    <details class="faq-item">
+        <summary>Which firmware versions are supported?</summary>
+        <div class="faq-body">
+            For PS4, any jailbreakable firmware works (up to 13.00). For PS5, currently firmware versions that support the PS5 jailbreak (up to 10.01). The worker consoles handle all the crypto, so your save doesn't need to match the worker's firmware.
+        </div>
+    </details>
+
+    <details class="faq-item">
+        <summary>How does the worker system actually work?</summary>
+        <div class="faq-body">
+            People in the community volunteer their jailbroken consoles to run a small background program (the "worker"). When you submit a job, one of these consoles picks it up, processes the save using Sony's own system libraries, and sends the result back. It's like a distributed network of PlayStations doing the heavy lifting.
+        </div>
+    </details>
+
+    <details class="faq-item">
+        <summary>Can I use saves from someone else's account?</summary>
+        <div class="faq-body">
+            That's exactly what the resign feature is for. Upload the save, enter your own account ID, and the save gets re-signed so your console thinks it belongs to you. Works across PS4 and PS5.
+        </div>
+    </details>
+
+    <details class="faq-item">
+        <summary>What if no workers are online?</summary>
+        <div class="faq-body">
+            Your job sits in the queue until a worker comes online. Usually there are consoles available, but during off-hours it might take a bit longer. You can check the worker status on the dashboard after logging in.
+        </div>
+    </details>
+
+    <details class="faq-item">
+        <summary>How can I contribute a worker?</summary>
+        <div class="faq-body">
+            If you've got a jailbroken PS4 or PS5 that's online most of the time, you can run the garlic worker on it. Create an account, grab a worker key from the Contribute page, and follow the setup instructions. Your console will process jobs in the background — you can still use it normally.
+        </div>
+    </details>
+</div>
+
+<div class="community-section">
+    <h2>Open Source</h2>
+    <p>
+        Garlic Saves is fully open source. The worker code, the server, the save tools — all of it is
+        <a href="https://github.com/earthonion" target="_blank">on GitHub</a>.
+        Built by the homebrew community, for the homebrew community.
+    </p>
+    <div style="display: flex; justify-content: center; margin-top: 1rem;">
+        <iframe src="https://github.com/sponsors/earthonion/card" title="Sponsor earthonion" height="115" width="600" style="border: 0;"></iframe>
+    </div>
+</div>
+
+{% endblock %}

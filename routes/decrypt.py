@@ -26,7 +26,7 @@ async def decrypt():
         job = await create_job(user_id, "decrypt", {
             "include_sce_sys": include_sce_sys,
             "ignore_secondlayer": ignore_secondlayer,
-        })
+        }, ready=False)
         try:
             if upload_ids_json:
                 import json
@@ -52,6 +52,7 @@ async def decrypt():
         else:
             job.logger.info("Decrypting PS4 save...")
 
+        await job.set_status("queued")
         return redirect(url_for("jobs.job_status", job_id=job.job_id))
 
     return await render_template("decrypt.html")

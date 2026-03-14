@@ -58,6 +58,9 @@ INSERT OR IGNORE INTO settings (key, value) VALUES ('invite_only', '0');
 
 MIGRATIONS = [
     "ALTER TABLE worker_keys ADD COLUMN last_platform TEXT DEFAULT 'ps4'",
+    "ALTER TABLE worker_keys ADD COLUMN jobs_completed INTEGER DEFAULT 0",
+    "ALTER TABLE jobs ADD COLUMN worker_key_id INTEGER",
+    "ALTER TABLE worker_keys ADD COLUMN suspended_until TIMESTAMP",
 ]
 
 async def init_db():

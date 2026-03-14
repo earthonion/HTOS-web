@@ -60,7 +60,7 @@ async def reregion():
             return await render_template("reregion.html", profiles=profiles)
 
         account_id = profile["account_id"]
-        job = await create_job(user_id, "reregion", {"account_id": account_id})
+        job = await create_job(user_id, "reregion", {"account_id": account_id}, ready=False)
 
         # Save both sets of files
         upload_dir = os.path.join("workspace", "uploads", str(user_id), job.job_id)
@@ -114,6 +114,7 @@ async def reregion():
         else:
             job.logger.info("Re-regioning PS4 save...")
 
+        await job.set_status("queued")
         return redirect(url_for("jobs.job_status", job_id=job.job_id))
 
     return await render_template("reregion.html", profiles=profiles)

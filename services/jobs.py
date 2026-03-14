@@ -111,20 +111,22 @@ class Job:
             await db.close()
 
 
-async def create_job(user_id: int, operation: str, params: dict | None = None) -> Job:
+async def create_job(user_id: int, operation: str, params: dict | None = None, ready: bool = True) -> Job:
     job_id = str(uuid.uuid4())
     params_json = json.dumps(params) if params else None
+    status = "queued" if ready else "pending"
     db = await get_db()
     try:
         await db.execute(
-            "INSERT INTO jobs (id, user_id, operation, status, params) VALUES (?, ?, ?, 'queued', ?)",
-            (job_id, user_id, operation, params_json)
+            "INSERT INTO jobs (id, user_id, operation, status, params) VALUES (?, ?, ?, ?, ?)",
+            (job_id, user_id, operation, status, params_json)
         )
         await db.commit()
     finally:
         await db.close()
 
     job = Job(job_id, user_id, operation, params)
+    job.status = status
     _jobs[job_id] = job
     return job
 

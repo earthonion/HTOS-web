@@ -71,17 +71,19 @@ function copyEl(id) {
     {% if keys %}
     <table>
         <thead>
-            <tr><th>Name</th><th>Status</th><th>Online</th><th>Created</th><th>Last Used</th><th></th></tr>
+            <tr><th>Name</th><th>Status</th><th>Online</th><th>Jobs</th><th>Created</th><th>Last Used</th><th></th></tr>
         </thead>
         <tbody>
             {% for k in keys %}
             <tr>
                 <td>{{ k.name }}</td>
                 <td>
-                    {% if k.is_active %}
-                    <span class="status-done">active</span>
-                    {% else %}
+                    {% if not k.is_active %}
                     <span class="status-failed">revoked</span>
+                    {% elif k.is_suspended %}
+                    <span class="status-failed">suspended</span>
+                    {% else %}
+                    <span class="status-done">active</span>
                     {% endif %}
                 </td>
                 <td>
@@ -91,9 +93,15 @@ function copyEl(id) {
                     <span style="color: var(--text-2);">offline</span>
                     {% endif %}
                 </td>
+                <td>{{ k.jobs_completed or 0 }}</td>
                 <td>{{ k.created_at }}</td>
                 <td>{{ k.last_used or 'never' }}</td>
-                <td>
+                <td style="display: flex; gap: 0.25rem;">
+                    {% if k.is_suspended %}
+                    <form method="POST" action="{{ url_for('contribute.reactivate_key', key_id=k.id) }}">
+                        <button type="submit" class="btn-small" title="Clear suspension after rebooting your console">I Rebooted</button>
+                    </form>
+                    {% endif %}
                     {% if k.is_active %}
                     <form method="POST" action="{{ url_for('contribute.revoke_key', key_id=k.id) }}">
                         <button type="submit" class="btn-small btn-danger">Revoke</button>
