@@ -6,4 +6,6 @@ workspace/
 logs/
 UserSaves/
 .env
+.env*
 static/*.pkg
+static/*.elf

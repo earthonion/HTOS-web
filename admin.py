@@ -240,8 +240,10 @@ async def list_jobs(limit=20):
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT j.id, u.username, j.operation, j.status, j.created_at, j.error "
+            "SELECT j.id, u.username, j.operation, j.status, j.created_at, j.error, "
+            "wk.name as worker_name "
             "FROM jobs j JOIN users u ON j.user_id = u.id "
+            "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id "
             "ORDER BY j.created_at DESC LIMIT ?",
             (limit,)
         )
@@ -249,12 +251,44 @@ async def list_jobs(limit=20):
         if not rows:
             print("No jobs.")
             return
-        print(f"{'ID':<38}{'User':<16}{'Op':<12}{'Status':<10}{'Created'}")
-        print("-" * 100)
+        print(f"{'ID':<38}{'User':<16}{'Op':<12}{'Status':<10}{'Worker':<16}{'Created'}")
+        print("-" * 116)
         for r in rows:
-            print(f"{r['id']:<38}{r['username']:<16}{r['operation']:<12}{r['status']:<10}{r['created_at']}")
+            worker = r["worker_name"] or "-"
+            print(f"{r['id']:<38}{r['username']:<16}{r['operation']:<12}{r['status']:<10}{worker:<16}{r['created_at']}")
             if r["error"]:
                 print(f"  error: {r['error']}")
+    finally:
+        await db.close()
+
+
+async def worker_stats():
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT wk.id, wk.name, wk.last_platform, wk.is_active, wk.jobs_completed, "
+            "COALESCE(SUM(CASE WHEN j.status = 'done' THEN 1 ELSE 0 END), 0) as done, "
+            "COALESCE(SUM(CASE WHEN j.status = 'failed' THEN 1 ELSE 0 END), 0) as failed, "
+            "COUNT(j.id) as tracked, "
+            "CASE WHEN wk.last_used IS NOT NULL AND wk.last_used > datetime('now', '-90 seconds') "
+            "THEN 'ONLINE' ELSE 'offline' END as status "
+            "FROM worker_keys wk "
+            "LEFT JOIN jobs j ON j.worker_key_id = wk.id "
+            "GROUP BY wk.id "
+            "ORDER BY tracked DESC, wk.last_used DESC"
+        )
+        rows = await cursor.fetchall()
+        if not rows:
+            print("No worker keys.")
+            return
+        print(f"{'ID':<6}{'Name':<22}{'Plat':<6}{'Status':<10}{'Done':<6}{'Fail':<6}{'Total':<7}{'Rate':<8}{'Active'}")
+        print("-" * 80)
+        for r in rows:
+            total = r["done"] + r["failed"]
+            rate = f"{100 * r['done'] // total}%" if total > 0 else "-"
+            active = "yes" if r["is_active"] else "REVOKED"
+            print(f"{r['id']:<6}{r['name']:<22}{r['last_platform']:<6}{r['status']:<10}"
+                  f"{r['done']:<6}{r['failed']:<6}{total:<7}{rate:<8}{active}")
     finally:
         await db.close()
 
@@ -317,6 +351,8 @@ def main():
     p = sub.add_parser("jobs", help="List recent jobs")
     p.add_argument("--limit", type=int, default=20)
 
+    sub.add_parser("worker-stats", help="Show worker success rates")
+
     p = sub.add_parser("clear-jobs", help="Delete jobs")
     p.add_argument("--status", default=None, help="Only delete jobs with this status")
 
@@ -337,6 +373,7 @@ def main():
         "invite-list": lambda: invite_list(),
         "invite-delete": lambda: invite_delete(args.code_id),
         "jobs": lambda: list_jobs(args.limit),
+        "worker-stats": lambda: worker_stats(),
         "clear-jobs": lambda: clear_jobs(args.status),
     }
 
@@ -364,6 +401,7 @@ def main():
 
   Jobs:
     jobs [--limit N]              List recent jobs (default 20)
+    worker-stats                  Show worker success rates
     clear-jobs [--status STATUS]  Delete jobs (optionally filter by status)
 
   Examples:

@@ -88,6 +88,29 @@ async def next_job():
     if worker_key:
         db = await get_db()
         try:
+            # Check if worker is suspended
+            cursor = await db.execute(
+                "SELECT suspended_until FROM worker_keys WHERE key = ?", (worker_key,)
+            )
+            wk = await cursor.fetchone()
+            if wk and wk["suspended_until"]:
+                cursor2 = await db.execute(
+                    "SELECT ? > datetime('now') as is_suspended", (wk["suspended_until"],)
+                )
+                check = await cursor2.fetchone()
+                if check and check["is_suspended"]:
+                    return Response(
+                        json.dumps({"suspended_until": wk["suspended_until"]}),
+                        status=429,
+                        content_type="application/json"
+                    )
+                else:
+                    # Suspension expired, clear it
+                    await db.execute(
+                        "UPDATE worker_keys SET suspended_until = NULL WHERE key = ?",
+                        (worker_key,)
+                    )
+
             await db.execute(
                 "UPDATE worker_keys SET last_platform = ? WHERE key = ?",
                 (worker_platform, worker_key)
@@ -119,7 +142,10 @@ async def next_job():
                 job["params"] = {}
 
             # Filter by platform (defaults to ps4 for legacy workers)
+            # "unknown" platform treated as ps4 so jobs aren't stuck forever
             job_platform = job["params"].get("platform", "ps4")
+            if job_platform == "unknown":
+                job_platform = "ps4"
             if job_platform != worker_platform:
                 continue
 
@@ -188,6 +214,8 @@ async def update_status(job_id):
     if status not in ("running", "done", "failed"):
         abort(400)
 
+    worker_key = request.headers.get("X-Worker-Key", "")
+
     db = await get_db()
     try:
         fields = ["status = ?"]
@@ -198,11 +226,44 @@ async def update_status(job_id):
         if "result_path" in data:
             fields.append("result_path = ?")
             values.append(data["result_path"])
+        # Track which worker handled this job
+        if status == "running" and worker_key:
+            cursor = await db.execute(
+                "SELECT id FROM worker_keys WHERE key = ?", (worker_key,)
+            )
+            wk_row = await cursor.fetchone()
+            if wk_row:
+                fields.append("worker_key_id = ?")
+                values.append(wk_row["id"])
         values.append(job_id)
         await db.execute(
             f"UPDATE jobs SET {', '.join(fields)} WHERE id = ?",
             values
         )
+        # Increment jobs_completed counter for this worker key
+        if status == "done" and worker_key:
+            await db.execute(
+                "UPDATE worker_keys SET jobs_completed = jobs_completed + 1 WHERE key = ?",
+                (worker_key,)
+            )
+        # Auto-suspend after 10 consecutive failures
+        if status == "failed" and worker_key:
+            cursor = await db.execute(
+                "SELECT id FROM worker_keys WHERE key = ?", (worker_key,)
+            )
+            wk = await cursor.fetchone()
+            if wk:
+                cursor2 = await db.execute(
+                    "SELECT status FROM jobs WHERE worker_key_id = ? "
+                    "ORDER BY created_at DESC LIMIT 10",
+                    (wk["id"],)
+                )
+                recent = await cursor2.fetchall()
+                if len(recent) >= 10 and all(r["status"] == "failed" for r in recent):
+                    await db.execute(
+                        "UPDATE worker_keys SET suspended_until = datetime('now', '+24 hours') "
+                        "WHERE id = ?", (wk["id"],)
+                    )
         await db.commit()
     finally:
         await db.close()

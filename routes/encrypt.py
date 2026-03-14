@@ -62,7 +62,7 @@ async def encrypt():
             return await render_template("encrypt.html", profiles=profiles)
 
         account_id = profile["account_id"]
-        job = await create_job(user_id, "encrypt", {"account_id": account_id})
+        job = await create_job(user_id, "encrypt", {"account_id": account_id}, ready=False)
 
         # Save the zip to workspace
         upload_dir = os.path.join("workspace", "uploads", str(user_id), job.job_id)
@@ -176,6 +176,7 @@ async def encrypt():
         if sfo_account_id:
             params["sfo_account_id"] = sfo_account_id
         await job.update_params(params)
+        await job.set_status("queued")
 
         return redirect(url_for("jobs.job_status", job_id=job.job_id))
 

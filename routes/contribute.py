@@ -63,8 +63,9 @@ async def contribute():
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT id, name, is_active, created_at, last_used, last_platform, "
-            "CASE WHEN last_used IS NOT NULL AND last_used > datetime('now', '-90 seconds') THEN 1 ELSE 0 END as is_online "
+            "SELECT id, name, is_active, created_at, last_used, last_platform, jobs_completed, suspended_until, "
+            "CASE WHEN last_used IS NOT NULL AND last_used > datetime('now', '-90 seconds') THEN 1 ELSE 0 END as is_online, "
+            "CASE WHEN suspended_until IS NOT NULL AND suspended_until > datetime('now') THEN 1 ELSE 0 END as is_suspended "
             "FROM worker_keys WHERE user_id = ? ORDER BY created_at DESC",
             (user_id,)
         )
@@ -91,4 +92,22 @@ async def revoke_key(key_id):
         await db.close()
 
     await flash("Worker key revoked.", "success")
+    return redirect(url_for("contribute.contribute"))
+
+
+@contribute_bp.route("/contribute/<int:key_id>/reactivate", methods=["POST"])
+@login_required
+async def reactivate_key(key_id):
+    user_id = session["user_id"]
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE worker_keys SET suspended_until = NULL WHERE id = ? AND user_id = ?",
+            (key_id, user_id)
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+    await flash("Worker reactivated. Make sure you've rebooted your console!", "success")
     return redirect(url_for("contribute.contribute"))

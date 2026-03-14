@@ -51,7 +51,7 @@ async def resign():
             return await render_template("resign.html", profiles=profiles)
 
         account_id = profile["account_id"]
-        job = await create_job(user_id, "resign", {"account_id": account_id})
+        job = await create_job(user_id, "resign", {"account_id": account_id}, ready=False)
         if upload_ids_json:
             import json
             upload_ids = json.loads(upload_ids_json)
@@ -69,6 +69,7 @@ async def resign():
         else:
             job.logger.info("Resigning PS4 save...")
 
+        await job.set_status("queued")
         return redirect(url_for("jobs.job_status", job_id=job.job_id))
 
     return await render_template("resign.html", profiles=profiles)

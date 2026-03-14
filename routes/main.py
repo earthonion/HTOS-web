@@ -7,6 +7,24 @@ from services.jobs import get_user_jobs
 main_bp = Blueprint("main", __name__)
 
 @main_bp.route("/")
+async def index():
+    if session.get("user_id"):
+        return redirect(url_for("main.dashboard"))
+    # Landing page stats
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM worker_keys WHERE is_active = 1 "
+            "AND last_used IS NOT NULL AND last_used > datetime('now', '-90 seconds')"
+        )
+        total_workers = (await cursor.fetchone())[0]
+        cursor = await db.execute("SELECT COALESCE(SUM(jobs_completed), 0) FROM worker_keys")
+        total_jobs = (await cursor.fetchone())[0]
+    finally:
+        await db.close()
+    return await render_template("landing.html", total_workers=total_workers, total_jobs=total_jobs)
+
+@main_bp.route("/dashboard")
 @login_required
 async def dashboard():
     user_id = session["user_id"]
