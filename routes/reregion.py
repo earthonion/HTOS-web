@@ -60,10 +60,11 @@ async def reregion():
             return await render_template("reregion.html", profiles=profiles)
 
         account_id = profile["account_id"]
-        job = await create_job(user_id, "reregion", {"account_id": account_id}, ready=False)
+        import uuid as _uuid
+        temp_job_id = str(_uuid.uuid4())
 
         # Save both sets of files
-        upload_dir = os.path.join("workspace", "uploads", str(user_id), job.job_id)
+        upload_dir = os.path.join("workspace", "uploads", str(user_id), temp_job_id)
         saves_dir = os.path.join(upload_dir, "saves")
         sample_dir = os.path.join(upload_dir, "sample")
         os.makedirs(saves_dir, exist_ok=True)
@@ -100,21 +101,18 @@ async def reregion():
                 await f.save(os.path.join(sample_dir, f.filename))
 
         platform = detect_platform_in_dir(saves_dir)
-        await job.update_params({
-            "saves_dir": saves_dir,
-            "sample_dir": sample_dir,
-            "platform": platform,
-        })
 
         if platform == "ps5":
             if not await ps5_workers_online():
                 await flash("PS5 saves not currently supported!", "error")
                 return await render_template("reregion.html", profiles=profiles)
-            job.logger.info("Re-regioning PS5 save...")
-        else:
-            job.logger.info("Re-regioning PS4 save...")
 
-        await job.set_status("queued")
+        job = await create_job(user_id, "reregion", {
+            "account_id": account_id,
+            "saves_dir": saves_dir,
+            "sample_dir": sample_dir,
+            "platform": platform,
+        }, ready=True)
         return redirect(url_for("jobs.job_status", job_id=job.job_id))
 
     return await render_template("reregion.html", profiles=profiles)

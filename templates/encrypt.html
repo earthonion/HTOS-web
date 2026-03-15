@@ -21,11 +21,12 @@
         </div>
     </div>
 
-    <div class="file-drop">
+    <div class="file-drop" id="encrypt-drop">
         <input type="file" name="zipfile" accept=".zip" required>
+        <input type="file" name="folder_files" webkitdirectory mozdirectory multiple style="display:none">
         <svg class="file-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M10 3v18"/><path d="M14 3v18"/><path d="M10 12h4"/></svg>
-        <div class="file-drop-text">Drop zip file here or <strong>browse</strong></div>
-        <div class="file-drop-hint">.zip containing decrypted save folder</div>
+        <div class="file-drop-text">Drop zip or folder here, or <strong>browse zip</strong> / <a href="#" id="browse-folder">browse folder</a></div>
+        <div class="file-drop-hint">.zip or folder containing decrypted save (with sce_sys)</div>
         <div class="file-drop-selected"></div>
     </div>
 
@@ -45,7 +46,68 @@
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.querySelector('form');
-    if (form) setupChunkedForm(form, { zipfile: 'upload_ids' });
+    if (form) setupChunkedForm(form, { zipfile: 'upload_ids', folder_files: 'folder_upload_ids' });
+
+    const drop = document.getElementById('encrypt-drop');
+    const zipInput = drop.querySelector('input[name="zipfile"]');
+    const folderInput = drop.querySelector('input[name="folder_files"]');
+    const sel = drop.querySelector('.file-drop-selected');
+    const browseFolder = document.getElementById('browse-folder');
+
+    browseFolder.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        folderInput.click();
+    });
+
+    folderInput.addEventListener('change', () => {
+        if (!folderInput.files.length) return;
+        zipInput.required = false;
+        sel.textContent = folderInput.files.length + ' files from folder';
+        drop.style.borderColor = 'var(--cyan)';
+        drop.style.borderStyle = 'solid';
+        setTimeout(() => { drop.style.borderColor = ''; drop.style.borderStyle = ''; }, 800);
+    });
+
+    zipInput.addEventListener('change', () => {
+        folderInput.value = '';
+    });
+
+    // Handle folder drag-and-drop
+    drop.addEventListener('drop', async e => {
+        if (!e.dataTransfer.items) return;
+        const items = [...e.dataTransfer.items];
+        const hasDir = items.some(i => {
+            const entry = i.webkitGetAsEntry && i.webkitGetAsEntry();
+            return entry && entry.isDirectory;
+        });
+        if (hasDir) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            const dt = new DataTransfer();
+            async function readDir(entry, path) {
+                if (entry.isFile) {
+                    const file = await new Promise(r => entry.file(r));
+                    const f = new File([file], path + file.name, {type: file.type});
+                    dt.items.add(f);
+                } else if (entry.isDirectory) {
+                    const reader = entry.createReader();
+                    const entries = await new Promise(r => reader.readEntries(r));
+                    for (const e of entries) await readDir(e, path + entry.name + '/');
+                }
+            }
+            for (const item of items) {
+                const entry = item.webkitGetAsEntry();
+                if (entry) await readDir(entry, '');
+            }
+            folderInput.files = dt.files;
+            zipInput.required = false;
+            sel.textContent = dt.files.length + ' files from folder';
+            drop.style.borderColor = 'var(--cyan)';
+            drop.style.borderStyle = 'solid';
+            setTimeout(() => { drop.style.borderColor = ''; drop.style.borderStyle = ''; }, 800);
+        }
+    }, true);
 });
 </script>
 {% endblock %}

@@ -96,10 +96,10 @@ function copyEl(id) {
                 <td>{{ k.jobs_completed or 0 }}</td>
                 <td>{{ k.created_at }}</td>
                 <td>{{ k.last_used or 'never' }}</td>
-                <td style="display: flex; gap: 0.25rem;">
+                <td style="display: flex; flex-direction: column; gap: 0.25rem;">
                     {% if k.is_suspended %}
                     <form method="POST" action="{{ url_for('contribute.reactivate_key', key_id=k.id) }}">
-                        <button type="submit" class="btn-small" title="Clear suspension after rebooting your console">I Rebooted</button>
+                        <button type="submit" class="btn-small">Reactivate</button>
                     </form>
                     {% endif %}
                     {% if k.is_active %}

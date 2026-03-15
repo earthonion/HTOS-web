@@ -53,6 +53,15 @@ CREATE TABLE IF NOT EXISTS invite_codes (
     used_at TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS job_stats (
+    operation TEXT NOT NULL,
+    worker_key_id INTEGER,
+    done INTEGER DEFAULT 0,
+    failed INTEGER DEFAULT 0,
+    total INTEGER DEFAULT 0,
+    PRIMARY KEY (operation, worker_key_id)
+);
+
 INSERT OR IGNORE INTO settings (key, value) VALUES ('invite_only', '0');
 """
 
@@ -61,6 +70,7 @@ MIGRATIONS = [
     "ALTER TABLE worker_keys ADD COLUMN jobs_completed INTEGER DEFAULT 0",
     "ALTER TABLE jobs ADD COLUMN worker_key_id INTEGER",
     "ALTER TABLE worker_keys ADD COLUMN suspended_until TIMESTAMP",
+    "ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0",
 ]
 
 async def init_db():

@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block extra_head %}
+<style>
+@keyframes flashRow { from { background: rgba(0,255,255,0.15); } to { background: transparent; } }
+tr.new-row { animation: flashRow 1.5s ease-out; }
+</style>
+{% endblock %}
+{% block content %}
+<h1>Admin Dashboard <span id="refresh-countdown" style="font-size: 0.85rem; font-weight: 400; color: var(--text-2);"></span></h1>
+
+<div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+    <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
+        <div id="queued-count" style="font-size: 2rem; font-weight: 700;">{{ queued }}</div>
+        <div style="color: var(--text-2); font-size: 0.85rem;">Queued</div>
+    </div>
+    <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
+        <div id="workers-online" style="font-size: 2rem; font-weight: 700;">{{ workers | selectattr('is_online') | list | length }}</div>
+        <div style="color: var(--text-2); font-size: 0.85rem;">Workers Online</div>
+    </div>
+    <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
+        <div id="total-users" style="font-size: 2rem; font-weight: 700;">{{ total_users }}</div>
+        <div style="color: var(--text-2); font-size: 0.85rem;">Users</div>
+    </div>
+    <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
+        <div id="total-jobs" style="font-size: 2rem; font-weight: 700;">{{ stats.total }}</div>
+        <div style="color: var(--text-2); font-size: 0.85rem;">Total Jobs</div>
+    </div>
+    <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
+        {% set pct = stats.rate %}
+        <div id="success-rate" style="font-size: 2rem; font-weight: 700; color: {% if pct != '-' and pct|replace('%','')|int >= 80 %}var(--green){% elif pct != '-' and pct|replace('%','')|int >= 50 %}var(--yellow, #fa0){% elif pct != '-' %}var(--red){% else %}inherit{% endif %};">{{ stats.rate }}</div>
+        <div style="color: var(--text-2); font-size: 0.85rem;">Success Rate</div>
+    </div>
+</div>
+
+<section class="panel" style="margin-bottom: 1.5rem;">
+    <h2>Stats by Operation</h2>
+    <div style="overflow-x: auto;">
+    <table id="op-stats-table">
+        <thead>
+            <tr><th>Operation</th><th>Done</th><th>Failed</th><th>Total</th><th>Success Rate</th></tr>
+        </thead>
+        <tbody>
+            {% for op in op_stats %}
+            <tr>
+                <td>{{ op.operation }}</td>
+                <td>{{ op.done }}</td>
+                <td>{{ op.failed }}</td>
+                <td>{{ op.total }}</td>
+                <td>
+                    {% set op_pct = op.rate %}
+                    <span style="color: {% if op_pct != '-' and op_pct|replace('%','')|int >= 80 %}var(--green){% elif op_pct != '-' and op_pct|replace('%','')|int >= 50 %}var(--yellow, #fa0){% elif op_pct != '-' %}var(--red){% else %}inherit{% endif %};">{{ op.rate }}</span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</section>
+
+<section class="panel">
+    <h2>Worker Stats</h2>
+    <div style="overflow-x: auto;">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th><th>Name</th><th>Plat</th><th>Status</th>
+                <th>Done</th><th>Fail</th><th>Total</th><th>Rate</th><th>Active</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for w in workers %}
+            {% if w.is_online or w.total > 0 %}
+            <tr>
+                <td>{{ w.id }}</td>
+                <td>{{ w.name }}</td>
+                <td>{{ w.last_platform | upper }}</td>
+                <td>
+                    {% if w.is_online %}
+                    <span class="status-done">ONLINE</span>
+                    {% else %}
+                    <span style="color: var(--text-2);">offline</span>
+                    {% endif %}
+                </td>
+                <td>{{ w.done }}</td>
+                <td>{{ w.failed }}</td>
+                <td>{{ w.total }}</td>
+                <td>
+                    {% if w.total > 0 %}
+                    {% set pct = (100 * w.done // w.total) %}
+                    <span style="color: {% if pct >= 80 %}var(--green){% elif pct >= 50 %}var(--yellow, #fa0){% else %}var(--red){% endif %};">{{ w.rate }}</span>
+                    {% else %}-{% endif %}
+                </td>
+                <td>
+                    {% if w.suspended_until %}
+                    <span class="status-failed">suspended</span>
+                    {% elif not w.is_active %}
+                    <span class="status-failed">revoked</span>
+                    {% else %}
+                    <span class="status-done">yes</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</section>
+
+<section class="panel">
+    <h2>Recent Jobs <span id="live-dot" style="color: var(--green); font-size: 0.7rem; vertical-align: middle;">&#9679; live</span></h2>
+    <div style="overflow-x: auto;">
+    <table id="jobs-table">
+        <thead>
+            <tr><th>ID</th><th>User</th><th>Op</th><th>Status</th><th>Error</th><th>Worker</th><th>Created</th></tr>
+        </thead>
+        <tbody>
+            {% for j in jobs %}
+            <tr data-job-id="{{ j.id }}">
+                <td style="font-size: 0.75rem;">{{ j.id[:8] }}</td>
+                <td>{{ j.username }}</td>
+                <td>{{ j.operation }}</td>
+                <td>
+                    <span class="status-{{ j.status }}">{{ j.status }}</span>
+                </td>
+                <td style="font-size: 0.75rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ j.error or '' }}">{{ j.error or '-' }}</td>
+                <td>{{ j.worker_name or '-' }}</td>
+                <td>{{ j.created_at }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</section>
+
+<script>
+(function() {
+    const tbody = document.querySelector('#jobs-table tbody');
+    const queuedEl = document.getElementById('queued-count');
+    const es = new EventSource('/admin/feed');
+
+    function makeRow(j) {
+        const tr = document.createElement('tr');
+        tr.className = 'new-row';
+        tr.dataset.jobId = j.id;
+        tr.innerHTML =
+            '<td style="font-size:0.75rem;">' + j.id.substring(0,8) + '</td>' +
+            '<td>' + (j.username || '-') + '</td>' +
+            '<td>' + j.operation + '</td>' +
+            '<td><span class="status-' + j.status + '">' + j.status + '</span></td>' +
+            '<td style="font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (j.error || '') + '">' + (j.error || '-') + '</td>' +
+            '<td>' + (j.worker_name || '-') + '</td>' +
+            '<td>' + j.created_at + '</td>';
+        return tr;
+    }
+
+    // Stats refresh countdown (30s)
+    var refreshInterval = 30;
+    var remaining = refreshInterval;
+    var countdownEl = document.getElementById('refresh-countdown');
+
+    function rateColor(pct) {
+        if (pct === '-') return 'inherit';
+        var n = parseInt(pct);
+        if (n >= 80) return 'var(--green)';
+        if (n >= 50) return 'var(--yellow, #fa0)';
+        return 'var(--red)';
+    }
+
+    function refreshStats() {
+        fetch('/admin/stats').then(function(r) { return r.json(); }).then(function(d) {
+            document.getElementById('queued-count').textContent = d.queued;
+            document.getElementById('workers-online').textContent = d.workers_online;
+            document.getElementById('total-users').textContent = d.total_users;
+            document.getElementById('total-jobs').textContent = d.stats.total;
+            var rateEl = document.getElementById('success-rate');
+            rateEl.textContent = d.stats.rate;
+            rateEl.style.color = rateColor(d.stats.rate);
+            // Update op stats table
+            var opTbody = document.querySelector('#op-stats-table tbody');
+            opTbody.innerHTML = '';
+            d.op_stats.forEach(function(op) {
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td>' + op.operation + '</td><td>' + op.done + '</td><td>' + op.failed + '</td><td>' + op.total + '</td>' +
+                    '<td><span style="color:' + rateColor(op.rate) + ';">' + op.rate + '</span></td>';
+                opTbody.appendChild(tr);
+            });
+        }).catch(function(){});
+        remaining = refreshInterval;
+    }
+
+    setInterval(function() {
+        remaining--;
+        if (remaining <= 0) { refreshStats(); return; }
+        countdownEl.textContent = 'refresh in ' + remaining + 's';
+    }, 1000);
+    countdownEl.textContent = 'refresh in ' + remaining + 's';
+
+    es.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        if (data.queued !== undefined && queuedEl) queuedEl.textContent = data.queued;
+        if (data.type === 'new_jobs' && data.jobs) {
+            data.jobs.forEach(function(j) {
+                if (tbody.querySelector('[data-job-id="' + j.id + '"]')) return;
+                tbody.insertBefore(makeRow(j), tbody.firstChild);
+                while (tbody.children.length > 50) tbody.removeChild(tbody.lastChild);
+            });
+        }
+        if (data.type === 'updates' && data.updates) {
+            data.updates.forEach(function(u) {
+                var row = tbody.querySelector('[data-job-id="' + u.id + '"]');
+                if (!row) return;
+                row.children[3].innerHTML = '<span class="status-' + u.status + '">' + u.status + '</span>';
+                row.children[4].textContent = u.error || '-';
+                row.children[4].title = u.error || '';
+                if (u.worker_name) row.children[5].textContent = u.worker_name;
+            });
+        }
+    };
+})();
+</script>
+{% endblock %}

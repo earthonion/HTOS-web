@@ -24,6 +24,8 @@ def create_app():
     from routes.contribute import contribute_bp
     from routes.rest_api import rest_bp
     from routes.chunked import chunked_bp
+    from routes.admin_web import admin_web_bp
+    from routes.luac0re import luac0re_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -39,6 +41,8 @@ def create_app():
     app.register_blueprint(contribute_bp)
     app.register_blueprint(rest_bp)
     app.register_blueprint(chunked_bp)
+    app.register_blueprint(admin_web_bp)
+    app.register_blueprint(luac0re_bp)
 
     @app.context_processor
     async def inject_worker_count():
@@ -52,6 +56,7 @@ def create_app():
                     "SELECT last_platform, COUNT(*) as cnt FROM worker_keys "
                     "WHERE is_active = 1 AND last_used IS NOT NULL "
                     "AND last_used > datetime('now', '-90 seconds') "
+                    "AND (suspended_until IS NULL OR suspended_until <= datetime('now')) "
                     "GROUP BY last_platform"
                 )
                 rows = await cursor.fetchall()

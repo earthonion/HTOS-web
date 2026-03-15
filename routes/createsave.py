@@ -3,7 +3,7 @@ from quart import Blueprint, render_template, request, session, redirect, url_fo
 from auth import login_required
 from models import get_db
 from services.jobs import create_job
-from services.files import save_uploaded_files, resolve_chunked_uploads
+from services.files import save_uploaded_files, resolve_chunked_uploads, InvalidSaveFilesError, validate_createsave_files
 from services.workers import ps5_workers_online
 from utils.constants import SAVEBLOCKS_MIN, SAVEBLOCKS_MAX
 from utils.orbis import validate_savedirname
@@ -91,12 +91,17 @@ async def createsave():
             "ignore_secondlayer": ignore_secondlayer,
             "platform": platform,
         })
-        if upload_ids_json:
-            import json
-            upload_ids = json.loads(upload_ids_json)
-            upload_dir = await resolve_chunked_uploads(upload_ids, user_id, job.job_id)
-        else:
-            upload_dir = await save_uploaded_files(files, user_id, job.job_id)
+        try:
+            if upload_ids_json:
+                import json
+                upload_ids = json.loads(upload_ids_json)
+                upload_dir = await resolve_chunked_uploads(upload_ids, user_id, job.job_id)
+            else:
+                upload_dir = await save_uploaded_files(files, user_id, job.job_id)
+            validate_createsave_files(upload_dir)
+        except InvalidSaveFilesError as e:
+            await flash(str(e), "error")
+            return await render_template("createsave.html", profiles=profiles)
         await job.update_params({"upload_dir": upload_dir})
 
         return redirect(url_for("jobs.job_status", job_id=job.job_id))

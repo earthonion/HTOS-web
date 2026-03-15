@@ -296,13 +296,30 @@ async def worker_stats():
 async def clear_jobs(status=None):
     db = await get_db()
     try:
+        # Snapshot stats before deleting
+        where = "WHERE status = ?" if status else ""
+        params = (status,) if status else ()
+        await db.execute(
+            f"INSERT INTO job_stats (operation, worker_key_id, done, failed, total) "
+            f"SELECT operation, COALESCE(worker_key_id, 0), "
+            f"SUM(CASE WHEN status='done' THEN 1 ELSE 0 END), "
+            f"SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END), "
+            f"COUNT(*) "
+            f"FROM jobs {where} "
+            f"GROUP BY operation, COALESCE(worker_key_id, 0) "
+            f"ON CONFLICT(operation, worker_key_id) DO UPDATE SET "
+            f"done = job_stats.done + excluded.done, "
+            f"failed = job_stats.failed + excluded.failed, "
+            f"total = job_stats.total + excluded.total",
+            params
+        )
         if status:
             cursor = await db.execute("DELETE FROM jobs WHERE status = ?", (status,))
         else:
             cursor = await db.execute("DELETE FROM jobs")
         await db.commit()
         label = f"with status '{status}'" if status else ""
-        print(f"Deleted {cursor.rowcount} job(s) {label}.")
+        print(f"Deleted {cursor.rowcount} job(s) {label}. Stats preserved.")
     finally:
         await db.close()
 

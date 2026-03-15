@@ -4,7 +4,6 @@ import shutil
 import uuid
 import zipfile
 from functools import wraps
-from io import BytesIO
 
 from quart import Blueprint, request, abort, send_file, Response
 
@@ -13,6 +12,27 @@ from models import get_db
 from services.jobs import push_log, get_or_create_job_logger
 
 api_bp = Blueprint("api", __name__, url_prefix="/api/worker")
+
+
+def _validate_result_zip(path):
+    """Validate a result zip has actual data, not just headers.
+    Returns error string or None if valid."""
+    try:
+        with zipfile.ZipFile(path, "r") as zf:
+            entries = zf.infolist()
+            if not entries:
+                return "Result zip is empty"
+            for entry in entries:
+                if entry.file_size > 0 and entry.compress_size == 0:
+                    return f"Result zip corrupt: {entry.filename} claims {entry.file_size} bytes but has no data"
+            # Try reading first entry to verify data is accessible
+            with zf.open(entries[0]) as f:
+                f.read(1)
+    except zipfile.BadZipFile as e:
+        return f"Result zip invalid: {e}"
+    except OSError as e:
+        return f"Result zip unreadable: {e}"
+    return None
 
 
 async def validate_worker_key(key):
@@ -184,18 +204,18 @@ async def job_files(job_id):
     if not upload_dir or not os.path.isdir(upload_dir):
         abort(404)
 
-    # Create zip in memory
-    buf = BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as zf:
+    # Create zip on disk to avoid memory issues with large saves
+    # Stored in upload_dir's parent so the hourly cleanup cron handles it
+    tmp_path = os.path.join(os.path.dirname(upload_dir), f"{job_id}_worker.zip")
+    with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_STORED) as zf:
         for root, dirs, files in os.walk(upload_dir):
             for f in files:
                 filepath = os.path.join(root, f)
                 arcname = os.path.relpath(filepath, upload_dir)
                 zf.write(filepath, arcname)
-    buf.seek(0)
 
     return await send_file(
-        buf,
+        tmp_path,
         mimetype="application/zip",
         as_attachment=True,
         attachment_filename=f"{job_id}.zip"
@@ -309,6 +329,23 @@ async def upload_result(job_id):
     with open(result_path, "wb") as f:
         f.write(body)
 
+    # Validate the zip before accepting
+    err = _validate_result_zip(result_path)
+    if err:
+        os.remove(result_path)
+        # Mark job as failed
+        db = await get_db()
+        try:
+            await db.execute(
+                "UPDATE jobs SET status = 'failed', error = ? WHERE id = ?",
+                (err, job_id)
+            )
+            await db.commit()
+        finally:
+            await db.close()
+        push_log(job_id, "ERROR", err)
+        return {"ok": False, "error": err}, 400
+
     # Update job with result path
     db = await get_db()
     try:
@@ -409,6 +446,22 @@ async def complete_result_upload(job_id):
 
     # Clean up chunk dir
     shutil.rmtree(chunk_dir, ignore_errors=True)
+
+    # Validate the assembled zip
+    err = _validate_result_zip(result_path)
+    if err:
+        os.remove(result_path)
+        db = await get_db()
+        try:
+            await db.execute(
+                "UPDATE jobs SET status = 'failed', error = ? WHERE id = ?",
+                (err, job_id)
+            )
+            await db.commit()
+        finally:
+            await db.close()
+        push_log(job_id, "ERROR", err)
+        return {"ok": False, "error": err}, 400
 
     # Update job with result path
     db = await get_db()
