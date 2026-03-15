@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Save DB{% endblock %}
+{% block content %}
+<h1>Save DB</h1>
+<p>Browse community saves, vote on them, and encrypt to your account with one click.</p>
+
+<form method="GET" action="{{ url_for('savedb.browse') }}" style="display:flex; gap:0.5rem; margin-bottom:1.25rem;">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search by game title or CUSA ID..." style="flex:1;">
+    <button type="submit">Search</button>
+</form>
+
+<div style="margin-bottom:1.25rem;">
+    <a href="{{ url_for('savedb.contribute') }}" class="btn-small">Submit a Save</a>
+</div>
+
+{% if entries %}
+<div class="savedb-grid">
+    {% for e in entries %}
+    <div class="savedb-card">
+        <div class="savedb-card-header">
+            <span class="savedb-card-title">{{ e.title }}</span>
+            <span class="savedb-card-platform badge-{{ e.platform }}">{{ e.platform | upper }}</span>
+        </div>
+        <div class="savedb-card-cusa">{{ e.title_id }}</div>
+        {% if e.description %}
+        <div class="savedb-card-desc">{{ e.description }}</div>
+        {% endif %}
+        <div class="savedb-card-meta">
+            <span>by {{ e.contributor }}</span>
+            <span class="savedb-card-votes">
+                <span style="color:var(--green);">&#9650; {{ e.upvotes }}</span>
+                <span style="color:var(--red);">&#9660; {{ e.downvotes }}</span>
+            </span>
+        </div>
+        <div class="savedb-card-actions">
+            {% set uv = user_votes.get(e.id, 0) %}
+            <form method="POST" action="{{ url_for('savedb.vote', entry_id=e.id) }}" style="display:inline;">
+                <button type="submit" name="vote" value="up" class="btn-small {% if uv == 1 %}btn-active{% endif %}" title="Upvote">&#9650;</button>
+            </form>
+            <form method="POST" action="{{ url_for('savedb.vote', entry_id=e.id) }}" style="display:inline;">
+                <button type="submit" name="vote" value="down" class="btn-small {% if uv == -1 %}btn-active{% endif %}" title="Downvote">&#9660;</button>
+            </form>
+            <a href="{{ url_for('savedb.detail', entry_id=e.id) }}" class="btn-small">Details</a>
+            <a href="{{ url_for('savedb.encrypt', entry_id=e.id) }}" class="btn-small" style="background:var(--indigo); color:#fff;">Encrypt</a>
+            <a href="{{ url_for('savedb.download', entry_id=e.id) }}" class="btn-small">Download</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div style="display:flex; justify-content:space-between; margin-top:1rem;">
+    {% if page > 1 %}
+    <a href="{{ url_for('savedb.browse', q=q, page=page-1) }}" class="btn-small">&larr; Previous</a>
+    {% else %}<span></span>{% endif %}
+    {% if has_next %}
+    <a href="{{ url_for('savedb.browse', q=q, page=page+1) }}" class="btn-small">Next &rarr;</a>
+    {% endif %}
+</div>
+
+{% else %}
+<p>{% if q %}No saves found for "{{ q }}".{% else %}No saves yet. Be the first to <a href="{{ url_for('savedb.contribute') }}">contribute one</a>!{% endif %}</p>
+{% endif %}
+
+<style>
+.savedb-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+}
+.savedb-card {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.savedb-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.savedb-card-title {
+    font-weight: 600;
+    font-size: 1rem;
+}
+.savedb-card-cusa {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text-2);
+}
+.savedb-card-desc {
+    font-size: 0.85rem;
+    color: var(--text-2);
+    line-height: 1.4;
+}
+.savedb-card-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.78rem;
+    color: var(--text-3);
+    margin-top: auto;
+}
+.savedb-card-votes {
+    display: flex;
+    gap: 0.5rem;
+}
+.savedb-card-actions {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+}
+.badge-ps4 {
+    background: var(--indigo-glow);
+    color: var(--indigo-light);
+    padding: 0.1rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+.badge-ps5 {
+    background: var(--cyan-dim);
+    color: var(--cyan);
+    padding: 0.1rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+.btn-active {
+    background: var(--indigo) !important;
+    color: #fff !important;
+}
+</style>
+{% endblock %}

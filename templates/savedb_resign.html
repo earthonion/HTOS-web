@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Encrypt {{ entry.title }} — Save DB{% endblock %}
+{% block content %}
+<h1>Encrypt Save</h1>
+<p>Encrypt <strong>{{ entry.title }}</strong> ({{ entry.title_id }}) to your account.</p>
+
+<div class="panel" style="margin-bottom:1rem;">
+    <table>
+        <tr><th style="width:120px;">Game</th><td>{{ entry.title }}</td></tr>
+        <tr><th>Title ID</th><td><code>{{ entry.title_id }}</code></td></tr>
+        <tr><th>Platform</th><td>{{ entry.platform | upper }}</td></tr>
+        {% if entry.description %}
+        <tr><th>Description</th><td>{{ entry.description }}</td></tr>
+        {% endif %}
+    </table>
+</div>
+
+<form method="POST" class="operation-form">
+    <div class="profile-select-wrap">
+        <span>Profile</span>
+        <div class="profile-cards">
+            {% for p in profiles %}
+            <label class="profile-card">
+                <input type="radio" name="profile_id" value="{{ p.id }}" required>
+                <span class="profile-card-dot"></span>
+                <span class="profile-card-info">
+                    <span class="profile-card-name">{{ p.name }}</span>
+                    <span class="profile-card-id">{{ p.account_id }}</span>
+                </span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <button type="submit">Start Encrypt</button>
+</form>
+
+{% if not profiles %}
+<p class="hint">You need to <a href="{{ url_for('main.dashboard') }}">create a profile</a> first.</p>
+{% endif %}
+
+<div style="margin-top:1rem;">
+    <a href="{{ url_for('savedb.browse') }}">&larr; Back to Save DB</a>
+</div>
+{% endblock %}
