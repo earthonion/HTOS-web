@@ -1,23 +1,25 @@
 # HTOS-web
 
-Web interface for HTOS PS4 save management. Replaces the Discord bot + NiceGUI desktop app with an internet-facing Quart web server.
+Web interface for HTOS PS4/PS5 save management. Replaces the Discord bot + NiceGUI desktop app with an internet-facing Quart web server.
 
 ## Features
 
 - **Resign** - Re-sign saves to a different PSN account
-- **Decrypt** - Decrypt PS4 saves with optional second-layer game-specific decryption
-- **Encrypt** - Multi-step encrypt: decrypt on PS4, upload modified files, re-encrypt and resign
+- **Decrypt** - Decrypt PS4/PS5 saves with optional second-layer game-specific decryption
+- **Encrypt** - Multi-step encrypt: decrypt on console, upload modified files, re-encrypt and resign
 - **Re-region** - Change save region using a sample save's keystone
 - **Create Save** - Build a new encrypted save from raw files + sce_sys
 - **Convert** - Platform conversion for GTA V, RDR 2, BL 3, TTWL, Xenoblade 2
 - **Quick Codes** - Apply Save Wizard hex quick codes to save files
+- **Save DB** - Community save library where users contribute decrypted saves, vote on entries, and one-click encrypt to their account
+- **Luac0re** - Quick-resign for Star Wars: Racer Revenge exploit saves (US/EU)
 
-All PS4 operations (resign, decrypt, encrypt, re-region) communicate with a jailbroken PS4 over FTP and a TCP socket (Cecie).
+All PS4/PS5 operations communicate with a jailbroken console via the garlic-worker C agent.
 
 ## Requirements
 
 - Python 3.12+
-- A jailbroken PS4 running an FTP server and [Cecie](https://github.com/earthonion/cecie.nim-garlicsaves) save tools
+- A jailbroken PS4/PS5 running the [garlic-worker](https://github.com/earthonion/garlic-worker) agent
 
 ## Setup
 
@@ -91,11 +93,14 @@ HTOS-web/
     createsave.py     # Create save operation
     convert.py        # Platform conversion
     quickcodes.py     # Save Wizard quick codes
+    savedb.py         # Community save database (browse, vote, contribute, encrypt)
+    luac0re.py        # Quick-resign for Luac0re exploit saves
     jobs.py           # Job status, SSE stream, downloads
+    admin_web.py      # Admin dashboard
+    api.py            # Worker API endpoints
   services/
     jobs.py           # WebLogger, ServerSettings, Job, background task runner
     files.py          # File upload/download/zip helpers
-    ps4.py            # PS4 socket singleton
   templates/          # Jinja2 HTML templates
   static/style.css    # Dark theme CSS
   app_core/           # Save processing logic (from HTOS)
@@ -107,10 +112,9 @@ HTOS-web/
 ## Architecture
 
 - **Quart** (async Flask) handles HTTP requests
-- **SQLite + aiosqlite** stores users, profiles, and job metadata
-- **Background asyncio tasks** process jobs without blocking the server
+- **SQLite + aiosqlite** stores users, profiles, jobs, and save DB entries
+- **garlic-worker** C agents on PS4/PS5 poll the server for jobs and process saves
 - **Server-Sent Events (SSE)** stream real-time logs from jobs to the browser
-- **aioftp** communicates with the PS4's FTP server
-- **Custom TCP socket** sends commands to Cecie on the PS4
+- **Community voting** on Save DB entries with Reddit-style auto-upvote and auto-delete at -10
 
 
