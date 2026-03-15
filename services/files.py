@@ -36,6 +36,10 @@ def _flatten_single_subdirs(directory: str):
             shutil.rmtree(path, ignore_errors=True)
 
 
+class InvalidSaveFilesError(Exception):
+    pass
+
+
 class FileTooLargeError(Exception):
     def __init__(self, filename, size):
         self.filename = filename
@@ -53,6 +57,43 @@ def _check_file_sizes(directory: str):
             size = os.path.getsize(path)
             if size > MAX_SAVE_FILE_SIZE:
                 raise FileTooLargeError(name, size)
+
+
+def validate_save_pairs(directory: str):
+    """Check that the upload directory contains valid save pairs.
+    Each save file should have a matching .bin companion.
+    Raises InvalidSaveFilesError with a user-friendly message if not."""
+    files = [n for n in os.listdir(directory) if os.path.isfile(os.path.join(directory, n))]
+    if not files:
+        raise InvalidSaveFilesError("No files found. Please upload save file pairs (.bin + matching save file) or a .zip.")
+    # If there's a zip, that's fine — it will be extracted
+    if any(f.lower().endswith(".zip") for f in files):
+        return
+    bin_files = {f[:-4] for f in files if f.lower().endswith(".bin")}
+    save_files = [f for f in files if not f.lower().endswith(".bin")]
+    if not save_files:
+        raise InvalidSaveFilesError("No save files found. You uploaded only .bin files — please include the matching save files too.")
+    if not bin_files:
+        raise InvalidSaveFilesError("No .bin files found. Encrypted saves need a .bin companion file. Please upload save pairs (.bin + matching save file) or a .zip.")
+    unmatched = [f for f in save_files if f not in bin_files]
+    if unmatched and not bin_files:
+        raise InvalidSaveFilesError(f"Missing .bin files for: {', '.join(unmatched[:3])}. Please upload the matching .bin companion files.")
+
+
+def validate_createsave_files(directory: str):
+    """Check that the upload contains sce_sys/param.sfo for create save."""
+    has_sce_sys = False
+    has_sfo = False
+    for root, dirs, files in os.walk(directory):
+        if os.path.basename(root).lower() == "sce_sys":
+            has_sce_sys = True
+            if any(f.lower() == "param.sfo" for f in files):
+                has_sfo = True
+                break
+    if not has_sce_sys:
+        raise InvalidSaveFilesError("No sce_sys folder found. Please upload a save folder or zip containing an sce_sys directory.")
+    if not has_sfo:
+        raise InvalidSaveFilesError("Missing param.sfo inside sce_sys. Please make sure your save folder includes sce_sys/param.sfo.")
 
 
 def _strip_sdimg_prefix(directory: str):
@@ -88,9 +129,8 @@ async def resolve_chunked_uploads(upload_ids: list, user_id: int, job_id: str) -
         # Clean up chunk dir
         shutil.rmtree(chunk_dir, ignore_errors=True)
 
-    # Auto-extract zips, flatten, strip prefix, check sizes
+    # Auto-extract zips, strip prefix, check sizes
     _extract_zips_in_dir(upload_dir)
-    _flatten_single_subdirs(upload_dir)
     _strip_sdimg_prefix(upload_dir)
     _check_file_sizes(upload_dir)
 
@@ -104,13 +144,14 @@ async def save_uploaded_files(files, user_id: int, job_id: str) -> str:
     os.makedirs(upload_dir, exist_ok=True)
 
     for f in files:
+        if not f.filename or f.filename.endswith('/'):
+            continue
         filepath = os.path.join(upload_dir, f.filename)
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         await f.save(filepath)
 
-    # Auto-extract any uploaded zip files and flatten nested dirs
+    # Auto-extract any uploaded zip files, strip prefix, check sizes
     _extract_zips_in_dir(upload_dir)
-    _flatten_single_subdirs(upload_dir)
     _strip_sdimg_prefix(upload_dir)
     _check_file_sizes(upload_dir)
 

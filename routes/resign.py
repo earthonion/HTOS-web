@@ -3,7 +3,7 @@ from quart import Blueprint, render_template, request, session, redirect, url_fo
 from auth import login_required
 from models import get_db
 from services.jobs import create_job
-from services.files import save_uploaded_files, detect_platform_in_dir, resolve_chunked_uploads
+from services.files import save_uploaded_files, detect_platform_in_dir, resolve_chunked_uploads, FileTooLargeError, InvalidSaveFilesError, validate_save_pairs
 from services.workers import ps5_workers_online
 
 resign_bp = Blueprint("resign", __name__)
@@ -51,25 +51,35 @@ async def resign():
             return await render_template("resign.html", profiles=profiles)
 
         account_id = profile["account_id"]
-        job = await create_job(user_id, "resign", {"account_id": account_id}, ready=False)
-        if upload_ids_json:
-            import json
-            upload_ids = json.loads(upload_ids_json)
-            upload_dir = await resolve_chunked_uploads(upload_ids, user_id, job.job_id)
-        else:
-            upload_dir = await save_uploaded_files(files, user_id, job.job_id)
+        # Create a temp job_id for file storage, but don't insert into DB yet
+        import uuid
+        temp_job_id = str(uuid.uuid4())
+        try:
+            if upload_ids_json:
+                import json
+                upload_ids = json.loads(upload_ids_json)
+                upload_dir = await resolve_chunked_uploads(upload_ids, user_id, temp_job_id)
+            else:
+                upload_dir = await save_uploaded_files(files, user_id, temp_job_id)
+            validate_save_pairs(upload_dir)
+        except FileTooLargeError as e:
+            await flash(f"Save file too large: {e}.", "error")
+            return await render_template("resign.html", profiles=profiles)
+        except InvalidSaveFilesError as e:
+            await flash(str(e), "error")
+            return await render_template("resign.html", profiles=profiles)
         platform = detect_platform_in_dir(upload_dir)
-        await job.update_params({"upload_dir": upload_dir, "platform": platform})
 
         if platform == "ps5":
             if not await ps5_workers_online():
                 await flash("PS5 saves not currently supported!", "error")
                 return await render_template("resign.html", profiles=profiles)
-            job.logger.info("Resigning PS5 save...")
-        else:
-            job.logger.info("Resigning PS4 save...")
 
-        await job.set_status("queued")
+        job = await create_job(user_id, "resign", {
+            "account_id": account_id,
+            "upload_dir": upload_dir,
+            "platform": platform,
+        }, ready=True)
         return redirect(url_for("jobs.job_status", job_id=job.job_id))
 
     return await render_template("resign.html", profiles=profiles)

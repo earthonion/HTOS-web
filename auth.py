@@ -1,6 +1,6 @@
 import bcrypt
 from functools import wraps
-from quart import Blueprint, render_template, request, redirect, url_for, session, flash
+from quart import Blueprint, render_template, request, redirect, url_for, session, flash, abort
 
 from models import get_db
 
@@ -11,6 +11,17 @@ def login_required(f):
     async def decorated(*args, **kwargs):
         if "user_id" not in session:
             return redirect(url_for("auth.login"))
+        return await f(*args, **kwargs)
+    return decorated
+
+
+def admin_required(f):
+    @wraps(f)
+    async def decorated(*args, **kwargs):
+        if "user_id" not in session:
+            return redirect(url_for("auth.login"))
+        if not session.get("is_admin"):
+            abort(403)
         return await f(*args, **kwargs)
     return decorated
 
@@ -117,7 +128,7 @@ async def login():
         db = await get_db()
         try:
             cursor = await db.execute(
-                "SELECT id, password_hash FROM users WHERE username = ?", (username,)
+                "SELECT id, password_hash, is_admin FROM users WHERE username = ?", (username,)
             )
             row = await cursor.fetchone()
             if not row or not check_password(password, row["password_hash"]):
@@ -126,6 +137,7 @@ async def login():
 
             session["user_id"] = row["id"]
             session["username"] = username
+            session["is_admin"] = bool(row["is_admin"])
             return redirect(url_for("main.dashboard"))
         finally:
             await db.close()

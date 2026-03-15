@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Luac0re - Star Wars: Racer Revenge{% endblock %}
+{% block content %}
+<h1>Luac0re 2.0b</h1>
+<p>Resign <strong>Star Wars: Racer Revenge</strong> Luac0re save to your account. Select your region and profile, then hit resign.</p>
+
+<form method="POST" class="operation-form">
+    <div class="profile-select-wrap">
+        <span>Profile</span>
+        <div class="profile-cards">
+            {% for p in profiles %}
+            <label class="profile-card">
+                <input type="radio" name="profile_id" value="{{ p.id }}" required>
+                <span class="profile-card-dot"></span>
+                <span class="profile-card-info">
+                    <span class="profile-card-name">{{ p.name }}</span>
+                    <span class="profile-card-id">{{ p.account_id }}</span>
+                </span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="profile-select-wrap">
+        <span>Version</span>
+        <div class="profile-cards">
+            {% for cusa, info in versions.items() %}
+            <label class="profile-card">
+                <input type="radio" name="version" value="{{ cusa }}" required>
+                <span class="profile-card-dot"></span>
+                <span class="profile-card-info">
+                    <span class="profile-card-name">{{ info.title }}</span>
+                    <span class="profile-card-id">{{ cusa }}</span>
+                </span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <button type="submit">Resign</button>
+</form>
+
+{% if not profiles %}
+<p class="hint">You need to <a href="{{ url_for('main.dashboard') }}">create a profile</a> first.</p>
+{% endif %}
+{% endblock %}

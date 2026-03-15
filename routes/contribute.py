@@ -74,6 +74,15 @@ async def contribute():
         await db.close()
 
     new_key = session.pop("new_worker_key", None)
+
+    if any(k["is_suspended"] for k in keys):
+        await flash(
+            'Oops! Your worker has been suspended! This isn\'t your fault. Your console just needs to be rebooted '
+            'and make sure you are running the <a href="https://github.com/earthonion/garlicsaves-worker/releases" target="_blank">latest worker ELF</a>, '
+            'then simply click the Reactivate button. Suspension happens after 10 failed jobs in a row.',
+            "error"
+        )
+
     return await render_template("contribute.html", keys=keys, new_key=new_key)
 
 

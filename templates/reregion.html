@@ -21,19 +21,21 @@
         </div>
     </div>
 
-    <div class="file-drop">
+    <div class="file-drop" data-folder-drop>
         <input type="file" name="saves" multiple required>
+        <input type="file" name="saves" webkitdirectory mozdirectory multiple style="display:none" data-folder-input>
         <svg class="file-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        <div class="file-drop-text">Drop saves to re-region here or <strong>browse</strong></div>
-        <div class="file-drop-hint">.bin + matching save file</div>
+        <div class="file-drop-text">Drop saves or folder here, or <strong>browse files</strong> / <a href="#" data-browse-folder>browse folder</a></div>
+        <div class="file-drop-hint">.bin + matching save file, or a save folder</div>
         <div class="file-drop-selected"></div>
     </div>
 
-    <div class="file-drop">
+    <div class="file-drop" data-folder-drop>
         <input type="file" name="sample" multiple required>
+        <input type="file" name="sample" webkitdirectory mozdirectory multiple style="display:none" data-folder-input>
         <svg class="file-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        <div class="file-drop-text">Drop sample save pair here or <strong>browse</strong></div>
-        <div class="file-drop-hint">From target region, .bin + matching file</div>
+        <div class="file-drop-text">Drop sample save or folder here, or <strong>browse files</strong> / <a href="#" data-browse-folder>browse folder</a></div>
+        <div class="file-drop-hint">From target region, .bin + matching file, or a save folder</div>
         <div class="file-drop-selected"></div>
     </div>
 

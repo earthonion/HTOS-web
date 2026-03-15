@@ -41,10 +41,13 @@
                 {% endif %}
                 <a href="{{ url_for('contribute.contribute') }}">Contribute</a>
                 <a href="{{ url_for('main.about') }}">About</a>
+                {% if session.get('is_admin') %}
+                <a href="{{ url_for('admin_web.dashboard') }}">Admin</a>
+                {% endif %}
             </div>
             <div class="nav-workers">
                 {% if workers_online > 0 %}
-                <span style="color: var(--green);">&#9679;</span> Workers: {{ workers_online }} (PS4: {{ ps4_workers }}, PS5: {{ ps5_workers }})
+                <span style="color: var(--green);">&#9679;</span> PS4: {{ ps4_workers }}, PS5: {{ ps5_workers }}
                 {% else %}
                 <span style="color: var(--red);">&#9679;</span> No workers online
                 {% endif %}
@@ -65,7 +68,7 @@
         {% if messages %}
         <div class="flash-messages">
             {% for category, message in messages %}
-            <div class="flash flash-{{ category }}">{{ message }}</div>
+            <div class="flash flash-{{ category }}">{{ message | safe }}</div>
             {% endfor %}
         </div>
         {% endif %}
@@ -96,6 +99,72 @@
             navCollapse.classList.toggle('open');
         });
     }
+
+    // Folder browse links
+    document.querySelectorAll('[data-browse-folder]').forEach(link => {
+        link.addEventListener('click', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            const drop = link.closest('.file-drop');
+            const folderInput = drop.querySelector('[data-folder-input]');
+            if (folderInput) folderInput.click();
+        });
+    });
+
+    // Folder input change handler
+    document.querySelectorAll('[data-folder-input]').forEach(folderInput => {
+        folderInput.addEventListener('change', () => {
+            if (!folderInput.files.length) return;
+            const drop = folderInput.closest('.file-drop');
+            const fileInput = drop.querySelector('input[type="file"]:not([data-folder-input])');
+            const sel = drop.querySelector('.file-drop-selected');
+            if (fileInput) fileInput.required = false;
+            sel.textContent = folderInput.files.length + ' files from folder';
+            drop.style.borderColor = 'var(--cyan)';
+            drop.style.borderStyle = 'solid';
+            setTimeout(() => { drop.style.borderColor = ''; drop.style.borderStyle = ''; }, 800);
+        });
+    });
+
+    // Auto-detect folder drops on all file-drop zones
+    document.querySelectorAll('[data-folder-drop]').forEach(drop => {
+        drop.addEventListener('drop', async e => {
+            if (!e.dataTransfer || !e.dataTransfer.items) return;
+            const items = [...e.dataTransfer.items];
+            const hasDir = items.some(i => {
+                const entry = i.webkitGetAsEntry && i.webkitGetAsEntry();
+                return entry && entry.isDirectory;
+            });
+            if (!hasDir) return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            const dt = new DataTransfer();
+            async function readDir(entry, path) {
+                if (entry.isFile) {
+                    const file = await new Promise(r => entry.file(r));
+                    dt.items.add(new File([file], path + file.name, {type: file.type}));
+                } else if (entry.isDirectory) {
+                    const reader = entry.createReader();
+                    const entries = await new Promise(r => reader.readEntries(r));
+                    for (const e of entries) await readDir(e, path + entry.name + '/');
+                }
+            }
+            for (const item of items) {
+                const entry = item.webkitGetAsEntry();
+                if (entry) await readDir(entry, '');
+            }
+            const folderInput = drop.querySelector('[data-folder-input]');
+            const fileInput = drop.querySelector('input[type="file"]:not([data-folder-input])');
+            const sel = drop.querySelector('.file-drop-selected');
+            if (folderInput) folderInput.files = dt.files;
+            if (fileInput) fileInput.required = false;
+            sel.textContent = dt.files.length + ' files from folder';
+            drop.classList.remove('dragover');
+            drop.style.borderColor = 'var(--cyan)';
+            drop.style.borderStyle = 'solid';
+            setTimeout(() => { drop.style.borderColor = ''; drop.style.borderStyle = ''; }, 800);
+        }, true);
+    });
 
     document.querySelectorAll('.file-drop').forEach(drop => {
         const input = drop.querySelector('input[type="file"]');
