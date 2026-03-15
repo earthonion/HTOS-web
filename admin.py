@@ -3,6 +3,7 @@
 
 import argparse
 import asyncio
+import os
 import secrets
 import sys
 
@@ -324,6 +325,51 @@ async def clear_jobs(status=None):
         await db.close()
 
 
+# ── SaveDB ──
+
+async def savedb_list():
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT e.id, e.title, e.title_id, e.platform, e.upvotes, e.downvotes, "
+            "u.username FROM savedb_entries e JOIN users u ON e.user_id = u.id "
+            "ORDER BY (e.upvotes - e.downvotes) DESC, e.created_at DESC"
+        )
+        rows = await cursor.fetchall()
+        if not rows:
+            print("No savedb entries.")
+            return
+        print(f"{'ID':<6}{'Title':<30}{'CUSA':<12}{'Plat':<6}{'Score':<7}{'Up':<4}{'Dn':<4}{'User'}")
+        print("-" * 80)
+        for r in rows:
+            score = r['upvotes'] - r['downvotes']
+            print(f"{r['id']:<6}{r['title'][:28]:<30}{r['title_id']:<12}{r['platform']:<6}"
+                  f"{score:<7}{r['upvotes']:<4}{r['downvotes']:<4}{r['username']}")
+    finally:
+        await db.close()
+
+
+async def savedb_delete(entry_id):
+    import shutil
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT save_path FROM savedb_entries WHERE id = ?", (entry_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            print(f"Entry {entry_id} not found.")
+            return
+        if row["save_path"] and os.path.isdir(row["save_path"]):
+            shutil.rmtree(row["save_path"], ignore_errors=True)
+        await db.execute("DELETE FROM savedb_votes WHERE entry_id = ?", (entry_id,))
+        await db.execute("DELETE FROM savedb_entries WHERE id = ?", (entry_id,))
+        await db.commit()
+        print(f"Entry {entry_id} deleted.")
+    finally:
+        await db.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description="HTOS Admin CLI")
     sub = parser.add_subparsers(dest="command")
@@ -373,6 +419,12 @@ def main():
     p = sub.add_parser("clear-jobs", help="Delete jobs")
     p.add_argument("--status", default=None, help="Only delete jobs with this status")
 
+    # SaveDB
+    p = sub.add_parser("savedb-list", help="List savedb entries")
+
+    p = sub.add_parser("savedb-delete", help="Delete a savedb entry and its files")
+    p.add_argument("entry_id", type=int)
+
     args = parser.parse_args()
 
     commands = {
@@ -392,6 +444,8 @@ def main():
         "jobs": lambda: list_jobs(args.limit),
         "worker-stats": lambda: worker_stats(),
         "clear-jobs": lambda: clear_jobs(args.status),
+        "savedb-list": lambda: savedb_list(),
+        "savedb-delete": lambda: savedb_delete(args.entry_id),
     }
 
     if args.command is None or args.command == "help":
@@ -430,7 +484,11 @@ def main():
     python admin.py invite-create --count 5
     python admin.py invite-list
     python admin.py jobs --limit 50
-    python admin.py clear-jobs --status failed""")
+    python admin.py clear-jobs --status failed
+
+  SaveDB:
+    savedb-list                    List savedb entries
+    savedb-delete <entry_id>       Delete a savedb entry and files""")
         sys.exit(0)
 
     asyncio.run(commands[args.command]())

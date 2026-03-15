@@ -26,6 +26,7 @@ def create_app():
     from routes.chunked import chunked_bp
     from routes.admin_web import admin_web_bp
     from routes.luac0re import luac0re_bp
+    from routes.savedb import savedb_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -43,6 +44,7 @@ def create_app():
     app.register_blueprint(chunked_bp)
     app.register_blueprint(admin_web_bp)
     app.register_blueprint(luac0re_bp)
+    app.register_blueprint(savedb_bp)
 
     @app.context_processor
     async def inject_worker_count():
@@ -74,7 +76,7 @@ def create_app():
     @app.before_serving
     async def startup():
         await init_db()
-        for d in ["workspace/uploads", "workspace/results", "workspace/processing", "workspace/chunks"]:
+        for d in ["workspace/uploads", "workspace/results", "workspace/processing", "workspace/chunks", "workspace/savedb"]:
             os.makedirs(d, exist_ok=True)
 
     return app

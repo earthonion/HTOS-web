@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ entry.title }} — Save DB{% endblock %}
+{% block content %}
+<h1>{{ entry.title }}</h1>
+
+<div class="panel" style="overflow:visible;">
+    <table>
+        <tr><th style="width:120px;">Title ID</th><td><code>{{ entry.title_id }}</code></td></tr>
+        <tr><th>Platform</th><td><span class="badge-{{ entry.platform }}">{{ entry.platform | upper }}</span></td></tr>
+        <tr><th>Contributor</th><td>{{ entry.contributor }}</td></tr>
+        <tr><th>Submitted</th><td>{{ entry.created_at }}</td></tr>
+        {% if entry.description %}
+        <tr><th>Description</th><td>{{ entry.description }}</td></tr>
+        {% endif %}
+    </table>
+
+    <div style="display:flex; align-items:center; gap:1rem; margin-top:1rem;">
+        <div class="savedb-card-votes" style="font-size:1.1rem;">
+            <span style="color:var(--green);">&#9650; {{ entry.upvotes }}</span>
+            <span style="color:var(--red);">&#9660; {{ entry.downvotes }}</span>
+        </div>
+
+        <form method="POST" action="{{ url_for('savedb.vote', entry_id=entry.id) }}" style="display:inline;">
+            <button type="submit" name="vote" value="up" class="btn-small {% if user_vote == 1 %}btn-active{% endif %}">&#9650; Upvote</button>
+        </form>
+        <form method="POST" action="{{ url_for('savedb.vote', entry_id=entry.id) }}" style="display:inline;">
+            <button type="submit" name="vote" value="down" class="btn-small {% if user_vote == -1 %}btn-active{% endif %}">&#9660; Downvote</button>
+        </form>
+    </div>
+
+    <div style="margin-top:1rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+        <a href="{{ url_for('savedb.encrypt', entry_id=entry.id) }}" class="btn-small" style="background:var(--indigo); color:#fff; padding:0.4rem 1rem;">Encrypt to My Account</a>
+        <a href="{{ url_for('savedb.download', entry_id=entry.id) }}" class="btn-small" style="padding:0.4rem 1rem;">Download</a>
+        {% if entry.user_id == session.get('user_id') %}
+        <form method="POST" action="{{ url_for('savedb.delete', entry_id=entry.id) }}">
+            <button type="submit" class="btn-small btn-danger">Delete</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div style="margin-top:1rem;">
+    <a href="{{ url_for('savedb.browse') }}">&larr; Back to Save DB</a>
+</div>
+
+<style>
+.btn-active {
+    background: var(--indigo) !important;
+    color: #fff !important;
+}
+.badge-ps4 {
+    background: var(--indigo-glow);
+    color: var(--indigo-light);
+    padding: 0.1rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+.badge-ps5 {
+    background: var(--cyan-dim);
+    color: var(--cyan);
+    padding: 0.1rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+</style>
+{% endblock %}

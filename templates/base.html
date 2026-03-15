@@ -39,6 +39,7 @@
                 <a href="{{ url_for('convert.convert') }}">Convert</a>
                 <a href="{{ url_for('quickcodes.quickcodes') }}">Quick Codes</a>
                 {% endif %}
+                <a href="{{ url_for('savedb.browse') }}">Save DB <span style="font-size:0.6rem; color:var(--amber); vertical-align:super;">BETA</span></a>
                 <a href="{{ url_for('contribute.contribute') }}">Contribute</a>
                 <a href="{{ url_for('main.about') }}">About</a>
                 {% if session.get('is_admin') %}

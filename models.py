@@ -62,6 +62,29 @@ CREATE TABLE IF NOT EXISTS job_stats (
     PRIMARY KEY (operation, worker_key_id)
 );
 
+CREATE TABLE IF NOT EXISTS savedb_entries (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    title TEXT NOT NULL,
+    title_id TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    platform TEXT DEFAULT 'ps4',
+    save_path TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    upvotes INTEGER DEFAULT 0,
+    downvotes INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS savedb_votes (
+    id INTEGER PRIMARY KEY,
+    entry_id INTEGER REFERENCES savedb_entries(id),
+    user_id INTEGER REFERENCES users(id),
+    vote INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(entry_id, user_id)
+);
+
 INSERT OR IGNORE INTO settings (key, value) VALUES ('invite_only', '0');
 """
 

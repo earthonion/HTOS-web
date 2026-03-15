@@ -8,10 +8,10 @@ WORKSPACE=$BASE/workspace
 mkdir -p "$SAVES" "$WORKSPACE"
 
 find "$SAVES" -mindepth 1 -delete
-find "$WORKSPACE" -mindepth 1 -delete
+find "$WORKSPACE" -mindepth 1 -not -path "$WORKSPACE/savedb" -not -path "$WORKSPACE/savedb/*" -delete
 
 # Recreate subdirectories that the app expects
-mkdir -p "$WORKSPACE/uploads" "$WORKSPACE/results"
+mkdir -p "$WORKSPACE/uploads" "$WORKSPACE/results" "$WORKSPACE/savedb"
 
 cd "$BASE"
 
