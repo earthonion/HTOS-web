@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import zipfile
 
 from quart import Blueprint, render_template, session, send_file, Response, abort
 
@@ -116,18 +117,34 @@ async def job_download(job_id):
     if not job.result_path or not os.path.exists(job.result_path):
         abort(404)
 
-    # Build a descriptive filename including save name if available
+    # Extract SFO fields from result zip for filename and PS4 structure
+    sfo = _extract_sfo_fields_from_zip(job.result_path)
     save_name = ""
     if job.params:
         save_name = job.params.get("savename", "")
-        if not save_name:
-            # For decrypt/resign, try to get name from uploaded files
-            upload_dir = job.params.get("upload_dir", "")
-            if upload_dir and os.path.isdir(upload_dir):
-                for f in os.listdir(upload_dir):
-                    if not f.endswith(".bin") and not f.endswith(".zip"):
-                        save_name = f
-                        break
+    if not save_name:
+        save_name = sfo.get("SAVEDATA_DIRECTORY", "")
+
+    # For PS4 encrypt/resign, restructure zip as PS4/SAVEDATA/<account_id>/<title_id>/
+    platform = job.params.get("platform", "ps4") if job.params else "ps4"
+    if platform == "ps4" and job.operation in ("encrypt", "resign") and job.params:
+        account_id = job.params.get("account_id", "")
+        title_id = job.params.get("title_id", "") or sfo.get("TITLE_ID", "")
+        if account_id and title_id:
+            structured_path = job.result_path.replace(".zip", "_ps4.zip")
+            try:
+                _restructure_ps4_zip(job.result_path, structured_path, account_id, title_id)
+                if save_name:
+                    filename = f"{job.operation}_{save_name}_{job_id[:8]}.zip"
+                else:
+                    filename = f"{job.operation}_{job_id[:8]}.zip"
+                return await send_file(
+                    structured_path,
+                    as_attachment=True,
+                    attachment_filename=filename
+                )
+            except Exception:
+                pass  # Fall through to serve original zip
 
     if save_name:
         filename = f"{job.operation}_{save_name}_{job_id[:8]}.zip"
@@ -139,6 +156,47 @@ async def job_download(job_id):
         as_attachment=True,
         attachment_filename=filename
     )
+
+
+def _extract_sfo_fields_from_zip(zip_path):
+    """Read TITLE_ID and SAVEDATA_DIRECTORY from param.sfo inside a result zip."""
+    import struct
+    result = {}
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            for name in zf.namelist():
+                if name.lower().endswith("param.sfo"):
+                    data = zf.read(name)
+                    if len(data) > 20 and data[:4] == b'\x00PSF':
+                        key_off = struct.unpack_from('<I', data, 8)[0]
+                        data_off = struct.unpack_from('<I', data, 12)[0]
+                        count = struct.unpack_from('<I', data, 16)[0]
+                        for i in range(count):
+                            base = 20 + i * 16
+                            k_off = struct.unpack_from('<H', data, base)[0]
+                            fmt = struct.unpack_from('<H', data, base + 2)[0]
+                            d_len = struct.unpack_from('<I', data, base + 4)[0]
+                            d_off = struct.unpack_from('<I', data, base + 12)[0]
+                            end = data.index(b'\x00', key_off + k_off)
+                            key = data[key_off + k_off:end].decode()
+                            if key in ("TITLE_ID", "SAVEDATA_DIRECTORY") and fmt == 0x0204:
+                                result[key] = data[data_off + d_off:data_off + d_off + d_len].rstrip(b'\x00').decode()
+                    break
+    except Exception:
+        pass
+    return result
+
+
+def _restructure_ps4_zip(src_zip, dst_zip, account_id, title_id):
+    """Repack zip with PS4 USB structure: PS4/SAVEDATA/<account_id>/<title_id>/"""
+    prefix = f"PS4/SAVEDATA/{account_id}/{title_id}/"
+    with zipfile.ZipFile(src_zip, "r") as zin, \
+         zipfile.ZipFile(dst_zip, "w", zipfile.ZIP_STORED) as zout:
+        for info in zin.infolist():
+            if info.is_dir():
+                continue
+            data = zin.read(info.filename)
+            zout.writestr(prefix + info.filename, data)
 
 @jobs_bp.route("/jobs/<job_id>/files")
 @login_required

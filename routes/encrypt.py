@@ -10,7 +10,7 @@ from utils.constants import (
     SCE_SYS_NAME, PARAM_NAME,
 )
 from utils.orbis import validate_savedirname, sfo_ctx_create
-from services.files import _read_account_id_from_sfo, FileTooLargeError, _check_file_sizes, _strip_sdimg_prefix, resolve_chunked_uploads, detect_platform_in_dir
+from services.files import _read_account_id_from_sfo, FileTooLargeError, DangerousFileError, check_dangerous_files, check_zip_safety, _check_file_sizes, _strip_sdimg_prefix, resolve_chunked_uploads, detect_platform_in_dir
 from services.workers import ps5_workers_online
 
 encrypt_bp = Blueprint("encrypt", __name__)
@@ -97,13 +97,29 @@ async def encrypt():
             if not zip_path:
                 await flash("No .zip file found in upload.", "error")
                 return await render_template("encrypt.html", profiles=profiles)
+            try:
+                check_zip_safety(zip_path)
+            except DangerousFileError as e:
+                await flash(str(e), "error")
+                return await render_template("encrypt.html", profiles=profiles)
             with zipfile.ZipFile(zip_path, "r") as zf:
                 zf.extractall(extract_dir)
         else:
             zip_path = os.path.join(upload_dir, zipfile_upload.filename)
             await zipfile_upload.save(zip_path)
+            try:
+                check_zip_safety(zip_path)
+            except DangerousFileError as e:
+                await flash(str(e), "error")
+                return await render_template("encrypt.html", profiles=profiles)
             with zipfile.ZipFile(zip_path, "r") as zf:
                 zf.extractall(extract_dir)
+
+        try:
+            check_dangerous_files(extract_dir)
+        except DangerousFileError as e:
+            await flash(str(e), "error")
+            return await render_template("encrypt.html", profiles=profiles)
 
         # Strip PS5 sdimg_ prefix and check file sizes
         _strip_sdimg_prefix(extract_dir)

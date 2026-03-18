@@ -27,9 +27,9 @@
         {% endif %}
         <div class="savedb-card-meta">
             <span>by {{ e.contributor }}</span>
-            <span class="savedb-card-votes">
-                <span style="color:var(--green);">&#9650; {{ e.upvotes }}</span>
-                <span style="color:var(--red);">&#9660; {{ e.downvotes }}</span>
+            {% set score = e.upvotes - e.downvotes %}
+            <span class="savedb-card-votes" style="color:{% if score > 0 %}var(--green){% elif score < 0 %}var(--red){% else %}var(--text-3){% endif %};">
+                {{ score }} point{{ 's' if score != 1 }}
             </span>
         </div>
         <div class="savedb-card-actions">
@@ -61,7 +61,61 @@
 <p>{% if q %}No saves found for "{{ q }}".{% else %}No saves yet. Be the first to <a href="{{ url_for('savedb.contribute') }}">contribute one</a>!{% endif %}</p>
 {% endif %}
 
+<aside class="savedb-sidebar">
+    <div class="savedb-sidebar-box">
+        <h3>External Databases</h3>
+        <a href="https://bucanero.github.io/apollo-saves/PS4/" target="_blank" class="savedb-ext-link">
+            Bucanero's PS4 Saves
+            <span class="savedb-ext-arrow">&rarr;</span>
+        </a>
+    </div>
+</aside>
+
 <style>
+.savedb-sidebar {
+    position: fixed;
+    top: 6rem;
+    /* Center 220px box in the gap between main (1100px centered) and viewport right edge */
+    right: calc((100vw - 1100px) / 2 / 2 - 110px);
+    width: 220px;
+    z-index: 10;
+}
+.savedb-sidebar-box {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 1rem;
+}
+.savedb-sidebar-box h3 {
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    color: var(--text-2);
+    margin: 0 0 0.75rem 0;
+    letter-spacing: 0.03em;
+}
+.savedb-ext-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.6rem;
+    border-radius: var(--r);
+    font-size: 0.85rem;
+    color: var(--text-1);
+    text-decoration: none;
+    transition: background 0.15s;
+}
+.savedb-ext-link:hover {
+    background: var(--bg-2);
+}
+.savedb-ext-arrow {
+    color: var(--text-3);
+    font-size: 0.9rem;
+}
+@media (max-width: 1400px) {
+    .savedb-sidebar {
+        display: none;
+    }
+}
 .savedb-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));

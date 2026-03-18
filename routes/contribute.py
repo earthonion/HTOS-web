@@ -59,14 +59,23 @@ async def contribute():
         await flash("Worker key created! Copy it now, it won't be shown again.", "success")
         return redirect(url_for("contribute.contribute"))
 
-    # GET — list user's keys
+    # GET — list user's keys with success rate from job_stats
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT id, name, is_active, created_at, last_used, last_platform, jobs_completed, suspended_until, "
-            "CASE WHEN last_used IS NOT NULL AND last_used > datetime('now', '-90 seconds') THEN 1 ELSE 0 END as is_online, "
-            "CASE WHEN suspended_until IS NOT NULL AND suspended_until > datetime('now') THEN 1 ELSE 0 END as is_suspended "
-            "FROM worker_keys WHERE user_id = ? ORDER BY created_at DESC",
+            "SELECT wk.id, wk.name, wk.is_active, wk.created_at, wk.last_used, wk.last_platform, "
+            "wk.jobs_completed, wk.suspended_until, "
+            "CASE WHEN wk.last_used IS NOT NULL AND wk.last_used > datetime('now', '-90 seconds') THEN 1 ELSE 0 END as is_online, "
+            "CASE WHEN wk.suspended_until IS NOT NULL AND wk.suspended_until > datetime('now') THEN 1 ELSE 0 END as is_suspended, "
+            "COALESCE(ps.hist_done, 0) as stats_done, "
+            "COALESCE(ps.hist_failed, 0) as stats_failed, "
+            "COALESCE(ps.hist_total, 0) as stats_total "
+            "FROM worker_keys wk "
+            "LEFT JOIN ("
+            "  SELECT worker_key_id, SUM(done) as hist_done, SUM(failed) as hist_failed, "
+            "  SUM(total) as hist_total FROM job_stats GROUP BY worker_key_id"
+            ") ps ON ps.worker_key_id = wk.id "
+            "WHERE wk.user_id = ? ORDER BY wk.created_at DESC",
             (user_id,)
         )
         keys = [dict(row) for row in await cursor.fetchall()]

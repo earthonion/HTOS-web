@@ -15,9 +15,9 @@
     </table>
 
     <div style="display:flex; align-items:center; gap:1rem; margin-top:1rem;">
-        <div class="savedb-card-votes" style="font-size:1.1rem;">
-            <span style="color:var(--green);">&#9650; {{ entry.upvotes }}</span>
-            <span style="color:var(--red);">&#9660; {{ entry.downvotes }}</span>
+        {% set score = entry.upvotes - entry.downvotes %}
+        <div class="savedb-card-votes" style="font-size:1.1rem; color:{% if score > 0 %}var(--green){% elif score < 0 %}var(--red){% else %}var(--text-3){% endif %};">
+            {{ score }} point{{ 's' if score != 1 }}
         </div>
 
         <form method="POST" action="{{ url_for('savedb.vote', entry_id=entry.id) }}" style="display:inline;">
