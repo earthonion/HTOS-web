@@ -10,6 +10,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=11">
     {% block extra_head %}{% endblock %}
+    {% if adsense_client %}
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
+         crossorigin="anonymous"></script>
+    {% endif %}
     <style>
     .chunked-progress-wrapper { margin-top: 0.5rem; }
     .chunked-progress { margin-bottom: 0.25rem; }

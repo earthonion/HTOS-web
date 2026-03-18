@@ -1,5 +1,5 @@
 import os
-from quart import Quart
+from quart import Quart, Response
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -46,6 +46,17 @@ def create_app():
     app.register_blueprint(luac0re_bp)
     app.register_blueprint(savedb_bp)
 
+    @app.route("/ads.txt")
+    async def ads_txt():
+        client_id = os.getenv("ADSENSE_CLIENT_ID", "")
+        if not client_id:
+            return Response("", status=404)
+        pub_id = client_id.replace("ca-", "")
+        return Response(
+            f"google.com, {pub_id}, DIRECT, f08c47fec0942fa0\n",
+            mimetype="text/plain",
+        )
+
     @app.context_processor
     async def inject_worker_count():
         from models import get_db
@@ -71,7 +82,13 @@ def create_app():
                 await db.close()
         except Exception:
             pass
-        return dict(workers_online=ps4_count + ps5_count, ps4_workers=ps4_count, ps5_workers=ps5_count, ps5_workers_online=ps5_count > 0)
+        return dict(
+            workers_online=ps4_count + ps5_count,
+            ps4_workers=ps4_count,
+            ps5_workers=ps5_count,
+            ps5_workers_online=ps5_count > 0,
+            adsense_client=os.getenv("ADSENSE_CLIENT_ID", ""),
+        )
 
     @app.before_serving
     async def startup():
