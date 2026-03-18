@@ -4,7 +4,7 @@ from quart import Blueprint, render_template, request, session, redirect, url_fo
 
 from auth import login_required
 from services.jobs import create_job, start_job
-from services.files import save_uploaded_files, create_result_zip, cleanup_upload
+from services.files import save_uploaded_files, create_result_zip, cleanup_upload, DangerousFileError
 from utils.namespaces import Converter, Crypto
 from utils.workspace import init_workspace, cleanup_simple
 from utils.extras import completed_print
@@ -34,7 +34,11 @@ async def convert():
 
         user_id = session["user_id"]
         job = await create_job(user_id, "convert")
-        upload_dir = await save_uploaded_files(files, user_id, job.job_id)
+        try:
+            upload_dir = await save_uploaded_files(files, user_id, job.job_id)
+        except DangerousFileError as e:
+            await flash(str(e), "error")
+            return await render_template("convert.html", games=GAME_CHOICES)
 
         start_job(job, _run_convert(job, upload_dir, game, platform_choice))
         return redirect(url_for("jobs.job_status", job_id=job.job_id))

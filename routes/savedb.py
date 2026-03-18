@@ -1,4 +1,5 @@
 import os
+import struct
 import shutil
 import uuid
 import zipfile
@@ -8,12 +9,57 @@ from quart import Blueprint, render_template, request, session, redirect, url_fo
 from auth import login_required, admin_required
 from models import get_db
 from services.jobs import create_job
+from services.files import check_dangerous_files, check_zip_safety, DangerousFileError
 
 savedb_bp = Blueprint("savedb", __name__)
 
 SAVEDB_DIR = os.path.join("workspace", "savedb")
 DELETE_THRESHOLD = -10
 PER_PAGE = 20
+
+
+def _find_and_validate_sfo(directory):
+    """Find param.sfo in directory tree and validate it.
+    Returns (sfo_path, error_message). error_message is None if valid."""
+    sfo_path = None
+    for root, dirs, files in os.walk(directory):
+        for f in files:
+            if f.lower() == "param.sfo":
+                sfo_path = os.path.join(root, f)
+                break
+        if sfo_path:
+            break
+
+    if not sfo_path:
+        return None, "No param.sfo found. This doesn't appear to be a valid PS4/PS5 save."
+
+    with open(sfo_path, "rb") as fh:
+        data = fh.read()
+
+    if len(data) < 20 or data[:4] != b'\x00PSF':
+        return None, "Invalid param.sfo (bad magic bytes). This doesn't appear to be a valid save."
+
+    # Parse and check for required keys
+    key_off = struct.unpack_from('<I', data, 8)[0]
+    data_off = struct.unpack_from('<I', data, 12)[0]
+    count = struct.unpack_from('<I', data, 16)[0]
+    found_keys = set()
+    for i in range(count):
+        base = 20 + i * 16
+        if base + 16 > len(data):
+            return None, "Invalid param.sfo (truncated index table)."
+        k_off = struct.unpack_from('<H', data, base)[0]
+        try:
+            end = data.index(b'\x00', key_off + k_off)
+            key = data[key_off + k_off:end].decode()
+            found_keys.add(key)
+        except (ValueError, UnicodeDecodeError):
+            continue
+
+    if "TITLE_ID" not in found_keys:
+        return None, "Invalid param.sfo (missing TITLE_ID). This doesn't appear to be a valid save."
+
+    return sfo_path, None
 
 
 @savedb_bp.route("/savedb")
@@ -98,23 +144,41 @@ async def contribute():
         temp_dir = os.path.join("workspace", "uploads", str(user_id), temp_id)
         os.makedirs(temp_dir, exist_ok=True)
 
-        if is_folder_upload:
-            for f in folder_files:
-                if not f.filename:
-                    continue
-                fname = os.path.basename(f.filename)
-                await f.save(os.path.join(temp_dir, fname))
-        else:
-            zip_path = os.path.join(temp_dir, zipfile_upload.filename)
-            await zipfile_upload.save(zip_path)
-            try:
-                with zipfile.ZipFile(zip_path, "r") as zf:
-                    zf.extractall(temp_dir)
-                os.unlink(zip_path)
-            except zipfile.BadZipFile:
-                shutil.rmtree(temp_dir, ignore_errors=True)
-                await flash("Invalid zip file.", "error")
-                return await render_template("savedb_contribute.html")
+        try:
+            if is_folder_upload:
+                for f in folder_files:
+                    if not f.filename:
+                        continue
+                    # Preserve directory structure (e.g. sce_sys/param.sfo)
+                    rel_path = f.filename
+                    dest = os.path.join(temp_dir, rel_path)
+                    os.makedirs(os.path.dirname(dest), exist_ok=True)
+                    await f.save(dest)
+                check_dangerous_files(temp_dir)
+            else:
+                zip_path = os.path.join(temp_dir, zipfile_upload.filename)
+                await zipfile_upload.save(zip_path)
+                try:
+                    check_zip_safety(zip_path)
+                    with zipfile.ZipFile(zip_path, "r") as zf:
+                        zf.extractall(temp_dir)
+                    os.unlink(zip_path)
+                except zipfile.BadZipFile:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    await flash("Invalid zip file.", "error")
+                    return await render_template("savedb_contribute.html")
+                check_dangerous_files(temp_dir)
+        except DangerousFileError as e:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            await flash(str(e), "error")
+            return await render_template("savedb_contribute.html")
+
+        # Validate param.sfo exists and is valid
+        sfo_path, sfo_error = _find_and_validate_sfo(temp_dir)
+        if sfo_error:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            await flash(sfo_error, "error")
+            return await render_template("savedb_contribute.html")
 
         # Insert DB entry with auto-upvote
         db = await get_db()
@@ -309,22 +373,55 @@ async def encrypt(entry_id):
             await flash("Invalid profile.", "error")
             return await render_template("savedb_resign.html", entry=entry, profiles=profiles)
 
-        # Copy files from savedb to workspace
+        # Copy files from savedb to workspace (preserve directory structure)
         temp_id = str(uuid.uuid4())
         upload_dir = os.path.join("workspace", "uploads", str(user_id), temp_id)
-        os.makedirs(upload_dir, exist_ok=True)
+        shutil.copytree(entry["save_path"], upload_dir)
 
-        for fname in os.listdir(entry["save_path"]):
-            src = os.path.join(entry["save_path"], fname)
-            if os.path.isfile(src):
-                shutil.copy2(src, os.path.join(upload_dir, fname))
-
+        # Read savename and saveblocks from param.sfo
         platform = entry["platform"]
-        job = await create_job(user_id, "encrypt", {
+        savename = None
+        saveblocks = None
+        sfo_path = None
+        for root, dirs, files in os.walk(upload_dir):
+            for f in files:
+                if f.lower() == "param.sfo":
+                    sfo_path = os.path.join(root, f)
+                    break
+            if sfo_path:
+                break
+
+        if sfo_path:
+            with open(sfo_path, "rb") as fh:
+                data = fh.read()
+            if len(data) > 20 and data[:4] == b'\x00PSF':
+                key_off = struct.unpack_from('<I', data, 8)[0]
+                data_off = struct.unpack_from('<I', data, 12)[0]
+                count = struct.unpack_from('<I', data, 16)[0]
+                for i in range(count):
+                    base = 20 + i * 16
+                    k_off = struct.unpack_from('<H', data, base)[0]
+                    fmt = struct.unpack_from('<H', data, base + 2)[0]
+                    d_len = struct.unpack_from('<I', data, base + 4)[0]
+                    d_off = struct.unpack_from('<I', data, base + 12)[0]
+                    end = data.index(b'\x00', key_off + k_off)
+                    key = data[key_off + k_off:end].decode()
+                    if key == "SAVEDATA_DIRECTORY" and fmt == 0x0204:
+                        savename = data[data_off + d_off:data_off + d_off + d_len].rstrip(b'\x00').decode()
+                    elif key == "SAVEDATA_BLOCKS":
+                        saveblocks = struct.unpack_from('<Q', data, data_off + d_off)[0]
+
+        params = {
             "account_id": profile["account_id"],
             "upload_dir": upload_dir,
             "platform": platform,
-        }, ready=True)
+        }
+        if savename:
+            params["savename"] = savename
+        if saveblocks:
+            params["saveblocks"] = saveblocks
+
+        job = await create_job(user_id, "encrypt", params, ready=True)
 
         return redirect(url_for("jobs.job_status", job_id=job.job_id))
 
@@ -348,14 +445,15 @@ async def download(entry_id):
         await flash("Save not found.", "error")
         return redirect(url_for("savedb.browse"))
 
-    # Build zip on disk
+    # Build zip on disk (preserve directory structure)
     zip_name = f"{entry['title_id']}_{entry['title']}.zip".replace(" ", "_")
     zip_path = os.path.join("workspace", "uploads", f"savedb_dl_{entry_id}_{uuid.uuid4().hex[:8]}.zip")
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED) as zf:
-        for fname in os.listdir(entry["save_path"]):
-            fpath = os.path.join(entry["save_path"], fname)
-            if os.path.isfile(fpath):
-                zf.write(fpath, fname)
+        for root, dirs, files in os.walk(entry["save_path"]):
+            for fname in files:
+                fpath = os.path.join(root, fname)
+                arcname = os.path.relpath(fpath, entry["save_path"])
+                zf.write(fpath, arcname)
 
     return await send_file(zip_path, as_attachment=True, attachment_filename=zip_name)
 

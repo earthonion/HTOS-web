@@ -37,7 +37,7 @@
                 <a href="{{ url_for('reregion.reregion') }}">Re-region</a>
                 <a href="{{ url_for('createsave.createsave') }}">Create Save</a>
                 <a href="{{ url_for('convert.convert') }}">Convert</a>
-                <a href="{{ url_for('quickcodes.quickcodes') }}">Quick Codes</a>
+
                 {% endif %}
                 <a href="{{ url_for('savedb.browse') }}">Save DB <span style="font-size:0.6rem; color:var(--amber); vertical-align:super;">BETA</span></a>
                 <a href="{{ url_for('contribute.contribute') }}">Contribute</a>
@@ -81,6 +81,7 @@
 
         {% block content %}{% endblock %}
     </main>
+
 
     <footer style="position: relative;">
         <div style="position: absolute; left: 1rem; bottom: 0; top: 0; display: flex; align-items: center; gap: 0.75rem; font-size: 0.75rem; color: var(--text-2);">

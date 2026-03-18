@@ -71,7 +71,7 @@ function copyEl(id) {
     {% if keys %}
     <table>
         <thead>
-            <tr><th>Name</th><th>Status</th><th>Online</th><th>Jobs</th><th>Created</th><th>Last Used</th><th></th></tr>
+            <tr><th>Name</th><th>Status</th><th>Online</th><th>Jobs</th><th>Success Rate</th><th>Created</th><th>Last Used</th><th></th></tr>
         </thead>
         <tbody>
             {% for k in keys %}
@@ -94,6 +94,15 @@ function copyEl(id) {
                     {% endif %}
                 </td>
                 <td>{{ k.jobs_completed or 0 }}</td>
+                <td>
+                    {% if k.stats_total > 0 %}
+                    {% set rate = (k.stats_done * 100 / k.stats_total) | round(1) %}
+                    <span style="color: {% if rate >= 90 %}var(--green){% elif rate >= 70 %}var(--amber){% else %}var(--red){% endif %};">{{ rate }}%</span>
+                    <span style="color: var(--text-3); font-size: 0.72rem;">({{ k.stats_done }}/{{ k.stats_total }})</span>
+                    {% else %}
+                    <span style="color: var(--text-3);">—</span>
+                    {% endif %}
+                </td>
                 <td>{{ k.created_at }}</td>
                 <td>{{ k.last_used or 'never' }}</td>
                 <td style="display: flex; flex-direction: column; gap: 0.25rem;">

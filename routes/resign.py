@@ -3,7 +3,7 @@ from quart import Blueprint, render_template, request, session, redirect, url_fo
 from auth import login_required
 from models import get_db
 from services.jobs import create_job
-from services.files import save_uploaded_files, detect_platform_in_dir, resolve_chunked_uploads, FileTooLargeError, InvalidSaveFilesError, validate_save_pairs
+from services.files import save_uploaded_files, detect_platform_in_dir, resolve_chunked_uploads, FileTooLargeError, InvalidSaveFilesError, DangerousFileError, validate_save_pairs
 from services.workers import ps5_workers_online
 
 resign_bp = Blueprint("resign", __name__)
@@ -64,6 +64,9 @@ async def resign():
             validate_save_pairs(upload_dir)
         except FileTooLargeError as e:
             await flash(f"Save file too large: {e}.", "error")
+            return await render_template("resign.html", profiles=profiles)
+        except DangerousFileError as e:
+            await flash(str(e), "error")
             return await render_template("resign.html", profiles=profiles)
         except InvalidSaveFilesError as e:
             await flash(str(e), "error")

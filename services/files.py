@@ -4,12 +4,73 @@ import shutil
 import zipfile
 from config import UPLOAD_DIR, RESULT_DIR, MAX_SAVE_FILE_SIZE, CHUNK_DIR
 
+# Upload security
+# Only block Windows/macOS executables and installers — not scripts or media
+# that could legitimately appear in PS4/PS5 saves (lua, py, svg, html, etc.)
+BLOCKED_EXTENSIONS = {
+    ".exe", ".bat", ".cmd", ".com", ".msi", ".scr", ".pif",
+    ".dll", ".sys", ".drv",
+    ".app", ".dmg",
+    ".deb", ".rpm",
+}
+
+# Max total decompressed size for zips (2GB)
+MAX_ZIP_DECOMPRESSED = 2 * 1024 * 1024 * 1024
+# Max compression ratio (zip bomb detection)
+MAX_ZIP_RATIO = 100
+
+
+class DangerousFileError(Exception):
+    pass
+
+
+def check_dangerous_files(directory):
+    """Scan directory for blocked file extensions."""
+    for root, dirs, files in os.walk(directory):
+        for f in files:
+            ext = os.path.splitext(f)[1].lower()
+            if ext in BLOCKED_EXTENSIONS:
+                raise DangerousFileError(
+                    f"Blocked file type: {f}. Only PS4/PS5 save files are allowed."
+                )
+
+
+def check_zip_safety(zip_path):
+    """Check a zip file for zip bombs before extraction."""
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            compressed = os.path.getsize(zip_path)
+            decompressed = sum(info.file_size for info in zf.infolist())
+
+            if decompressed > MAX_ZIP_DECOMPRESSED:
+                raise DangerousFileError(
+                    f"Zip decompressed size ({decompressed // (1024*1024)}MB) exceeds limit. "
+                    f"Max allowed is {MAX_ZIP_DECOMPRESSED // (1024*1024)}MB."
+                )
+
+            if compressed > 0 and decompressed / compressed > MAX_ZIP_RATIO:
+                raise DangerousFileError(
+                    "Suspicious zip file detected (possible zip bomb). Upload rejected."
+                )
+
+            # Check for blocked files inside zip
+            for info in zf.infolist():
+                ext = os.path.splitext(info.filename)[1].lower()
+                if ext in BLOCKED_EXTENSIONS:
+                    raise DangerousFileError(
+                        f"Blocked file type in zip: {info.filename}. "
+                        f"Only PS4/PS5 save files are allowed."
+                    )
+    except zipfile.BadZipFile:
+        raise DangerousFileError("Invalid zip file.")
+
 
 def _extract_zips_in_dir(directory: str):
     """If any .zip files exist in the directory, extract them and remove the zip."""
     for name in os.listdir(directory):
         filepath = os.path.join(directory, name)
         if os.path.isfile(filepath) and name.lower().endswith(".zip"):
+            check_zip_safety(filepath)
             try:
                 with zipfile.ZipFile(filepath, "r") as zf:
                     zf.extractall(directory)
@@ -129,9 +190,10 @@ async def resolve_chunked_uploads(upload_ids: list, user_id: int, job_id: str) -
         # Clean up chunk dir
         shutil.rmtree(chunk_dir, ignore_errors=True)
 
-    # Auto-extract zips, strip prefix, check sizes
+    # Auto-extract zips, strip prefix, check sizes and dangerous files
     _extract_zips_in_dir(upload_dir)
     _strip_sdimg_prefix(upload_dir)
+    check_dangerous_files(upload_dir)
     _check_file_sizes(upload_dir)
 
     return upload_dir
@@ -150,9 +212,10 @@ async def save_uploaded_files(files, user_id: int, job_id: str) -> str:
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         await f.save(filepath)
 
-    # Auto-extract any uploaded zip files, strip prefix, check sizes
+    # Auto-extract any uploaded zip files, strip prefix, check sizes and dangerous files
     _extract_zips_in_dir(upload_dir)
     _strip_sdimg_prefix(upload_dir)
+    check_dangerous_files(upload_dir)
     _check_file_sizes(upload_dir)
 
     return upload_dir
