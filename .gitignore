@@ -9,3 +9,4 @@ UserSaves/
 .env*
 static/*.pkg
 static/*.elf
+titles.db
