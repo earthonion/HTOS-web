@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Tools{% endblock %}
+{% block content %}
+<h1>Tools</h1>
+<p>Handy utilities for PlayStation Consoles.</p>
+
+<div style="display:flex; flex-wrap:wrap; gap:1rem; margin-top:1.5rem;">
+    <a href="{{ url_for('tools.title_lookup') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:360px; padding:1.25rem;">
+        <h3 style="margin:0 0 0.4rem;">Title ID Lookup</h3>
+        <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Search 67,000+ PlayStation titles by game name or title ID (CUSA/PPSA).</p>
+    </a>
+    <a href="{{ url_for('tools.fs_browser') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:360px; padding:1.25rem;">
+        <h3 style="margin:0 0 0.4rem;">Filesystem Browser</h3>
+        <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Search PS4 and PS5 filesystem paths — find files, directories, and system binaries.</p>
+    </a>
+    <a href="{{ url_for('tools.sfo_viewer') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:360px; padding:1.25rem;">
+        <h3 style="margin:0 0 0.4rem;">param.sfo Viewer</h3>
+        <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Drop a param.sfo or zip to view all fields — title, ID, category, version, and more. Client-side only.</p>
+    </a>
+    <a href="{{ url_for('tools.function_lookup') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:360px; padding:1.25rem;">
+        <h3 style="margin:0 0 0.4rem;">Function Lookup</h3>
+        <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Search 18,000+ Sony system functions from PS5 libraries — find which SPRX contains any sce* function.</p>
+    </a>
+    <a href="{{ url_for('tools.entitlements') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:360px; padding:1.25rem;">
+        <h3 style="margin:0 0 0.4rem;">Entitlement Dumper</h3>
+        <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Drop your entitlement.db to extract game titles, IDs, and package URLs. Runs entirely in your browser.</p>
+    </a>
+</div>
+{% endblock %}
