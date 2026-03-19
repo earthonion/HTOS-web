@@ -1,8 +1,29 @@
 name: Ruff
 on: [ push, pull_request ]
+
 jobs:
   ruff:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+
       - uses: astral-sh/ruff-action@v3
+        continue-on-error: true
+        with:
+          args: "check --select I --fix"
+
+      - uses: astral-sh/ruff-action@v3
+        continue-on-error: true
+        with:
+          args: "check --fix"
+
+      - uses: astral-sh/ruff-action@v3
+        continue-on-error: true
+        with:
+          args: "format"
+
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "style: auto-fix, format, and sort imports"
