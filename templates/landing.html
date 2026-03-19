@@ -224,6 +224,33 @@
     </div>
 </div>
 
+<div class="how-it-works">
+    <h2>Free Tools</h2>
+    <p style="text-align:center; color:var(--text-2); margin-bottom:1.25rem;">No account needed — use these right now.</p>
+    <div style="display:flex; flex-wrap:wrap; gap:1rem; justify-content:center;">
+        <a href="{{ url_for('tools.title_lookup') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:340px; padding:1.25rem;">
+            <h3 style="margin:0 0 0.4rem;">Title ID Lookup</h3>
+            <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Search 67,000+ PlayStation titles by game name or title ID (CUSA/PPSA).</p>
+        </a>
+        <a href="{{ url_for('tools.fs_browser') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:340px; padding:1.25rem;">
+            <h3 style="margin:0 0 0.4rem;">Filesystem Browser</h3>
+            <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Search PS4 and PS5 filesystem paths — find files, directories, and system binaries.</p>
+        </a>
+        <a href="{{ url_for('tools.sfo_viewer') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:340px; padding:1.25rem;">
+            <h3 style="margin:0 0 0.4rem;">param.sfo Viewer</h3>
+            <p style="font-size:0.82rem; color:var(--text-2); margin:0;">View all fields from a param.sfo file — title, ID, category, version, and more.</p>
+        </a>
+        <a href="{{ url_for('tools.function_lookup') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:340px; padding:1.25rem;">
+            <h3 style="margin:0 0 0.4rem;">Function Lookup</h3>
+            <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Search 18,000+ Sony system functions — find which SPRX contains any sce* function.</p>
+        </a>
+        <a href="{{ url_for('tools.entitlements') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:340px; padding:1.25rem;">
+            <h3 style="margin:0 0 0.4rem;">Entitlement Dumper</h3>
+            <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Extract game titles, IDs, and package URLs from your entitlement.db — all client-side.</p>
+        </a>
+    </div>
+</div>
+
 <div class="faq-section">
     <h2>Frequently Asked Questions</h2>
 
