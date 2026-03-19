@@ -162,7 +162,10 @@
             const folderInput = drop.querySelector('[data-folder-input]');
             const fileInput = drop.querySelector('input[type="file"]:not([data-folder-input])');
             const sel = drop.querySelector('.file-drop-selected');
-            if (folderInput) folderInput.files = dt.files;
+            if (folderInput) {
+                folderInput.files = dt.files;
+                folderInput.dispatchEvent(new Event('change'));
+            }
             if (fileInput) fileInput.required = false;
             sel.textContent = dt.files.length + ' files from folder';
             drop.classList.remove('dragover');

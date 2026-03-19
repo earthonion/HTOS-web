@@ -2,7 +2,7 @@
 {% block title %}Submit a Save — Save DB{% endblock %}
 {% block content %}
 <h1>Submit a Save</h1>
-<p>Share your modded save with the community. Upload <strong>decrypted</strong> save files as a zip or folder. Anyone can then encrypt it to their account.</p>
+<p>Share your modded save with the community. Upload <strong>decrypted</strong> save files as a zip or folder. The game title and ID are detected automatically from param.sfo.</p>
 
 <form method="POST" enctype="multipart/form-data" class="operation-form">
     <div class="file-drop" id="savedb-drop" data-folder-drop>
@@ -14,16 +14,21 @@
         <div class="file-drop-selected"></div>
     </div>
 
-    <button type="button" id="populate-btn" class="btn-small" style="align-self:flex-start;">Populate from save</button>
-
-    <div style="display:flex; gap:1rem; flex-wrap:wrap;">
-        <div style="flex:1; min-width:200px;">
-            <label for="title" style="display:block; font-size:0.78rem; text-transform:uppercase; color:var(--text-2); margin-bottom:0.3rem;">Game Title</label>
-            <input type="text" id="title" name="title" placeholder="e.g. GTA V" required style="width:100%;">
-        </div>
-        <div style="min-width:160px;">
-            <label for="title_id" style="display:block; font-size:0.78rem; text-transform:uppercase; color:var(--text-2); margin-bottom:0.3rem;">Title ID</label>
-            <input type="text" id="title_id" name="title_id" placeholder="e.g. CUSA00419" required pattern="[A-Za-z]{4}\d{5}" maxlength="9" style="width:100%;">
+    <div id="detected-info" style="display:none; background:var(--bg-1); border:1px solid var(--border); border-radius:var(--r); padding:1rem; margin-top:0.5rem;">
+        <div style="font-size:0.72rem; text-transform:uppercase; color:var(--text-3); letter-spacing:0.06em; margin-bottom:0.5rem;">Detected from param.sfo</div>
+        <div style="display:flex; gap:1.5rem; flex-wrap:wrap;">
+            <div>
+                <span style="font-size:0.72rem; text-transform:uppercase; color:var(--text-2);">Game Title</span>
+                <div id="detected-title" style="font-weight:600; font-size:0.95rem;">—</div>
+            </div>
+            <div>
+                <span style="font-size:0.72rem; text-transform:uppercase; color:var(--text-2);">Title ID</span>
+                <div id="detected-title-id" style="font-weight:600; font-size:0.95rem; font-family:monospace;">—</div>
+            </div>
+            <div>
+                <span style="font-size:0.72rem; text-transform:uppercase; color:var(--text-2);">Platform</span>
+                <div id="detected-platform" style="font-weight:600; font-size:0.95rem;">—</div>
+            </div>
         </div>
     </div>
 
@@ -32,27 +37,7 @@
         <textarea id="description" name="description" rows="3" placeholder="What does this save contain? (e.g. 100% completion, max money, all unlocks...)" style="width:100%;"></textarea>
     </div>
 
-    <div class="profile-select-wrap">
-        <span>Platform</span>
-        <div class="profile-cards">
-            <label class="profile-card">
-                <input type="radio" name="platform" value="ps4" checked required>
-                <span class="profile-card-dot"></span>
-                <span class="profile-card-info">
-                    <span class="profile-card-name">PS4</span>
-                </span>
-            </label>
-            <label class="profile-card">
-                <input type="radio" name="platform" value="ps5">
-                <span class="profile-card-dot"></span>
-                <span class="profile-card-info">
-                    <span class="profile-card-name">PS5</span>
-                </span>
-            </label>
-        </div>
-    </div>
-
-    <button type="submit">Submit Save</button>
+    <button type="submit" id="submit-btn">Submit Save</button>
 </form>
 
 <div style="margin-top:1rem;">
@@ -112,92 +97,78 @@ async function extractSfoFromZip(file) {
     return null;
 }
 
-function applySfo(params) {
-    if (!params) return false;
-    const titleInput = document.getElementById('title');
-    const titleIdInput = document.getElementById('title_id');
-    let filled = false;
-    const title = params.TITLE || params.MAINTITLE;
-    if (title) { titleInput.value = title; filled = true; }
-    if (params.TITLE_ID) { titleIdInput.value = params.TITLE_ID; filled = true; }
-    if (params.TITLE_ID) {
-        const prefix = params.TITLE_ID.substring(0, 4).toUpperCase();
-        const radio = document.querySelector(
-            prefix === 'PPSA' ? 'input[name="platform"][value="ps5"]' : 'input[name="platform"][value="ps4"]'
-        );
-        if (radio) radio.checked = true;
-    }
-    return filled;
+async function lookupTitle(titleId) {
+    try {
+        const resp = await fetch('/savedb/api/lookup_title/' + encodeURIComponent(titleId));
+        const data = await resp.json();
+        return data.name || null;
+    } catch { return null; }
+}
+
+async function showDetected(params) {
+    if (!params || !params.TITLE_ID) return false;
+    const infoBox = document.getElementById('detected-info');
+    const titleEl = document.getElementById('detected-title');
+    const titleIdEl = document.getElementById('detected-title-id');
+    const platformEl = document.getElementById('detected-platform');
+
+    const titleId = params.TITLE_ID;
+    titleIdEl.textContent = titleId;
+
+    const prefix = titleId.substring(0, 4).toUpperCase();
+    platformEl.textContent = prefix === 'PPSA' ? 'PS5' : 'PS4';
+
+    // Try titles DB first, fall back to SFO title
+    const sfoTitle = params.MAINTITLE || params.TITLE || titleId;
+    titleEl.textContent = sfoTitle + ' (looking up...)';
+    infoBox.style.display = '';
+
+    const dbTitle = await lookupTitle(titleId);
+    titleEl.textContent = dbTitle || sfoTitle;
+
+    return true;
 }
 
 async function handleFiles(files) {
     for (const f of files) {
-        // Check both name and webkitRelativePath for param.sfo
         const path = (f.webkitRelativePath || f.name).toLowerCase();
         const name = f.name.toLowerCase();
         if (name === 'param.sfo' || path.endsWith('/param.sfo') || path.endsWith('param.sfo')) {
             const buf = await f.arrayBuffer();
-            return applySfo(parseSfo(buf));
+            return await showDetected(parseSfo(buf));
         }
     }
     for (const f of files) {
         if (f.name.toLowerCase().endsWith('.zip')) {
             const sfoBuf = await extractSfoFromZip(f);
-            if (sfoBuf) return applySfo(parseSfo(sfoBuf));
+            if (sfoBuf) return await showDetected(parseSfo(sfoBuf));
         }
     }
     return false;
-}
-
-async function findSfoInEntry(dirEntry) {
-    const entries = await new Promise(r => dirEntry.createReader().readEntries(r));
-    for (const entry of entries) {
-        if (entry.isFile && entry.name.toLowerCase() === 'param.sfo') {
-            return new Promise(r => entry.file(r));
-        }
-        if (entry.isDirectory) {
-            const found = await findSfoInEntry(entry);
-            if (found) return found;
-        }
-    }
-    return null;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     const drop = document.getElementById('savedb-drop');
     const zipInput = drop.querySelector('input[name="zipfile"]');
     const folderInput = drop.querySelector('input[name="folder_files"]');
-    const populateBtn = document.getElementById('populate-btn');
 
     folderInput.addEventListener('change', () => {
-        if (folderInput.files.length) zipInput.required = false;
+        if (folderInput.files.length) {
+            zipInput.required = false;
+            handleFiles(folderInput.files);
+        }
     });
 
     zipInput.addEventListener('change', () => {
         folderInput.value = '';
         zipInput.required = true;
+        handleFiles(zipInput.files);
     });
 
-    populateBtn.addEventListener('click', async () => {
-        if (!folderInput.files.length && !zipInput.files.length) {
-            populateBtn.textContent = 'Upload files first';
-            setTimeout(() => { populateBtn.textContent = 'Populate from save'; }, 2000);
-            return;
-        }
-        populateBtn.disabled = true;
-        populateBtn.textContent = 'Reading save...';
-        let found = false;
-        if (folderInput.files.length) {
-            found = await handleFiles(folderInput.files);
-        }
-        if (!found && zipInput.files.length) {
-            found = await handleFiles(zipInput.files);
-        }
-        populateBtn.textContent = found ? 'Populated!' : 'No param.sfo found';
-        setTimeout(() => {
-            populateBtn.textContent = 'Populate from save';
-            populateBtn.disabled = false;
-        }, 2000);
+    // Also auto-detect on drag-and-drop (handled by base.html drop logic)
+    drop.addEventListener('savedb-files-ready', () => {
+        if (folderInput.files.length) handleFiles(folderInput.files);
+        else if (zipInput.files.length) handleFiles(zipInput.files);
     });
 });
 </script>

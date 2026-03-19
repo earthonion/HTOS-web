@@ -6,10 +6,13 @@ import zipfile
 
 from quart import Blueprint, render_template, request, session, redirect, url_for, flash, abort, send_file
 
+from quart import jsonify
+
 from auth import login_required, admin_required
 from models import get_db
 from services.jobs import create_job
 from services.files import check_dangerous_files, check_zip_safety, DangerousFileError
+from services.titles import lookup_title
 
 savedb_bp = Blueprint("savedb", __name__)
 
@@ -19,8 +22,10 @@ PER_PAGE = 20
 
 
 def _find_and_validate_sfo(directory):
-    """Find param.sfo in directory tree and validate it.
-    Returns (sfo_path, error_message). error_message is None if valid."""
+    """Find param.sfo in directory tree, validate it, and extract fields.
+    Returns (sfo_fields, error_message).
+    sfo_fields is a dict with keys like TITLE_ID, MAINTITLE, TITLE, SAVEDATA_DIRECTORY, etc.
+    error_message is None if valid."""
     sfo_path = None
     for root, dirs, files in os.walk(directory):
         for f in files:
@@ -39,27 +44,32 @@ def _find_and_validate_sfo(directory):
     if len(data) < 20 or data[:4] != b'\x00PSF':
         return None, "Invalid param.sfo (bad magic bytes). This doesn't appear to be a valid save."
 
-    # Parse and check for required keys
     key_off = struct.unpack_from('<I', data, 8)[0]
     data_off = struct.unpack_from('<I', data, 12)[0]
     count = struct.unpack_from('<I', data, 16)[0]
-    found_keys = set()
+    fields = {}
     for i in range(count):
         base = 20 + i * 16
         if base + 16 > len(data):
             return None, "Invalid param.sfo (truncated index table)."
         k_off = struct.unpack_from('<H', data, base)[0]
+        fmt = struct.unpack_from('<H', data, base + 2)[0]
+        d_len = struct.unpack_from('<I', data, base + 4)[0]
+        d_off = struct.unpack_from('<I', data, base + 12)[0]
         try:
             end = data.index(b'\x00', key_off + k_off)
             key = data[key_off + k_off:end].decode()
-            found_keys.add(key)
         except (ValueError, UnicodeDecodeError):
             continue
+        if fmt == 0x0204:
+            fields[key] = data[data_off + d_off:data_off + d_off + d_len].rstrip(b'\x00').decode()
+        elif key == "SAVEDATA_BLOCKS":
+            fields[key] = struct.unpack_from('<Q', data, data_off + d_off)[0]
 
-    if "TITLE_ID" not in found_keys:
+    if "TITLE_ID" not in fields:
         return None, "Invalid param.sfo (missing TITLE_ID). This doesn't appear to be a valid save."
 
-    return sfo_path, None
+    return fields, None
 
 
 @savedb_bp.route("/savedb")
@@ -112,32 +122,28 @@ async def browse():
                                  user_votes=user_votes)
 
 
+@savedb_bp.route("/savedb/api/lookup_title/<title_id>")
+@login_required
+async def api_lookup_title(title_id):
+    name = lookup_title(title_id.strip().upper())
+    return jsonify({"name": name})
+
+
 @savedb_bp.route("/savedb/contribute", methods=["GET", "POST"])
 @login_required
 async def contribute():
     if request.method == "POST":
         user_id = session["user_id"]
         form = await request.form
-        title = form.get("title", "").strip()
-        title_id = form.get("title_id", "").strip().upper()
         description = form.get("description", "").strip()
-        platform = form.get("platform", "ps4")
         files_dict = await request.files
         zipfile_upload = files_dict.get("zipfile")
         folder_files = files_dict.getlist("folder_files")
         is_folder_upload = bool(folder_files and folder_files[0].filename)
 
-        if not title:
-            await flash("Game title is required.", "error")
-            return await render_template("savedb_contribute.html")
-        if not title_id:
-            await flash("Title ID (CUSA) is required.", "error")
-            return await render_template("savedb_contribute.html")
         if not is_folder_upload and (not zipfile_upload or not zipfile_upload.filename):
             await flash("Please upload a zip file or folder.", "error")
             return await render_template("savedb_contribute.html")
-        if platform not in ("ps4", "ps5"):
-            platform = "ps4"
 
         # Save files to temp dir
         temp_id = str(uuid.uuid4())
@@ -149,7 +155,6 @@ async def contribute():
                 for f in folder_files:
                     if not f.filename:
                         continue
-                    # Preserve directory structure (e.g. sce_sys/param.sfo)
                     rel_path = f.filename
                     dest = os.path.join(temp_dir, rel_path)
                     os.makedirs(os.path.dirname(dest), exist_ok=True)
@@ -173,12 +178,22 @@ async def contribute():
             await flash(str(e), "error")
             return await render_template("savedb_contribute.html")
 
-        # Validate param.sfo exists and is valid
-        sfo_path, sfo_error = _find_and_validate_sfo(temp_dir)
+        # Validate param.sfo and extract fields
+        fields, sfo_error = _find_and_validate_sfo(temp_dir)
         if sfo_error:
             shutil.rmtree(temp_dir, ignore_errors=True)
             await flash(sfo_error, "error")
             return await render_template("savedb_contribute.html")
+
+        # Extract title_id and determine platform from prefix
+        title_id = fields["TITLE_ID"]
+        prefix = title_id[:4].upper()
+        platform = "ps5" if prefix == "PPSA" else "ps4"
+
+        # Get game title: try titles DB first, fall back to SFO MAINTITLE/TITLE
+        title = lookup_title(title_id)
+        if not title:
+            title = fields.get("MAINTITLE") or fields.get("TITLE") or title_id
 
         # Insert DB entry with auto-upvote
         db = await get_db()
