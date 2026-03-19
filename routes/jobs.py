@@ -3,12 +3,12 @@ import json
 import os
 import zipfile
 
-from quart import Blueprint, render_template, session, send_file, Response, abort
+from quart import Blueprint, Response, abort, render_template, send_file, session
 
 from auth import login_required
 from models import get_db
-from services.jobs import get_job, get_or_create_job_logger
 from services.files import extract_account_id_from_zip
+from services.jobs import get_or_create_job_logger
 
 jobs_bp = Blueprint("jobs", __name__)
 
@@ -20,7 +20,7 @@ async def _load_job_from_db(job_id, user_id):
     try:
         cursor = await db.execute(
             "SELECT id, user_id, operation, status, result_path, error, params FROM jobs WHERE id = ? AND user_id = ?",
-            (job_id, user_id)
+            (job_id, user_id),
         )
         row = await cursor.fetchone()
     finally:
@@ -59,6 +59,7 @@ async def job_status(job_id):
 
     return await render_template("job_status.html", job=job)
 
+
 @jobs_bp.route("/jobs/<job_id>/stream")
 @login_required
 async def job_stream(job_id):
@@ -85,13 +86,11 @@ async def job_stream(job_id):
                     yield f"data: {json.dumps(msg)}\n\n"
                     if msg.get("level") == "STATUS" and msg.get("msg") in ("done", "failed"):
                         break
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Check DB for status changes (worker API may be in another process)
                     db = await get_db()
                     try:
-                        cursor = await db.execute(
-                            "SELECT status FROM jobs WHERE id = ?", (job_id,)
-                        )
+                        cursor = await db.execute("SELECT status FROM jobs WHERE id = ?", (job_id,))
                         row = await cursor.fetchone()
                     finally:
                         await db.close()
@@ -99,14 +98,19 @@ async def job_stream(job_id):
                         job.status = row["status"]
                         yield f"data: {json.dumps({'level': 'STATUS', 'msg': row['status']})}\n\n"
                         break
-                    yield f": keepalive\n\n"
+                    yield ": keepalive\n\n"
         finally:
             job.logger.unsubscribe(q)
 
-    return Response(generate(), mimetype="text/event-stream", headers={
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no",
-    })
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
 
 @jobs_bp.route("/jobs/<job_id>/download")
 @login_required
@@ -139,9 +143,7 @@ async def job_download(job_id):
                 else:
                     filename = f"{job.operation}_{job_id[:8]}.zip"
                 return await send_file(
-                    structured_path,
-                    as_attachment=True,
-                    attachment_filename=filename
+                    structured_path, as_attachment=True, attachment_filename=filename
                 )
             except Exception:
                 pass  # Fall through to serve original zip
@@ -151,36 +153,37 @@ async def job_download(job_id):
     else:
         filename = f"{job.operation}_{job_id[:8]}.zip"
 
-    return await send_file(
-        job.result_path,
-        as_attachment=True,
-        attachment_filename=filename
-    )
+    return await send_file(job.result_path, as_attachment=True, attachment_filename=filename)
 
 
 def _extract_sfo_fields_from_zip(zip_path):
     """Read TITLE_ID and SAVEDATA_DIRECTORY from param.sfo inside a result zip."""
     import struct
+
     result = {}
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
             for name in zf.namelist():
                 if name.lower().endswith("param.sfo"):
                     data = zf.read(name)
-                    if len(data) > 20 and data[:4] == b'\x00PSF':
-                        key_off = struct.unpack_from('<I', data, 8)[0]
-                        data_off = struct.unpack_from('<I', data, 12)[0]
-                        count = struct.unpack_from('<I', data, 16)[0]
+                    if len(data) > 20 and data[:4] == b"\x00PSF":
+                        key_off = struct.unpack_from("<I", data, 8)[0]
+                        data_off = struct.unpack_from("<I", data, 12)[0]
+                        count = struct.unpack_from("<I", data, 16)[0]
                         for i in range(count):
                             base = 20 + i * 16
-                            k_off = struct.unpack_from('<H', data, base)[0]
-                            fmt = struct.unpack_from('<H', data, base + 2)[0]
-                            d_len = struct.unpack_from('<I', data, base + 4)[0]
-                            d_off = struct.unpack_from('<I', data, base + 12)[0]
-                            end = data.index(b'\x00', key_off + k_off)
-                            key = data[key_off + k_off:end].decode()
+                            k_off = struct.unpack_from("<H", data, base)[0]
+                            fmt = struct.unpack_from("<H", data, base + 2)[0]
+                            d_len = struct.unpack_from("<I", data, base + 4)[0]
+                            d_off = struct.unpack_from("<I", data, base + 12)[0]
+                            end = data.index(b"\x00", key_off + k_off)
+                            key = data[key_off + k_off : end].decode()
                             if key in ("TITLE_ID", "SAVEDATA_DIRECTORY") and fmt == 0x0204:
-                                result[key] = data[data_off + d_off:data_off + d_off + d_len].rstrip(b'\x00').decode()
+                                result[key] = (
+                                    data[data_off + d_off : data_off + d_off + d_len]
+                                    .rstrip(b"\x00")
+                                    .decode()
+                                )
                     break
     except Exception:
         pass
@@ -190,13 +193,16 @@ def _extract_sfo_fields_from_zip(zip_path):
 def _restructure_ps4_zip(src_zip, dst_zip, account_id, title_id):
     """Repack zip with PS4 USB structure: PS4/SAVEDATA/<account_id>/<title_id>/"""
     prefix = f"PS4/SAVEDATA/{account_id}/{title_id}/"
-    with zipfile.ZipFile(src_zip, "r") as zin, \
-         zipfile.ZipFile(dst_zip, "w", zipfile.ZIP_STORED) as zout:
+    with (
+        zipfile.ZipFile(src_zip, "r") as zin,
+        zipfile.ZipFile(dst_zip, "w", zipfile.ZIP_STORED) as zout,
+    ):
         for info in zin.infolist():
             if info.is_dir():
                 continue
             data = zin.read(info.filename)
             zout.writestr(prefix + info.filename, data)
+
 
 @jobs_bp.route("/jobs/<job_id>/files")
 @login_required

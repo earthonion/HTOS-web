@@ -1,6 +1,8 @@
 import aiofiles
+
 from data.crypto.common import CustomCrypto as CC
 from utils.type_helpers import uint32
+
 
 class Crypt_RE4R:
     SECRET_KEY = b"wa9Ui_tFKa_6E_D5gVChjM69xMKDX8QxEykYKhzb4cRNLknpCZUra"

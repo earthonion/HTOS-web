@@ -1,10 +1,13 @@
 import os
-import zipfile
 import random
 import string
+import zipfile
+
 from PIL import Image, UnidentifiedImageError
-from utils.constants import ZIPFILE_COMPRESSION_MODE, ZIPFILE_COMPRESSION_LEVEL, EMBED_DESC_LIM
+
+from utils.constants import EMBED_DESC_LIM, ZIPFILE_COMPRESSION_LEVEL, ZIPFILE_COMPRESSION_MODE
 from utils.exceptions import FileError
+
 
 def zipfiles(directory_to_zip: str, zip_file_name: str) -> None:
 
@@ -22,16 +25,23 @@ def zipfiles(directory_to_zip: str, zip_file_name: str) -> None:
     file_paths = get_all_file_paths(directory_to_zip)
     full_new_path = os.path.join(directory_to_zip, zip_file_name)
 
-    with zipfile.ZipFile(full_new_path, 'w', compression=ZIPFILE_COMPRESSION_MODE, compresslevel=ZIPFILE_COMPRESSION_LEVEL) as f:
-       # writing each file one by one without the top-level folder
+    with zipfile.ZipFile(
+        full_new_path,
+        "w",
+        compression=ZIPFILE_COMPRESSION_MODE,
+        compresslevel=ZIPFILE_COMPRESSION_LEVEL,
+    ) as f:
+        # writing each file one by one without the top-level folder
         for _, file in file_paths:
             archive_name = os.path.relpath(file, directory_to_zip)
             f.write(file, archive_name)
+
 
 def generate_random_string(length: int) -> str:
     characters = string.ascii_letters + string.digits
     random_string = "".join(random.choice(characters) for _ in range(length))
     return random_string
+
 
 def pngprocess(path: str, size: tuple[int, int]) -> None:
     try:
@@ -47,6 +57,7 @@ def pngprocess(path: str, size: tuple[int, int]) -> None:
 
     image.close()
 
+
 async def obtain_savenames(saves: list[str]) -> list[str]:
     savenames = []
     for i in range(0, len(saves), 2):
@@ -54,6 +65,7 @@ async def obtain_savenames(saves: list[str]) -> list[str]:
         base = path.removesuffix(".bin")
         savenames.append(base)
     return savenames
+
 
 def completed_print(savenames: list[str], pos: int = EMBED_DESC_LIM // 4) -> str:
     assert pos > 0
@@ -68,7 +80,7 @@ def completed_print(savenames: list[str], pos: int = EMBED_DESC_LIM // 4) -> str
     strlen = len(finished_files)
     i = len(savenames) - 1
     while strlen > pos and pos != 0:
-        strlen -= (len(savenames[i]) + len(delim))
+        strlen -= len(savenames[i]) + len(delim)
         finished_files = finished_files[:strlen]
         i -= 1
     if i != len(savenames) - 1:

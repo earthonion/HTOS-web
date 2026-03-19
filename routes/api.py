@@ -5,11 +5,11 @@ import uuid
 import zipfile
 from functools import wraps
 
-from quart import Blueprint, request, abort, send_file, Response
+from quart import Blueprint, Response, abort, request, send_file
 
-from config import WORKER_KEY, CHUNK_DIR
+from config import CHUNK_DIR, WORKER_KEY
 from models import get_db
-from services.jobs import push_log, get_or_create_job_logger
+from services.jobs import get_or_create_job_logger, push_log
 
 api_bp = Blueprint("api", __name__, url_prefix="/api/worker")
 
@@ -58,23 +58,19 @@ async def _ensure_global_key_in_db():
     """Insert or update the global worker key in the DB so worker count tracking works."""
     db = await get_db()
     try:
-        cursor = await db.execute(
-            "SELECT id FROM worker_keys WHERE key = ?", (WORKER_KEY,)
-        )
+        cursor = await db.execute("SELECT id FROM worker_keys WHERE key = ?", (WORKER_KEY,))
         row = await cursor.fetchone()
         if row:
             await db.execute(
-                "UPDATE worker_keys SET last_used = CURRENT_TIMESTAMP WHERE id = ?",
-                (row["id"],)
+                "UPDATE worker_keys SET last_used = CURRENT_TIMESTAMP WHERE id = ?", (row["id"],)
             )
         else:
             await db.execute(
                 "INSERT INTO worker_keys (user_id, key, name, is_active) VALUES (NULL, ?, 'global', 1)",
-                (WORKER_KEY,)
+                (WORKER_KEY,),
             )
             await db.execute(
-                "UPDATE worker_keys SET last_used = CURRENT_TIMESTAMP WHERE key = ?",
-                (WORKER_KEY,)
+                "UPDATE worker_keys SET last_used = CURRENT_TIMESTAMP WHERE key = ?", (WORKER_KEY,)
             )
         await db.commit()
     finally:
@@ -93,6 +89,7 @@ def require_worker_key(f):
         if key and await validate_worker_key(key):
             return await f(*args, **kwargs)
         abort(401)
+
     return decorated
 
 
@@ -122,18 +119,17 @@ async def next_job():
                     return Response(
                         json.dumps({"suspended_until": wk["suspended_until"]}),
                         status=429,
-                        content_type="application/json"
+                        content_type="application/json",
                     )
                 else:
                     # Suspension expired, clear it
                     await db.execute(
-                        "UPDATE worker_keys SET suspended_until = NULL WHERE key = ?",
-                        (worker_key,)
+                        "UPDATE worker_keys SET suspended_until = NULL WHERE key = ?", (worker_key,)
                     )
 
             await db.execute(
                 "UPDATE worker_keys SET last_platform = ? WHERE key = ?",
-                (worker_platform, worker_key)
+                (worker_platform, worker_key),
             )
             if worker_platform == "ps5":
                 await db.execute(
@@ -183,9 +179,7 @@ async def job_files(job_id):
     """Download uploaded files for a job as a zip."""
     db = await get_db()
     try:
-        cursor = await db.execute(
-            "SELECT params FROM jobs WHERE id = ?", (job_id,)
-        )
+        cursor = await db.execute("SELECT params FROM jobs WHERE id = ?", (job_id,))
         row = await cursor.fetchone()
     finally:
         await db.close()
@@ -218,7 +212,7 @@ async def job_files(job_id):
         tmp_path,
         mimetype="application/zip",
         as_attachment=True,
-        attachment_filename=f"{job_id}.zip"
+        attachment_filename=f"{job_id}.zip",
     )
 
 
@@ -248,41 +242,35 @@ async def update_status(job_id):
             values.append(data["result_path"])
         # Track which worker handled this job
         if status == "running" and worker_key:
-            cursor = await db.execute(
-                "SELECT id FROM worker_keys WHERE key = ?", (worker_key,)
-            )
+            cursor = await db.execute("SELECT id FROM worker_keys WHERE key = ?", (worker_key,))
             wk_row = await cursor.fetchone()
             if wk_row:
                 fields.append("worker_key_id = ?")
                 values.append(wk_row["id"])
         values.append(job_id)
-        await db.execute(
-            f"UPDATE jobs SET {', '.join(fields)} WHERE id = ?",
-            values
-        )
+        await db.execute(f"UPDATE jobs SET {', '.join(fields)} WHERE id = ?", values)
         # Increment jobs_completed counter for this worker key
         if status == "done" and worker_key:
             await db.execute(
                 "UPDATE worker_keys SET jobs_completed = jobs_completed + 1 WHERE key = ?",
-                (worker_key,)
+                (worker_key,),
             )
         # Auto-suspend after 10 consecutive failures
         if status == "failed" and worker_key:
-            cursor = await db.execute(
-                "SELECT id FROM worker_keys WHERE key = ?", (worker_key,)
-            )
+            cursor = await db.execute("SELECT id FROM worker_keys WHERE key = ?", (worker_key,))
             wk = await cursor.fetchone()
             if wk:
                 cursor2 = await db.execute(
                     "SELECT status FROM jobs WHERE worker_key_id = ? "
                     "ORDER BY created_at DESC LIMIT 10",
-                    (wk["id"],)
+                    (wk["id"],),
                 )
                 recent = await cursor2.fetchall()
                 if len(recent) >= 10 and all(r["status"] == "failed" for r in recent):
                     await db.execute(
                         "UPDATE worker_keys SET suspended_until = datetime('now', '+24 hours') "
-                        "WHERE id = ?", (wk["id"],)
+                        "WHERE id = ?",
+                        (wk["id"],),
                     )
         await db.commit()
     finally:
@@ -337,8 +325,7 @@ async def upload_result(job_id):
         db = await get_db()
         try:
             await db.execute(
-                "UPDATE jobs SET status = 'failed', error = ? WHERE id = ?",
-                (err, job_id)
+                "UPDATE jobs SET status = 'failed', error = ? WHERE id = ?", (err, job_id)
             )
             await db.commit()
         finally:
@@ -349,10 +336,7 @@ async def upload_result(job_id):
     # Update job with result path
     db = await get_db()
     try:
-        await db.execute(
-            "UPDATE jobs SET result_path = ? WHERE id = ?",
-            (result_path, job_id)
-        )
+        await db.execute("UPDATE jobs SET result_path = ? WHERE id = ?", (result_path, job_id))
         await db.commit()
     finally:
         await db.close()
@@ -382,6 +366,7 @@ async def init_result_upload(job_id):
         "total_size": data["total_size"],
     }
     import time
+
     meta["created_at"] = time.time()
     with open(os.path.join(chunk_dir, "meta.json"), "w") as f:
         json.dump(meta, f)
@@ -454,8 +439,7 @@ async def complete_result_upload(job_id):
         db = await get_db()
         try:
             await db.execute(
-                "UPDATE jobs SET status = 'failed', error = ? WHERE id = ?",
-                (err, job_id)
+                "UPDATE jobs SET status = 'failed', error = ? WHERE id = ?", (err, job_id)
             )
             await db.commit()
         finally:
@@ -466,10 +450,7 @@ async def complete_result_upload(job_id):
     # Update job with result path
     db = await get_db()
     try:
-        await db.execute(
-            "UPDATE jobs SET result_path = ? WHERE id = ?",
-            (result_path, job_id)
-        )
+        await db.execute("UPDATE jobs SET result_path = ? WHERE id = ?", (result_path, job_id))
         await db.commit()
     finally:
         await db.close()

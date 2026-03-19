@@ -1,26 +1,106 @@
 import string
 
 from utils.embeds import (
-    embUtimeout, embgdt, embhttp, embEncrypted1, embDecrypt1,
-    emb14, emb20, emb21, embpng, emb8,
-    embnt, embvalidpsn, embinit, embTitleChange, embTitleErr,
-    embTimedOut, embDone_G, emb_upl_savegame, loadSFO_emb, finished_emb,
-    loadkeyset_emb, working_emb, retry_emb, blacklist_emb, embChannelError,
-    cancel_notify_emb, gd_upl_progress_emb, gd_maintenance_emb, embpng1, embpng2,
-    embpngs, embPdone, embTitleChange1, embTitleSuccess, embTdone,
-    emb_conv_upl, emb_conv_choice, embCDone1, embCDone2, embCDone3,
-    embconvCompleted, embSceSys, embgs, embsl, embc, embCRdone,
-    emb11, emb_dl, emb13, embDdone, embmo,
-    embmidComplete, embencComplete, keyset_emb, embpingsuccess, embpingfail,
-    embExit, embresb, embresbs, embRdone, embLoading,
-    embApplied, embqcCompleted, embchLoading, embkstone1, embkstone2,
-    embrrp, embrrps, embrrdone, embres, embress,
-    embRbdone, embLoad, embdec, paramEmb, embchErr,
-    embErrconv, embErrdec, embchgtav, embchrdr2, embfn,
-    embFileLarge, embnvSys, embpn, embnvBin, embffn,
-    embgddone, embuplSuccess, embe, embuplSuccess1, embencupl,
-    embenc_out, embencinst, embgdout, embgames, embgame,
-    emb_il, embdecTimeout, embdecFormat, embwlcom
+    blacklist_emb,
+    cancel_notify_emb,
+    emb8,
+    emb11,
+    emb13,
+    emb14,
+    emb20,
+    emb21,
+    emb_conv_choice,
+    emb_conv_upl,
+    emb_dl,
+    emb_il,
+    emb_upl_savegame,
+    embApplied,
+    embc,
+    embCDone1,
+    embCDone2,
+    embCDone3,
+    embChannelError,
+    embchErr,
+    embchgtav,
+    embchLoading,
+    embchrdr2,
+    embconvCompleted,
+    embCRdone,
+    embDdone,
+    embdec,
+    embdecFormat,
+    embDecrypt1,
+    embdecTimeout,
+    embDone_G,
+    embe,
+    embenc_out,
+    embencComplete,
+    embencinst,
+    embEncrypted1,
+    embencupl,
+    embErrconv,
+    embErrdec,
+    embExit,
+    embffn,
+    embFileLarge,
+    embfn,
+    embgame,
+    embgames,
+    embgddone,
+    embgdout,
+    embgdt,
+    embgs,
+    embhttp,
+    embinit,
+    embkstone1,
+    embkstone2,
+    embLoad,
+    embLoading,
+    embmidComplete,
+    embmo,
+    embnt,
+    embnvBin,
+    embnvSys,
+    embPdone,
+    embpingfail,
+    embpingsuccess,
+    embpn,
+    embpng,
+    embpng1,
+    embpng2,
+    embpngs,
+    embqcCompleted,
+    embRbdone,
+    embRdone,
+    embres,
+    embresb,
+    embresbs,
+    embress,
+    embrrdone,
+    embrrp,
+    embrrps,
+    embSceSys,
+    embsl,
+    embTdone,
+    embTimedOut,
+    embTitleChange,
+    embTitleChange1,
+    embTitleErr,
+    embTitleSuccess,
+    embuplSuccess,
+    embuplSuccess1,
+    embUtimeout,
+    embvalidpsn,
+    embwlcom,
+    finished_emb,
+    gd_maintenance_emb,
+    gd_upl_progress_emb,
+    keyset_emb,
+    loadkeyset_emb,
+    loadSFO_emb,
+    paramEmb,
+    retry_emb,
+    working_emb,
 )
 
 _MAP_PLACEHOLDER = {
@@ -60,10 +140,15 @@ _MAP_PLACEHOLDER = {
     embTitleSuccess: {("description", frozenset({"savename", "j", "savecount", "i", "batches"}))},
     embTdone: {("description", frozenset({"printed", "id", "i", "batches"}))},
     emb_conv_upl: {("title", frozenset({"game"}))},
-    emb_conv_choice: {("title", frozenset({"basename"})), ("description", frozenset({"j", "count_entry", "i", "batches"}))},
+    emb_conv_choice: {
+        ("title", frozenset({"basename"})),
+        ("description", frozenset({"j", "count_entry", "i", "batches"})),
+    },
     embCDone1: set(),
     embCDone2: set(),
-    embCDone3: {("description", frozenset({"result", "basename", "j", "count_entry", "i", "batches"}))},
+    embCDone3: {
+        ("description", frozenset({"result", "basename", "j", "count_entry", "i", "batches"}))
+    },
     embconvCompleted: {("description", frozenset({"finished_files", "i", "batches"}))},
     embSceSys: {("title", frozenset({"savename"}))},
     embgs: {("title", frozenset({"savename"})), ("description", frozenset({"splitvalue"}))},
@@ -75,11 +160,30 @@ _MAP_PLACEHOLDER = {
     emb13: {("description", frozenset({"savename", "j", "savecount", "i", "batches"}))},
     embDdone: {("description", frozenset({"printed", "i", "batches"}))},
     embmo: {("description", frozenset({"savename", "j", "savecount", "i", "batches"}))},
-    embmidComplete: {("description", frozenset({"dec_print", "savename", "id", "j", "savecount", "i", "batches"}))},
+    embmidComplete: {
+        (
+            "description",
+            frozenset({"dec_print", "savename", "id", "j", "savecount", "i", "batches"}),
+        )
+    },
     embencComplete: {("description", frozenset({"printed", "id", "i", "batches"}))},
     keyset_emb: {("description", frozenset({"keyset", "fw"}))},
-    embpingsuccess: {("title", frozenset({"ftp_result", "socket_result", "instances_len", "maximum_instances", "latency"}))},
-    embpingfail: {("title", frozenset({"ftp_result", "socket_result", "instances_len", "maximum_instances", "latency"}))},
+    embpingsuccess: {
+        (
+            "title",
+            frozenset(
+                {"ftp_result", "socket_result", "instances_len", "maximum_instances", "latency"}
+            ),
+        )
+    },
+    embpingfail: {
+        (
+            "title",
+            frozenset(
+                {"ftp_result", "socket_result", "instances_len", "maximum_instances", "latency"}
+            ),
+        )
+    },
     embExit: set(),
     embresb: {("description", frozenset({"savename", "i", "savecount"}))},
     embresbs: {("description", frozenset({"savename", "id", "i", "savecount"}))},
@@ -91,7 +195,12 @@ _MAP_PLACEHOLDER = {
     embkstone1: {("description", frozenset({"savename"}))},
     embkstone2: {("description", frozenset({"target_titleid"}))},
     embrrp: {("description", frozenset({"savename", "j", "savecount", "i", "batches"}))},
-    embrrps: {("description", frozenset({"savename", "id", "target_titleid", "j", "savecount", "i", "batches"}))},
+    embrrps: {
+        (
+            "description",
+            frozenset({"savename", "id", "target_titleid", "j", "savecount", "i", "batches"}),
+        )
+    },
     embrrdone: {("description", frozenset({"printed", "id", "target_titleid", "i", "batches"}))},
     embres: {("description", frozenset({"savename", "j", "savecount", "i", "batches"}))},
     embress: {("description", frozenset({"savename", "id", "j", "savecount", "i", "batches"}))},
@@ -102,7 +211,9 @@ _MAP_PLACEHOLDER = {
     embchErr: {("description", frozenset({"error"}))},
     embErrconv: {("description", frozenset({"error"}))},
     embErrdec: {("description", frozenset({"error"}))},
-    embchgtav: {("description", frozenset({"platform", "franklin_cash", "michael_cash", "trevor_cash"}))},
+    embchgtav: {
+        ("description", frozenset({"platform", "franklin_cash", "michael_cash", "trevor_cash"}))
+    },
     embchrdr2: {("description", frozenset({"platform", "money"}))},
     embfn: {("description", frozenset({"filename", "len", "max"}))},
     embFileLarge: {("description", frozenset({"filename", "max"}))},
@@ -123,7 +234,7 @@ _MAP_PLACEHOLDER = {
     emb_il: {("description", frozenset({"error"}))},
     embdecTimeout: set(),
     embdecFormat: {("title", frozenset({"savename"}))},
-    embwlcom: {("description", frozenset({"user"}))}
+    embwlcom: {("description", frozenset({"user"}))},
 }
 
 for emb, v in _MAP_PLACEHOLDER.items():
@@ -144,7 +255,7 @@ for emb, v in _MAP_PLACEHOLDER.items():
 
     prev_field = None
     for field, ph_set in v:
-        dummy_values = {ph: 0.0 for ph in ph_set}
+        dummy_values = dict.fromkeys(ph_set, 0.0)
         try:
             if field == "title":
                 fmt = emb.title
@@ -175,4 +286,3 @@ for emb, v in _MAP_PLACEHOLDER.items():
                 f"title: {emb.title}\n"
                 f"description: {emb.description}"
             )
-

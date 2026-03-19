@@ -2,7 +2,7 @@ import os
 import shutil
 import uuid
 
-from quart import Blueprint, render_template, request, session, redirect, url_for, flash
+from quart import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from auth import login_required
 from models import get_db
@@ -48,7 +48,7 @@ async def luac0re():
         try:
             cursor = await db.execute(
                 "SELECT account_id FROM profiles WHERE id = ? AND user_id = ?",
-                (profile_id, user_id)
+                (profile_id, user_id),
             )
             profile = await cursor.fetchone()
         finally:
@@ -69,13 +69,20 @@ async def luac0re():
         src_dir = os.path.join(PREBUILT_DIR, version)
         save_name = info["save"]
         shutil.copy2(os.path.join(src_dir, save_name), os.path.join(upload_dir, save_name))
-        shutil.copy2(os.path.join(src_dir, f"{save_name}.bin"), os.path.join(upload_dir, f"{save_name}.bin"))
+        shutil.copy2(
+            os.path.join(src_dir, f"{save_name}.bin"), os.path.join(upload_dir, f"{save_name}.bin")
+        )
 
-        job = await create_job(user_id, "resign", {
-            "account_id": account_id,
-            "upload_dir": upload_dir,
-            "platform": "ps4",
-        }, ready=True)
+        job = await create_job(
+            user_id,
+            "resign",
+            {
+                "account_id": account_id,
+                "upload_dir": upload_dir,
+                "platform": "ps4",
+            },
+            ready=True,
+        )
 
         return redirect(url_for("jobs.job_status", job_id=job.job_id))
 

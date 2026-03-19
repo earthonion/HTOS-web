@@ -1,9 +1,11 @@
-import aiofiles
 from typing import Literal
+
+import aiofiles
 
 from data.crypto.common import CustomCrypto as CC
 
 # both dying light 1 & 2 uses gzip, also dead island 1
+
 
 class Crypt_DL:
     @staticmethod
@@ -26,13 +28,12 @@ class Crypt_DL:
         for filepath in files:
             async with aiofiles.open(filepath, "rb") as savegame:
                 magic = await savegame.read(3)
-            if magic == b"\x1F\x8B\x08":
+            if magic == b"\x1f\x8b\x08":
                 await Crypt_DL.decrypt_file(filepath)
 
     @staticmethod
     async def check_enc_ps(filepath: str, _version: Literal["DL1", "DL2", "DI1"]) -> None:
         async with aiofiles.open(filepath, "rb") as savegame:
             magic = await savegame.read(3)
-        if magic != b"\x1F\x8B\x08":
+        if magic != b"\x1f\x8b\x08":
             await Crypt_DL.encrypt_file(filepath, _version)
-

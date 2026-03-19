@@ -1,4 +1,5 @@
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,7 +13,9 @@ PS5_WORKERS_ENABLED = os.getenv("PS5_WORKERS_ENABLED", "0").lower() in ("1", "tr
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
 DATABASE_PATH = os.getenv("DATABASE_PATH", "htos_web.db")
 MAX_UPLOAD_SIZE = int(os.getenv("MAX_UPLOAD_SIZE", str(2 * 1024 * 1024 * 1024)))  # 2GB default
-MAX_SAVE_FILE_SIZE = int(os.getenv("MAX_SAVE_FILE_SIZE", str(64 * 1024 * 1024)))  # 64MB default per file
+MAX_SAVE_FILE_SIZE = int(
+    os.getenv("MAX_SAVE_FILE_SIZE", str(64 * 1024 * 1024))
+)  # 64MB default per file
 
 # Chunked uploads
 CHUNK_DIR = os.path.join("workspace", "chunks")

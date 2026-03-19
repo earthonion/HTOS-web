@@ -1,35 +1,32 @@
 from __future__ import annotations
 
-import os
 import hashlib
 import hmac
+import os
+import zlib
+from types import TracebackType
+from typing import Any, Literal, Self
+
 import aiofiles
 import aiofiles.os
+import anycrc
 import crc32c
 import mmh3
-import zlib
-import anycrc
-from types import TracebackType
-
-from data.crypto.exceptions import CryptoError
-
 from aiofiles.threadpool.binary import AsyncBufferedReader
 from Crypto.Cipher import AES, Blowfish
-from typing import Literal, Any, Self
 
-from utils.constants import SCE_SYS_NAME, RANDOMSTRING_LENGTH, SAVESIZE_MAX
+from data.crypto.exceptions import CryptoError
+from utils.constants import RANDOMSTRING_LENGTH, SAVESIZE_MAX, SCE_SYS_NAME
 from utils.conversions import mb_to_bytes
-from utils.type_helpers import Cint, uint8, uint32
 from utils.extras import generate_random_string
+from utils.type_helpers import Cint, uint8, uint32
+
 
 class CustomCryptoCtx:
-    def __init__(
-        self,
-        obj: Any,
-        attr: Any | None = None
-    ) -> None:
+    def __init__(self, obj: Any, attr: Any | None = None) -> None:
         self.obj = obj
         self.attr = attr
+
 
 class CustomCrypto:
     CHUNKSIZE = mb_to_bytes(1)
@@ -43,11 +40,7 @@ class CustomCrypto:
     hmac = hmac
     anycrc = anycrc
 
-    def __init__(
-        self,
-        filepath: str,
-        in_place: bool = True
-    ) -> None:
+    def __init__(self, filepath: str, in_place: bool = True) -> None:
         self.filepath = filepath
         self.temp_filepath = None
         self.in_place = in_place
@@ -75,7 +68,9 @@ class CustomCrypto:
         await self.r_stream.seek(0)
         return self
 
-    async def __aexit__(self, _: type[BaseException] | None, __: BaseException | None, ___: TracebackType | None) -> None:
+    async def __aexit__(
+        self, _: type[BaseException] | None, __: BaseException | None, ___: TracebackType | None
+    ) -> None:
         await self.r_stream.close()
         if self.r_stream is not self.w_stream:
             await self.w_stream.close()
@@ -142,7 +137,9 @@ class CustomCrypto:
     def _prepare_compression(self) -> None:
         assert not self.in_place
 
-    async def trim_trailing_bytes(self, off: int = -1, byte: uint8 = uint8(0, const=True), min_required: int = 1) -> None:
+    async def trim_trailing_bytes(
+        self, off: int = -1, byte: uint8 = uint8(0, const=True), min_required: int = 1
+    ) -> None:
         """
         Start from off and move backward, stop when a byte that differs from the given has been reached.
         Truncate data from the occurence offset if the minimum required amount of bytes moved backward has been reached.
@@ -182,9 +179,9 @@ class CustomCrypto:
             return -1
 
         d_len = len(d)
-        assert d_len <= self.CHUNKSIZE # bound growth
+        assert d_len <= self.CHUNKSIZE  # bound growth
         target_off = -1
-        buf = bytes()
+        buf = b""
         await self.r_stream.seek(start_off)
 
         for off in range(start_off, end_off, self.CHUNKSIZE):
@@ -199,7 +196,7 @@ class CustomCrypto:
                 target_off = off - len(buf) + pos
                 break
             if d_len <= chunk_len:
-                buf = chunk[-(d_len - 1):]
+                buf = chunk[-(d_len - 1) :]
             else:
                 buf = chunk
         return target_off
@@ -211,9 +208,9 @@ class CustomCrypto:
             return -1
 
         d_len = len(d)
-        assert d_len <= self.CHUNKSIZE # bound growth
+        assert d_len <= self.CHUNKSIZE  # bound growth
         target_off = -1
-        buf = bytes()
+        buf = b""
 
         for off in range(start_off, end_off, -self.CHUNKSIZE):
             r_len = min(self.CHUNKSIZE, off - end_off)
@@ -229,7 +226,7 @@ class CustomCrypto:
                 target_off = r_start - len(buf) + pos
                 break
             if d_len <= chunk_len:
-                buf = chunk[:d_len - 1]
+                buf = chunk[: d_len - 1]
             else:
                 buf = chunk
         return target_off
@@ -257,7 +254,7 @@ class CustomCrypto:
 
         u32_array = []
         for i in range(0, len(self.chunk), 4):
-            u32 = uint32(self.chunk[i:i + 4], endianness=byteorder)
+            u32 = uint32(self.chunk[i : i + 4], endianness=byteorder)
             u32_array.append(u32)
         self.chunk = u32_array
 
@@ -282,7 +279,7 @@ class CustomCrypto:
             c = chunk
 
         for i in range(0, len(c), 4):
-            c[i:i + 4] = c[i:i + 4][::-1]
+            c[i : i + 4] = c[i : i + 4][::-1]
 
     async def fraction_byte(self, byte: uint8 = uint8(0, const=True), div: int = 2) -> bool:
         assert div != 0
@@ -314,7 +311,7 @@ class CustomCrypto:
         """
         assert blocksize > 0
 
-        remainder = self.chunk[len(self.chunk) - (len(self.chunk) % blocksize):]
+        remainder = self.chunk[len(self.chunk) - (len(self.chunk) % blocksize) :]
         if self.chunk == remainder:
             return False
         r = len(remainder)
@@ -484,7 +481,9 @@ class CustomCrypto:
         seed: uint32 = uint32(0, "little", const=True),
     ) -> int:
         seed = uint32(seed.value, seed.ENDIANNESS)
-        call = anycrc.CRC(width=32, poly=poly, init=init, refin=refin, refout=refout, xorout=xorout).calc
+        call = anycrc.CRC(
+            width=32, poly=poly, init=init, refin=refin, refout=refout, xorout=xorout
+        ).calc
         return self._create_ctx(call, seed)
 
     def create_ctx_mmh3_u32(self, seed: uint32 = uint32(0, "little", const=True)) -> int:
@@ -547,30 +546,56 @@ class CustomCrypto:
                     break
                 self._decomp_max_size_calc(size, len(decomp))
                 await self.w_stream.write(decomp)
-            return eof_off # in r_stream
+            return eof_off  # in r_stream
 
     @staticmethod
     def is_valid_zlib_header(header: bytes) -> bool:
-        ZLIB_HEADERS = frozenset({
-            b"\x08\x1D", b"\x08\x5B", b"\x08\x99", b"\x08\xD7",
-            b"\x18\x19", b"\x18\x57", b"\x18\x95", b"\x18\xD3",
-            b"\x28\x15", b"\x28\x53", b"\x28\x91", b"\x28\xCF",
-            b"\x38\x11", b"\x38\x4F", b"\x38\x8D", b"\x38\xCB",
-            b"\x48\x0D", b"\x48\x4B", b"\x48\x89", b"\x48\xC7",
-            b"\x58\x09", b"\x58\x47", b"\x58\x85", b"\x58\xC3",
-            b"\x68\x05", b"\x68\x43", b"\x68\x81", b"\x68\xDE",
-            b"\x78\x01", b"\x78\x5E", b"\x78\x9C", b"\x78\xDA",
-        })
+        ZLIB_HEADERS = frozenset(
+            {
+                b"\x08\x1d",
+                b"\x08\x5b",
+                b"\x08\x99",
+                b"\x08\xd7",
+                b"\x18\x19",
+                b"\x18\x57",
+                b"\x18\x95",
+                b"\x18\xd3",
+                b"\x28\x15",
+                b"\x28\x53",
+                b"\x28\x91",
+                b"\x28\xcf",
+                b"\x38\x11",
+                b"\x38\x4f",
+                b"\x38\x8d",
+                b"\x38\xcb",
+                b"\x48\x0d",
+                b"\x48\x4b",
+                b"\x48\x89",
+                b"\x48\xc7",
+                b"\x58\x09",
+                b"\x58\x47",
+                b"\x58\x85",
+                b"\x58\xc3",
+                b"\x68\x05",
+                b"\x68\x43",
+                b"\x68\x81",
+                b"\x68\xde",
+                b"\x78\x01",
+                b"\x78\x5e",
+                b"\x78\x9c",
+                b"\x78\xda",
+            }
+        )
         return header in ZLIB_HEADERS
 
     @staticmethod
     def ES32_int(val: int) -> int:
         val &= 0xFF_FF_FF_FF
         return (
-            ((val & 0xFF_00_00_00) >> 24) |
-            ((val & 0x00_FF_00_00) >> 8)  |
-            ((val & 0x00_00_FF_00) << 8)  |
-            ((val & 0x00_00_00_FF) << 24)
+            ((val & 0xFF_00_00_00) >> 24)
+            | ((val & 0x00_FF_00_00) >> 8)
+            | ((val & 0x00_00_FF_00) << 8)
+            | ((val & 0x00_00_00_FF) << 24)
         ) & 0xFF_FF_FF_FF
 
     @staticmethod
@@ -583,7 +608,9 @@ class CustomCrypto:
         return result
 
     @staticmethod
-    async def obtain_files(path: str, exclude: list[str] | None = None, files: list[str] | None = None) -> list[str]:
+    async def obtain_files(
+        path: str, exclude: list[str] | None = None, files: list[str] | None = None
+    ) -> list[str]:
         if exclude is None:
             exclude = []
         if files is None:
@@ -603,8 +630,9 @@ class CustomCrypto:
 
             if await aiofiles.os.path.isfile(entry_path) and entry not in exclude:
                 files.append(entry_path)
-            elif await aiofiles.os.path.isdir(entry_path) and entry_path != os.path.join(path, SCE_SYS_NAME):
+            elif await aiofiles.os.path.isdir(entry_path) and entry_path != os.path.join(
+                path, SCE_SYS_NAME
+            ):
                 await CustomCrypto.obtain_files(entry_path, exclude, files)
 
         return files
-

@@ -1,7 +1,7 @@
 import asyncio
 import json
 
-from quart import Blueprint, render_template, Response
+from quart import Blueprint, Response, render_template
 
 from auth import admin_required
 from models import get_db
@@ -95,9 +95,15 @@ async def dashboard():
         op_completed = op["done"] + op["failed"]
         op["rate"] = f"{100 * op['done'] // op_completed}%" if op_completed > 0 else "-"
 
-    return await render_template("admin.html", workers=workers, jobs=jobs,
-                                 queued=queued, total_users=total_users,
-                                 stats=stats, op_stats=op_stats)
+    return await render_template(
+        "admin.html",
+        workers=workers,
+        jobs=jobs,
+        queued=queued,
+        total_users=total_users,
+        stats=stats,
+        op_stats=op_stats,
+    )
 
 
 @admin_web_bp.route("/admin/stats")
@@ -151,8 +157,13 @@ async def stats_json():
         op_completed = op["done"] + op["failed"]
         op["rate"] = f"{100 * op['done'] // op_completed}%" if op_completed > 0 else "-"
 
-    return {"queued": queued, "total_users": total_users, "workers_online": workers_online,
-            "stats": stats, "op_stats": op_stats}
+    return {
+        "queued": queued,
+        "total_users": total_users,
+        "workers_online": workers_online,
+        "stats": stats,
+        "op_stats": op_stats,
+    }
 
 
 @admin_web_bp.route("/admin/feed")
@@ -166,9 +177,7 @@ async def feed():
         # Get initial latest job timestamp
         db = await get_db()
         try:
-            cursor = await db.execute(
-                "SELECT MAX(created_at) as latest FROM jobs"
-            )
+            cursor = await db.execute("SELECT MAX(created_at) as latest FROM jobs")
             row = await cursor.fetchone()
             last_seen = row["latest"] if row and row["latest"] else "2000-01-01"
         finally:
@@ -187,7 +196,7 @@ async def feed():
                         "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id "
                         "WHERE j.created_at > ? "
                         "ORDER BY j.created_at ASC",
-                        (last_seen,)
+                        (last_seen,),
                     )
                     new_jobs = [dict(r) for r in await cursor.fetchall()]
 

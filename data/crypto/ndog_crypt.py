@@ -1,11 +1,13 @@
-import aiofiles 
 import os
+
+import aiofiles
 
 from data.crypto.common import CustomCrypto as CC
 from utils.type_helpers import uint32
 
-# notes: start 0x08 (0xC for the nathan drake collection & 0x10 for tlou part 2), last 4 bytes is size (4 bytes from 0x08 for tlou part 2), 
+# notes: start 0x08 (0xC for the nathan drake collection & 0x10 for tlou part 2), last 4 bytes is size (4 bytes from 0x08 for tlou part 2),
 # endian swap every 4 bytes before and after crypt for the nathan drake collection
+
 
 class Crypt_Ndog:
     SECRET_KEY = b"(SH[@2>r62%5+QKpy|g6"
@@ -15,9 +17,9 @@ class Crypt_Ndog:
     HEADER_UNCHARTED = b"Uncharted"
     HEADERS = frozenset([HEADER_TLOU, HEADER_UNCHARTED])
 
-    START_OFFSET = 0x08 # tlou, uncharted 4 & the lost legacy
-    START_OFFSET_TLOU2 = 0x10 # tlou part 2
-    START_OFFSET_COL = 0xC # the nathan drake collection
+    START_OFFSET = 0x08  # tlou, uncharted 4 & the lost legacy
+    START_OFFSET_TLOU2 = 0x10  # tlou part 2
+    START_OFFSET_COL = 0xC  # the nathan drake collection
 
     EXCLUDE = ["ICN-ID"]
 
@@ -92,7 +94,7 @@ class Crypt_Ndog:
             await cc.chks_fix()
             while await cc.read(stop_off=cc.start_off + cc.dsize):
                 if cc.start_off == Crypt_Ndog.START_OFFSET_COL:
-                    cc.ES32() 
+                    cc.ES32()
                 cc.encrypt(blowfish)
                 if cc.start_off == Crypt_Ndog.START_OFFSET_COL:
                     cc.ES32()
@@ -126,4 +128,3 @@ class Crypt_Ndog:
 
         if header in Crypt_Ndog.HEADERS or header1 in Crypt_Ndog.HEADERS:
             await Crypt_Ndog.encrypt_file(filepath, start_off)
-

@@ -1,24 +1,29 @@
 import time
+
 import aiofiles
+
 from data.converter.common import Converter
 from data.converter.exceptions import ConverterError
 from data.crypto.common import CustomCrypto
-from data.crypto.rstar_crypt import Crypt_Rstar as crypt
 from data.crypto.exceptions import CryptoError
+from data.crypto.rstar_crypt import Crypt_Rstar as crypt
 from utils.type_helpers import uint32
+
 
 class Converter_Rstar:
     @staticmethod
-    async def handle_title(cc: CustomCrypto, write_date_rdr2: bool = False, clear_rdr2_pc_chks: bool = False) -> None:
+    async def handle_title(
+        cc: CustomCrypto, write_date_rdr2: bool = False, clear_rdr2_pc_chks: bool = False
+    ) -> None:
         unix = int(time.time())
         date = time.strftime("%d/%m/%y %H:%M:%S", time.gmtime(unix))
         if write_date_rdr2 or clear_rdr2_pc_chks:
-            TITLE = f"@!HTOS CONVERTER!@ - {date}".encode("utf-16le") # buffersize 0x100
+            TITLE = f"@!HTOS CONVERTER!@ - {date}".encode("utf-16le")  # buffersize 0x100
         else:
-            TITLE = f"~b~HTOS CONVERTER ~p~∑ ~g~‹ - {date}".encode("utf-16le") # buffersize 0x100
+            TITLE = f"~b~HTOS CONVERTER ~p~∑ ~g~‹ - {date}".encode("utf-16le")  # buffersize 0x100
         NULL_BYTES = bytes([0] * (0x104 - 0x4))
 
-        await cc.w_stream.seek(0x4) # title start
+        await cc.w_stream.seek(0x4)  # title start
         await cc.w_stream.write(NULL_BYTES)
         await cc.w_stream.seek(0x4)
         await cc.w_stream.write(TITLE)
@@ -38,11 +43,11 @@ class Converter_Rstar:
             async with aiofiles.open(filepath, "rb") as file:
                 await file.seek(crypt.GTAV_PC_HEADER_OFFSET)
                 check_bytes = await file.read(len(crypt.GTAV_HEADER))
-                if check_bytes == b"\x00\x00\x00\x00": # ps4 if true
+                if check_bytes == b"\x00\x00\x00\x00":  # ps4 if true
                     platform = "ps4"
                     await file.seek(crypt.GTAV_PS_HEADER_OFFSET)
                     header = await file.read(len(crypt.GTAV_HEADER))
-                else: # pc if true or invalid
+                else:  # pc if true or invalid
                     platform = "pc"
                     header = await file.read(len(crypt.GTAV_HEADER))
 
@@ -77,7 +82,7 @@ class Converter_Rstar:
                 return "CONVERTED: PS4 -> PC"
             else:
                 return "CONVERTED: PC -> PS4"
-        except (ValueError, IOError, IndexError, CryptoError):
+        except (OSError, ValueError, IndexError, CryptoError):
             raise ConverterError("File not supported!")
 
     @staticmethod
@@ -86,11 +91,11 @@ class Converter_Rstar:
             async with aiofiles.open(filepath, "rb") as file:
                 await file.seek(crypt.RDR2_PC_HEADER_OFFSET)
                 check_bytes = await file.read(len(crypt.RDR2_HEADER))
-                if check_bytes == b"\x00\x00\x00\x00": # ps4 if true
+                if check_bytes == b"\x00\x00\x00\x00":  # ps4 if true
                     platform = "ps4"
                     await file.seek(crypt.RDR2_PS_HEADER_OFFSET)
                     header = await file.read(len(crypt.RDR2_HEADER))
-                else: # pc if true or invalid
+                else:  # pc if true or invalid
                     platform = "pc"
                     header = await file.read(len(crypt.RDR2_HEADER))
 
@@ -125,5 +130,5 @@ class Converter_Rstar:
                 return "CONVERTED: PS4 -> PC"
             else:
                 return "CONVERTED: PC -> PS4"
-        except (ValueError, IOError, IndexError, CryptoError):
+        except (OSError, ValueError, IndexError, CryptoError):
             raise ConverterError("File not supported!")

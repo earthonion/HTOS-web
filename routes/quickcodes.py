@@ -1,16 +1,18 @@
 import os
 import shutil
-from quart import Blueprint, render_template, request, session, redirect, url_for, flash
+
+from quart import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from auth import login_required
-from services.jobs import create_job, start_job
-from services.files import save_uploaded_files, create_result_zip, cleanup_upload
 from data.cheats.quickcodes import QuickCodes as QC
 from data.cheats.quickcodes import QuickCodesError
-from utils.workspace import init_workspace, cleanup_simple
+from services.files import cleanup_upload, create_result_zip, save_uploaded_files
+from services.jobs import create_job, start_job
 from utils.extras import completed_print
+from utils.workspace import cleanup_simple, init_workspace
 
 quickcodes_bp = Blueprint("quickcodes", __name__)
+
 
 @quickcodes_bp.route("/quickcodes", methods=["GET", "POST"])
 @login_required
@@ -45,17 +47,33 @@ async def quickcodes():
 
 
 async def _run_quickcodes(job, upload_dir: str, codes: str):
-    from app_core.helpers import prepare_files_input_folder
     from aiofiles.os import makedirs
+
+    from app_core.helpers import prepare_files_input_folder
 
     logger = job.logger
     logger.info("Applying codes...")
 
     qc = QC("", codes)
 
-    newUPLOAD_ENCRYPTED, newUPLOAD_DECRYPTED, newDOWNLOAD_ENCRYPTED, newPNG_PATH, newPARAM_PATH, newDOWNLOAD_DECRYPTED, newKEYSTONE_PATH = init_workspace()
-    workspace_folders = [newUPLOAD_ENCRYPTED, newUPLOAD_DECRYPTED, newDOWNLOAD_ENCRYPTED,
-                        newPNG_PATH, newPARAM_PATH, newDOWNLOAD_DECRYPTED, newKEYSTONE_PATH]
+    (
+        newUPLOAD_ENCRYPTED,
+        newUPLOAD_DECRYPTED,
+        newDOWNLOAD_ENCRYPTED,
+        newPNG_PATH,
+        newPARAM_PATH,
+        newDOWNLOAD_DECRYPTED,
+        newKEYSTONE_PATH,
+    ) = init_workspace()
+    workspace_folders = [
+        newUPLOAD_ENCRYPTED,
+        newUPLOAD_DECRYPTED,
+        newDOWNLOAD_ENCRYPTED,
+        newPNG_PATH,
+        newPARAM_PATH,
+        newDOWNLOAD_DECRYPTED,
+        newKEYSTONE_PATH,
+    ]
     for folder in workspace_folders:
         await makedirs(folder, exist_ok=True)
 

@@ -4,22 +4,52 @@ from types import SimpleNamespace
 
 from data.crypto.exceptions import CryptoError
 from utils.constants import (
-    logger, OTHER_TIMEOUT,
-    GTAV_TITLEID, BL3_TITLEID, RDR2_TITLEID, XENO2_TITLEID, WONDERLANDS_TITLEID, NDOG_TITLEID, NDOG_COL_TITLEID, NDOG_TLOU2_TITLEID,
-    MGSV_TPP_TITLEID, MGSV_GZ_TITLEID, REV2_TITLEID, RE7_TITLEID, RERES_TITLEID, DL1_TITLEID, DL2_TITLEID, RGG_TITLEID, DI1_TITLEID,
-    DI2_TITLEID, NMS_TITLEID, TERRARIA_TITLEID, SMT5_TITLEID, RCUBE_TITLEID, DSR_TITLEID, RE4R_TITLEID, RE3R_TITLEID, RE2R_TITLEID,
-    DIGIMON_TITLEID, SDEW_TITLEID, NIOH2_TITLEID, MHWI_TITLEID, RE_VILLAGE_TITLEID, LA_NOIRE_TITLEID, LOH_TRAILS_CS4_TITLEID,
-    LOH_TRAILS_DAYBREAK_TITLEID, LOH_TRAILS_ZERO_AZURE
+    BL3_TITLEID,
+    DI1_TITLEID,
+    DI2_TITLEID,
+    DIGIMON_TITLEID,
+    DL1_TITLEID,
+    DL2_TITLEID,
+    DSR_TITLEID,
+    GTAV_TITLEID,
+    LA_NOIRE_TITLEID,
+    LOH_TRAILS_CS4_TITLEID,
+    LOH_TRAILS_DAYBREAK_TITLEID,
+    LOH_TRAILS_ZERO_AZURE,
+    MGSV_GZ_TITLEID,
+    MGSV_TPP_TITLEID,
+    MHWI_TITLEID,
+    NDOG_COL_TITLEID,
+    NDOG_TITLEID,
+    NDOG_TLOU2_TITLEID,
+    NIOH2_TITLEID,
+    NMS_TITLEID,
+    RCUBE_TITLEID,
+    RDR2_TITLEID,
+    RE2R_TITLEID,
+    RE3R_TITLEID,
+    RE4R_TITLEID,
+    RE7_TITLEID,
+    RE_VILLAGE_TITLEID,
+    RERES_TITLEID,
+    REV2_TITLEID,
+    RGG_TITLEID,
+    SDEW_TITLEID,
+    SMT5_TITLEID,
+    TERRARIA_TITLEID,
+    WONDERLANDS_TITLEID,
+    XENO2_TITLEID,
 )
 
+
 async def extra_decrypt(
-          d_ctx,
-          Crypto: SimpleNamespace,
-          title_id: str,
-          destination_directory: str,
-          savepairname: str,
-          choice: bool | None = None
-        ) -> None:
+    d_ctx,
+    Crypto: SimpleNamespace,
+    title_id: str,
+    destination_directory: str,
+    savepairname: str,
+    choice: bool | None = None,
+) -> None:
     """Apply second-layer decryption. Web version always passes choice=True and d_ctx=None."""
 
     assert choice is not None, "Web mode requires explicit choice parameter"
@@ -27,11 +57,15 @@ async def extra_decrypt(
     try:
         if title_id in GTAV_TITLEID:
             if choice:
-                await Crypto.Rstar.check_dec_ps(destination_directory, Crypto.Rstar.GTAV_PS_HEADER_OFFSET)
+                await Crypto.Rstar.check_dec_ps(
+                    destination_directory, Crypto.Rstar.GTAV_PS_HEADER_OFFSET
+                )
 
         elif title_id in RDR2_TITLEID:
             if choice:
-                await Crypto.Rstar.check_dec_ps(destination_directory, Crypto.Rstar.RDR2_PS_HEADER_OFFSET)
+                await Crypto.Rstar.check_dec_ps(
+                    destination_directory, Crypto.Rstar.RDR2_PS_HEADER_OFFSET
+                )
 
         elif title_id in XENO2_TITLEID:
             if choice:
@@ -55,7 +89,9 @@ async def extra_decrypt(
 
         elif title_id in NDOG_TLOU2_TITLEID:
             if choice:
-                await Crypto.Ndog.check_dec_ps(destination_directory, Crypto.Ndog.START_OFFSET_TLOU2)
+                await Crypto.Ndog.check_dec_ps(
+                    destination_directory, Crypto.Ndog.START_OFFSET_TLOU2
+                )
 
         elif title_id in MGSV_TPP_TITLEID or title_id in MGSV_GZ_TITLEID:
             if choice:
@@ -125,10 +161,13 @@ async def extra_decrypt(
             if choice:
                 await Crypto.LoHTrails.check_dec_ps(destination_directory)
 
-    except (ValueError, IOError, IndexError):
+    except (OSError, ValueError, IndexError):
         raise CryptoError("Invalid save!")
 
-async def extra_import(Crypto: SimpleNamespace, title_id: str, filepath: str, savepairname: str) -> None:
+
+async def extra_import(
+    Crypto: SimpleNamespace, title_id: str, filepath: str, savepairname: str
+) -> None:
     try:
         if title_id in GTAV_TITLEID:
             await Crypto.Rstar.check_enc_ps(filepath, Crypto.Rstar.GTAV_PS_HEADER_OFFSET)
@@ -160,7 +199,12 @@ async def extra_import(Crypto: SimpleNamespace, title_id: str, filepath: str, sa
         elif title_id in REV2_TITLEID:
             await Crypto.Rev2.check_enc_ps(filepath)
 
-        elif title_id in RE7_TITLEID or title_id in RERES_TITLEID or title_id in RE3R_TITLEID or title_id in RE_VILLAGE_TITLEID:
+        elif (
+            title_id in RE7_TITLEID
+            or title_id in RERES_TITLEID
+            or title_id in RE3R_TITLEID
+            or title_id in RE_VILLAGE_TITLEID
+        ):
             await Crypto.RE7.check_enc_ps(filepath)
 
         elif title_id in DL1_TITLEID:
@@ -214,7 +258,11 @@ async def extra_import(Crypto: SimpleNamespace, title_id: str, filepath: str, sa
         elif title_id in LA_NOIRE_TITLEID:
             await Crypto.LaNoire.check_enc_ps(filepath, savepairname)
 
-        elif title_id in LOH_TRAILS_CS4_TITLEID or title_id in LOH_TRAILS_DAYBREAK_TITLEID or title_id in LOH_TRAILS_ZERO_AZURE:
+        elif (
+            title_id in LOH_TRAILS_CS4_TITLEID
+            or title_id in LOH_TRAILS_DAYBREAK_TITLEID
+            or title_id in LOH_TRAILS_ZERO_AZURE
+        ):
             await Crypto.LoHTrails.check_enc_ps(filepath, title_id)
-    except (ValueError, IOError, IndexError):
+    except (OSError, ValueError, IndexError):
         raise CryptoError("Invalid save!")

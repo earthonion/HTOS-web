@@ -1,12 +1,17 @@
 """Shim module replacing Discord embeds for web use. Provides no-op objects."""
 
+
 class _EmbedShim:
     """Minimal shim to satisfy import references to Discord embeds."""
+
     description = ""
+
     def copy(self):
         return _EmbedShim()
+
     def set_footer(self, **kwargs):
         pass
+
 
 # All named embed imports used across the codebase
 embuplSuccess = _EmbedShim()

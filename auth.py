@@ -1,10 +1,12 @@
-import bcrypt
 from functools import wraps
-from quart import Blueprint, render_template, request, redirect, url_for, session, flash, abort
+
+import bcrypt
+from quart import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 
 from models import get_db
 
 auth_bp = Blueprint("auth", __name__)
+
 
 def login_required(f):
     @wraps(f)
@@ -12,6 +14,7 @@ def login_required(f):
         if "user_id" not in session:
             return redirect(url_for("auth.login"))
         return await f(*args, **kwargs)
+
     return decorated
 
 
@@ -23,13 +26,17 @@ def admin_required(f):
         if not session.get("is_admin"):
             abort(403)
         return await f(*args, **kwargs)
+
     return decorated
+
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
+
 def check_password(password: str, password_hash: str) -> bool:
     return bcrypt.checkpw(password.encode(), password_hash.encode())
+
 
 async def is_invite_only():
     db = await get_db()
@@ -80,8 +87,7 @@ async def register():
             # Validate invite code if invite-only
             if invite_only:
                 cursor = await db.execute(
-                    "SELECT id FROM invite_codes WHERE code = ? AND used_by IS NULL",
-                    (invite_code,)
+                    "SELECT id FROM invite_codes WHERE code = ? AND used_by IS NULL", (invite_code,)
                 )
                 code_row = await cursor.fetchone()
                 if not code_row:
@@ -95,8 +101,7 @@ async def register():
 
             pw_hash = hash_password(password)
             cursor = await db.execute(
-                "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-                (username, pw_hash)
+                "INSERT INTO users (username, password_hash) VALUES (?, ?)", (username, pw_hash)
             )
             user_id = cursor.lastrowid
 
@@ -104,7 +109,7 @@ async def register():
             if invite_only:
                 await db.execute(
                     "UPDATE invite_codes SET used_by = ?, used_at = CURRENT_TIMESTAMP WHERE code = ?",
-                    (user_id, invite_code)
+                    (user_id, invite_code),
                 )
 
             await db.commit()
@@ -115,6 +120,7 @@ async def register():
             await db.close()
 
     return await render_template("register.html", invite_only=invite_only)
+
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 async def login():
@@ -143,6 +149,7 @@ async def login():
             await db.close()
 
     return await render_template("login.html")
+
 
 @auth_bp.route("/logout", methods=["POST"])
 async def logout():

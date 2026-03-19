@@ -1,10 +1,12 @@
 import aiofiles
+
 from data.crypto.common import CustomCrypto as CC
+
 
 class Crypt_LaNoire:
     SAVE_KEY = b"Wr9uFi4yi*?OESwiavv$ayIAp+u23PIe"
     PROFILE_KEY = b"_!pH4ThU-7N?u&eph4$eaC!aTHaQ5U7u"
-    DEC_MAGIC = b"\x5A\x3F\x28\x8B"
+    DEC_MAGIC = b"\x5a\x3f\x28\x8b"
 
     @staticmethod
     async def decrypt_file(filepath: str, savepairname: str) -> None:

@@ -1,19 +1,30 @@
 import struct
-from math import ceil
 from enum import Enum
+from math import ceil
 from typing import Literal
+
 
 class TypeCategory(Enum):
     INTEGER = 1
     CHARACTER = 2
     CHARACTER_SPECIAL = 3
 
+
 class CIntSignednessState(Enum):
     SIGNED = True
     UNSIGNED = False
 
+
 class Cint:
-    def __init__(self, bits: int, signed: bool, fmt: str, value: int | str | bytes | bytearray = 0, endianness: Literal["little", "big", "None"] = "None", const: bool = False) -> None:
+    def __init__(
+        self,
+        bits: int,
+        signed: bool,
+        fmt: str,
+        value: int | str | bytes | bytearray = 0,
+        endianness: Literal["little", "big", "None"] = "None",
+        const: bool = False,
+    ) -> None:
         if fmt == "":
             fmt_set = (bits, signed)
             fmt_search = self.FMT_TABLE.get(fmt_set)
@@ -25,11 +36,13 @@ class Cint:
         self.fmt = self.ENDIANNESS_TABLE[endianness] + fmt
         blen_expected = ceil(bits / 8)
         if struct.calcsize(self.fmt) != blen_expected:
-            raise ValueError(f"Format string {self.fmt} does not match expected byte length {blen_expected}!")
+            raise ValueError(
+                f"Format string {self.fmt} does not match expected byte length {blen_expected}!"
+            )
         self.ENDIANNESS = endianness
 
         if signed:
-            self.max =  (1 << (bits - 1)) - 1
+            self.max = (1 << (bits - 1)) - 1
             self.min = -(1 << (bits - 1))
             self.cast = self.__cast_signed
             self.signedness = CIntSignednessState.SIGNED
@@ -58,21 +71,17 @@ class Cint:
 
     CATEGORY = TypeCategory.INTEGER
 
-    ENDIANNESS_TABLE = {
-        "little": "<",
-        "big": ">",
-        "None": ""
-    }
+    ENDIANNESS_TABLE = {"little": "<", "big": ">", "None": ""}
 
     FMT_TABLE = {
-        (8, False): "B", 
+        (8, False): "B",
         (16, False): "H",
         (32, False): "I",
         (64, False): "Q",
         (8, True): "b",
         (16, True): "h",
         (32, True): "i",
-        (64, True): "q"
+        (64, True): "q",
     }
 
     @property
@@ -108,37 +117,76 @@ class Cint:
     def __cast_unsigned(self, n: int) -> int:
         return n & self.max
 
+
 class uint8(Cint):
     def __init__(self, value: int | str | bytes | bytearray = 0, const: bool = False) -> None:
         super().__init__(8, False, "B", value, const=const)
 
+
 class uint16(Cint):
-    def __init__(self, value: int | str | bytes | bytearray = 0, endianness: Literal["little", "big", "None"] = "None", const: bool = False) -> None:
+    def __init__(
+        self,
+        value: int | str | bytes | bytearray = 0,
+        endianness: Literal["little", "big", "None"] = "None",
+        const: bool = False,
+    ) -> None:
         super().__init__(16, False, "H", value, endianness, const)
 
+
 class uint32(Cint):
-    def __init__(self, value: int | str | bytes | bytearray = 0, endianness: Literal["little", "big", "None"] = "None", const: bool = False) -> None:
+    def __init__(
+        self,
+        value: int | str | bytes | bytearray = 0,
+        endianness: Literal["little", "big", "None"] = "None",
+        const: bool = False,
+    ) -> None:
         super().__init__(32, False, "I", value, endianness, const)
 
+
 class uint64(Cint):
-    def __init__(self, value: int | str | bytes | bytearray = 0, endianness: Literal["little", "big", "None"] = "None", const: bool = False) -> None:
+    def __init__(
+        self,
+        value: int | str | bytes | bytearray = 0,
+        endianness: Literal["little", "big", "None"] = "None",
+        const: bool = False,
+    ) -> None:
         super().__init__(64, False, "Q", value, endianness, const)
+
 
 class int8(Cint):
     def __init__(self, value: int | str | bytes | bytearray = 0, const: bool = False) -> None:
         super().__init__(8, True, "b", value, const=const)
 
+
 class int16(Cint):
-    def __init__(self, value: int | str | bytes | bytearray = 0, endianness: Literal["little", "big", "None"] = "None", const: bool = False) -> None:
+    def __init__(
+        self,
+        value: int | str | bytes | bytearray = 0,
+        endianness: Literal["little", "big", "None"] = "None",
+        const: bool = False,
+    ) -> None:
         super().__init__(16, True, "h", value, endianness, const)
 
+
 class int32(Cint):
-    def __init__(self, value: int | str | bytes | bytearray = 0, endianness: Literal["little", "big", "None"] = "None", const: bool = False) -> None:
+    def __init__(
+        self,
+        value: int | str | bytes | bytearray = 0,
+        endianness: Literal["little", "big", "None"] = "None",
+        const: bool = False,
+    ) -> None:
         super().__init__(32, True, "i", value, endianness, const)
 
+
 class int64(Cint):
-    def __init__(self, value: int | str | bytes | bytearray = 0, endianness: Literal["little", "big", "None"] = "None", const: bool = False) -> None:
+    def __init__(
+        self,
+        value: int | str | bytes | bytearray = 0,
+        endianness: Literal["little", "big", "None"] = "None",
+        const: bool = False,
+    ) -> None:
         super().__init__(64, True, "q", value, endianness, const)
+
 
 class utf_8:
     def __init__(self, value: str | bytes | bytearray = "", const: bool = False) -> None:
@@ -187,6 +235,7 @@ class utf_8:
 
     def from_bytes(self) -> str:
         return self.as_bytes.decode("utf-8")
+
 
 class utf_8_s(utf_8):
     def __init__(self, value: str | bytes | bytearray = "", const: bool = False) -> None:

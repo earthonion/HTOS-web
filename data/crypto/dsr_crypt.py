@@ -1,13 +1,28 @@
 from data.crypto.common import CustomCrypto as CC
 from data.crypto.exceptions import CryptoError
 
+
 class Crypt_DSR:
-    KEY = bytes([
-        0x20, 0xEC, 0x4B, 0x75,
-        0x19, 0xC2, 0xBD, 0x15,
-        0xE7, 0x0C, 0x1E, 0xE4,
-        0xB2, 0x04, 0xB8, 0xCB
-    ])
+    KEY = bytes(
+        [
+            0x20,
+            0xEC,
+            0x4B,
+            0x75,
+            0x19,
+            0xC2,
+            0xBD,
+            0x15,
+            0xE7,
+            0x0C,
+            0x1E,
+            0xE4,
+            0xB2,
+            0x04,
+            0xB8,
+            0xCB,
+        ]
+    )
 
     @staticmethod
     async def decrypt_file(filepath: str) -> None:

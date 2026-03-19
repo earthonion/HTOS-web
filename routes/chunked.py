@@ -1,9 +1,9 @@
 import os
-import uuid
-import time
 import shutil
+import time
+import uuid
 
-from quart import Blueprint, request, abort, session
+from quart import Blueprint, abort, request, session
 
 from config import CHUNK_DIR, CHUNK_EXPIRY
 
@@ -24,6 +24,7 @@ def _require_auth(f):
         if key:
             from config import WORKER_KEY
             from routes.api import validate_worker_key
+
             if (WORKER_KEY and key == WORKER_KEY) or await validate_worker_key(key):
                 return await f(*args, **kwargs)
         abort(401)
@@ -45,6 +46,7 @@ async def init_upload():
 
     # Write metadata
     import json
+
     meta = {
         "filename": data["filename"],
         "total_size": data["total_size"],
@@ -85,6 +87,7 @@ async def complete_upload(upload_id):
         abort(404)
 
     import json
+
     meta_path = os.path.join(chunk_dir, "meta.json")
     if not os.path.isfile(meta_path):
         abort(404)
@@ -118,6 +121,7 @@ async def complete_upload(upload_id):
 def cleanup_expired_chunks():
     """Remove chunk directories older than CHUNK_EXPIRY seconds."""
     import json
+
     now = time.time()
     if not os.path.isdir(CHUNK_DIR):
         return

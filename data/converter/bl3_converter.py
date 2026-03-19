@@ -1,11 +1,14 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from utils.helpers import TimeoutHelper
 
 try:
     import discord
     from discord.ui.item import Item
+
     _HAS_DISCORD = True
 except ImportError:
     _HAS_DISCORD = False
@@ -18,9 +21,13 @@ from utils.constants import OTHER_TIMEOUT, logger
 from utils.embeds import embErrconv
 
 if _HAS_DISCORD:
+
     class BL3_conv_button(discord.ui.View):
         """Discord button that is called when a decrypted BL3 save needs converting, gives user the choice of what platform to convert the save to."""
-        def __init__(self, ctx: discord.ApplicationContext, helper: TimeoutHelper, filepath: str, ttwl: bool) -> None:
+
+        def __init__(
+            self, ctx: discord.ApplicationContext, helper: TimeoutHelper, filepath: str, ttwl: bool
+        ) -> None:
             self.ctx = ctx
             self.helper = helper
             self.filepath = filepath
@@ -46,33 +53,44 @@ if _HAS_DISCORD:
             logger.info(f"{error} - {self.ctx.user.name}")
             self.result = "ERROR"
 
-        @discord.ui.button(label="PS4 -> PC", style=discord.ButtonStyle.blurple, custom_id="BL3_PS4_TO_PC_CONV")
+        @discord.ui.button(
+            label="PS4 -> PC", style=discord.ButtonStyle.blurple, custom_id="BL3_PS4_TO_PC_CONV"
+        )
         async def ps4_to_pc_callback(self, _, interaction: discord.Interaction) -> None:
             platform = "ps4"
             await interaction.response.edit_message(view=None)
             try:
                 await crypt.encrypt_file(self.filepath, "pc", self.ttwl)
-            except (ValueError, IOError, IndexError, CryptoError):
+            except (OSError, ValueError, IndexError, CryptoError):
                 raise ConverterError("Invalid save!")
 
             self.helper.done = True
             self.result = Converter_BL3.obtain_ret_val(platform)
 
-        @discord.ui.button(label="PC -> PS4", style=discord.ButtonStyle.blurple, custom_id="BL3_PC_TO_PS4_CONV")
+        @discord.ui.button(
+            label="PC -> PS4", style=discord.ButtonStyle.blurple, custom_id="BL3_PC_TO_PS4_CONV"
+        )
         async def pc_to_ps4_callback(self, _, interaction: discord.Interaction) -> None:
             platform = "pc"
             await interaction.response.edit_message(view=None)
             try:
                 await crypt.encrypt_file(self.filepath, "ps4", self.ttwl)
-            except (ValueError, IOError, IndexError, CryptoError):
+            except (OSError, ValueError, IndexError, CryptoError):
                 raise ConverterError("Invalid save!")
 
             self.helper.done = True
             self.result = Converter_BL3.obtain_ret_val(platform)
 
+
 class Converter_BL3:
     @staticmethod
-    async def convert_file(ctx: discord.ApplicationContext | None, helper: TimeoutHelper | None, filepath: str, ttwl: bool, emb_btn: discord.Embed | None) -> str:
+    async def convert_file(
+        ctx: discord.ApplicationContext | None,
+        helper: TimeoutHelper | None,
+        filepath: str,
+        ttwl: bool,
+        emb_btn: discord.Embed | None,
+    ) -> str:
         async with CustomCrypto(filepath) as cc:
             off = await cc.find(crypt.COMMON)
         if off != -1:
@@ -86,7 +104,7 @@ class Converter_BL3:
         # try decrypting it with ps4 keys
         try:
             await crypt.decrypt_file(filepath, "ps4", ttwl)
-        except (ValueError, IOError, IndexError, CryptoError):
+        except (OSError, ValueError, IndexError, CryptoError):
             raise ConverterError("File not supported!")
 
         # read new data and check if its decrypted
@@ -97,20 +115,20 @@ class Converter_BL3:
             platform = "ps4"
             try:
                 await crypt.encrypt_file(filepath, "pc", ttwl)
-            except (ValueError, IOError, IndexError, CryptoError):
+            except (OSError, ValueError, IndexError, CryptoError):
                 raise ConverterError("File not supported!")
             return Converter_BL3.obtain_ret_val(platform)
 
         # not decrypted, rewrite to orignal data
         try:
             await crypt.encrypt_file(filepath, "ps4", ttwl)
-        except (ValueError, IOError, IndexError, CryptoError):
+        except (OSError, ValueError, IndexError, CryptoError):
             raise ConverterError("File not supported!")
 
-        # try decrypting with pc keys instead 
+        # try decrypting with pc keys instead
         try:
             await crypt.decrypt_file(filepath, "pc", ttwl)
-        except (ValueError, IOError, IndexError, CryptoError):
+        except (OSError, ValueError, IndexError, CryptoError):
             raise ConverterError("File not supported!")
 
         # read new data and check if its decrypted
@@ -122,11 +140,11 @@ class Converter_BL3:
             platform = "pc"
             try:
                 await crypt.encrypt_file(filepath, "ps4", ttwl)
-            except (ValueError, IOError, IndexError, CryptoError):
+            except (OSError, ValueError, IndexError, CryptoError):
                 raise ConverterError("File not supported!")
             return Converter_BL3.obtain_ret_val(platform)
         else:
-            raise ConverterError("File not supported!") # invalid save
+            raise ConverterError("File not supported!")  # invalid save
 
     @staticmethod
     def obtain_ret_val(platform: str) -> str:

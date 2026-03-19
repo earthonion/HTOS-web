@@ -1,8 +1,10 @@
 import aiofiles
+
 from data.converter.exceptions import ConverterError
 from data.crypto.common import CustomCrypto
-from data.crypto.xeno2_crypt import Crypt_Xeno2 as crypt
 from data.crypto.exceptions import CryptoError
+from data.crypto.xeno2_crypt import Crypt_Xeno2 as crypt
+
 
 class Converter_Xeno2:
     PS4_SIZE = 0x12A200
@@ -11,9 +13,7 @@ class Converter_Xeno2:
     MD5_HEADER_SIZE = 0x20
     HCD_START_PS4 = 0x07BCA0 + MD5_HEADER_SIZE
     HCD_START_PC = 0x07BCB8
-    MARKER = bytes([
-        0x58, 0x56, 0x32, 0x53, 0x41, 0x54, 0xD6, 0x31
-    ])
+    MARKER = bytes([0x58, 0x56, 0x32, 0x53, 0x41, 0x54, 0xD6, 0x31])
 
     class Xeno2(CustomCrypto):
         def __init__(self, filepath: str) -> None:
@@ -58,7 +58,11 @@ class Converter_Xeno2:
 
             # write hcd section
             cur = await self.w_stream.seek(Converter_Xeno2.HCD_START_PC)
-            stop_off = self.chunk_end + Converter_Xeno2.PC_SIZE - (cur + crypt.SAVE_HEADER_SIZE + Converter_Xeno2.MD5_HEADER_SIZE)
+            stop_off = (
+                self.chunk_end
+                + Converter_Xeno2.PC_SIZE
+                - (cur + crypt.SAVE_HEADER_SIZE + Converter_Xeno2.MD5_HEADER_SIZE)
+            )
             while await self.read(stop_off=stop_off):
                 await self.w_stream.write(self.chunk)
 
@@ -75,7 +79,9 @@ class Converter_Xeno2:
                 raise CryptoError("Unsupported save!")
 
             # write headers
-            hcd_end = await self.r_stream.seek(self.size - Converter_Xeno2.MD5_HEADER_SIZE - crypt.SAVE_HEADER_SIZE)
+            hcd_end = await self.r_stream.seek(
+                self.size - Converter_Xeno2.MD5_HEADER_SIZE - crypt.SAVE_HEADER_SIZE
+            )
             sav_header = await self.r_stream.read(crypt.SAVE_HEADER_SIZE)
             md5_header = await self.r_stream.read(Converter_Xeno2.MD5_HEADER_SIZE)
             await self.w_stream.write(md5_header)
@@ -122,6 +128,6 @@ class Converter_Xeno2:
                     await cc.unpack_data()
                 else:
                     raise ConverterError("Unsupported save!")
-        except (ValueError, IOError, IndexError, CryptoError):
+        except (OSError, ValueError, IndexError, CryptoError):
             raise ConverterError("File not supported!")
         return ret

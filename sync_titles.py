@@ -59,13 +59,15 @@ def sync():
             name = entry.get("name", "").strip()
             if not title_id or not name:
                 continue
-            batch.append((
-                title_id,
-                name,
-                platform,
-                entry.get("contentId", ""),
-                entry.get("region", ""),
-            ))
+            batch.append(
+                (
+                    title_id,
+                    name,
+                    platform,
+                    entry.get("contentId", ""),
+                    entry.get("region", ""),
+                )
+            )
 
         conn.executemany(
             "INSERT OR REPLACE INTO titles (title_id, name, platform, content_id, region) "

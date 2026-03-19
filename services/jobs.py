@@ -89,14 +89,15 @@ class Job:
         db = await get_db()
         try:
             await db.execute(
-                "UPDATE jobs SET params = ? WHERE id = ?",
-                (json.dumps(self.params), self.job_id)
+                "UPDATE jobs SET params = ? WHERE id = ?", (json.dumps(self.params), self.job_id)
             )
             await db.commit()
         finally:
             await db.close()
 
-    async def set_status(self, status: str, result_path: str | None = None, error: str | None = None):
+    async def set_status(
+        self, status: str, result_path: str | None = None, error: str | None = None
+    ):
         self.status = status
         self.result_path = result_path or self.result_path
         self.error = error or self.error
@@ -104,14 +105,16 @@ class Job:
         try:
             await db.execute(
                 "UPDATE jobs SET status = ?, result_path = ?, error = ? WHERE id = ?",
-                (status, self.result_path, self.error, self.job_id)
+                (status, self.result_path, self.error, self.job_id),
             )
             await db.commit()
         finally:
             await db.close()
 
 
-async def create_job(user_id: int, operation: str, params: dict | None = None, ready: bool = True) -> Job:
+async def create_job(
+    user_id: int, operation: str, params: dict | None = None, ready: bool = True
+) -> Job:
     job_id = str(uuid.uuid4())
     params_json = json.dumps(params) if params else None
     status = "queued" if ready else "pending"
@@ -119,7 +122,7 @@ async def create_job(user_id: int, operation: str, params: dict | None = None, r
     try:
         await db.execute(
             "INSERT INTO jobs (id, user_id, operation, status, params) VALUES (?, ?, ?, ?, ?)",
-            (job_id, user_id, operation, status, params_json)
+            (job_id, user_id, operation, status, params_json),
         )
         await db.commit()
     finally:
@@ -150,7 +153,7 @@ async def get_user_jobs(user_id: int) -> list[dict]:
     try:
         cursor = await db.execute(
             "SELECT id, operation, status, created_at, error FROM jobs WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
-            (user_id,)
+            (user_id,),
         )
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
@@ -168,6 +171,7 @@ def push_log(job_id: str, level: str, msg: str):
 
 def start_job(job: Job, coro):
     """Start a background asyncio task for this job."""
+
     async def _runner():
         try:
             await job.set_status("running")

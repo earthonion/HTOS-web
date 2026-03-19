@@ -1,17 +1,29 @@
 import os
 import zipfile
-from quart import Blueprint, render_template, request, session, redirect, url_for, flash
+
+from quart import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from auth import login_required
 from models import get_db
-from services.jobs import create_job
-from utils.constants import (
-    SAVEBLOCKS_MIN, SAVEBLOCKS_MAX,
-    SCE_SYS_NAME, PARAM_NAME,
+from services.files import (
+    DangerousFileError,
+    FileTooLargeError,
+    _check_file_sizes,
+    _read_account_id_from_sfo,
+    _strip_sdimg_prefix,
+    check_dangerous_files,
+    check_zip_safety,
+    resolve_chunked_uploads,
 )
-from utils.orbis import validate_savedirname, sfo_ctx_create
-from services.files import _read_account_id_from_sfo, FileTooLargeError, DangerousFileError, check_dangerous_files, check_zip_safety, _check_file_sizes, _strip_sdimg_prefix, resolve_chunked_uploads, detect_platform_in_dir
+from services.jobs import create_job
 from services.workers import ps5_workers_online
+from utils.constants import (
+    PARAM_NAME,
+    SAVEBLOCKS_MAX,
+    SAVEBLOCKS_MIN,
+    SCE_SYS_NAME,
+)
+from utils.orbis import sfo_ctx_create, validate_savedirname
 
 encrypt_bp = Blueprint("encrypt", __name__)
 
@@ -45,11 +57,21 @@ async def encrypt():
             await flash("Please select a profile.", "error")
             return await render_template("encrypt.html", profiles=profiles)
 
-        if not upload_ids_json and not folder_upload_ids_json and not is_folder_upload and (not zipfile_upload or not zipfile_upload.filename):
+        if (
+            not upload_ids_json
+            and not folder_upload_ids_json
+            and not is_folder_upload
+            and (not zipfile_upload or not zipfile_upload.filename)
+        ):
             await flash("Please upload a zip file or folder.", "error")
             return await render_template("encrypt.html", profiles=profiles)
 
-        if not upload_ids_json and not folder_upload_ids_json and not is_folder_upload and not zipfile_upload.filename.endswith(".zip"):
+        if (
+            not upload_ids_json
+            and not folder_upload_ids_json
+            and not is_folder_upload
+            and not zipfile_upload.filename.endswith(".zip")
+        ):
             await flash("File must be a .zip file.", "error")
             return await render_template("encrypt.html", profiles=profiles)
 
@@ -57,7 +79,7 @@ async def encrypt():
         try:
             cursor = await db.execute(
                 "SELECT account_id FROM profiles WHERE id = ? AND user_id = ?",
-                (profile_id, user_id)
+                (profile_id, user_id),
             )
             profile = await cursor.fetchone()
         finally:
@@ -69,6 +91,7 @@ async def encrypt():
 
         account_id = profile["account_id"]
         import uuid as _uuid
+
         temp_job_id = str(_uuid.uuid4())
 
         # Save the zip to workspace
@@ -87,6 +110,7 @@ async def encrypt():
                 await f.save(dest)
         elif upload_ids_json:
             import json as _json
+
             upload_ids = _json.loads(upload_ids_json)
             chunked_dir = await resolve_chunked_uploads(upload_ids, user_id, temp_job_id)
             zip_path = None
@@ -145,7 +169,9 @@ async def encrypt():
                 break
 
         if save_dir is None:
-            await flash("No sce_sys folder found. Make sure your save folder contains sce_sys.", "error")
+            await flash(
+                "No sce_sys folder found. Make sure your save folder contains sce_sys.", "error"
+            )
             return await render_template("encrypt.html", profiles=profiles)
 
         savename = os.path.basename(save_dir)
@@ -161,14 +187,15 @@ async def encrypt():
         if savename.startswith("dec_"):
             savename = savename[4:]
         import re
-        savename = re.sub(r'_CUSA\d{5}$', '', savename)
+
+        savename = re.sub(r"_CUSA\d{5}$", "", savename)
         if not savename or savename == "extracted":
             savename = os.path.splitext(upload_filename)[0] if upload_filename else "save"
             if "-" in savename:
                 parts = savename.split("-", 1)
                 savename = parts[1] if len(parts) > 1 else savename
             if "_20" in savename:
-                savename = savename[:savename.rfind("_20")]
+                savename = savename[: savename.rfind("_20")]
 
         if not validate_savedirname(savename):
             await flash(f"Invalid save name derived from zip: {savename}", "error")
@@ -185,6 +212,7 @@ async def encrypt():
         for param in sfo_ctx.params:
             if param.key == "SAVEDATA_BLOCKS":
                 from utils.type_helpers import uint64
+
                 blocks = uint64(param.value, "little")
                 saveblocks = blocks.value
                 break

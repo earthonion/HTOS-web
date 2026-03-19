@@ -1,10 +1,12 @@
-import aiofiles
 import os
 from enum import Enum
 
+import aiofiles
+
 from data.crypto.common import CustomCrypto as CC
 from data.crypto.exceptions import CryptoError
-from utils.type_helpers import uint32, int8
+from utils.type_helpers import int8, uint32
+
 
 class Crypt_Rstar:
     class TitleHashTypes(Enum):
@@ -12,19 +14,79 @@ class Crypt_Rstar:
         DATE = 1
 
     # GTA V & RDR 2
-    PS4_KEY = bytes([
-        0x16,  0x85,  0xFF,  0xA3,  0x8D,  0x01,  0x0F,  0x0D,
-        0xFE,  0x66,  0x1C,  0xF9,  0xB5,  0x57,  0x2C,  0x50,
-        0x0D,  0x80,  0x26,  0x48,  0xDB,  0x37,  0xB9,  0xED,
-        0x0F,  0x48,  0xc5,  0x73,  0x42,  0xC0,  0x22,  0xF5
-    ])
+    PS4_KEY = bytes(
+        [
+            0x16,
+            0x85,
+            0xFF,
+            0xA3,
+            0x8D,
+            0x01,
+            0x0F,
+            0x0D,
+            0xFE,
+            0x66,
+            0x1C,
+            0xF9,
+            0xB5,
+            0x57,
+            0x2C,
+            0x50,
+            0x0D,
+            0x80,
+            0x26,
+            0x48,
+            0xDB,
+            0x37,
+            0xB9,
+            0xED,
+            0x0F,
+            0x48,
+            0xC5,
+            0x73,
+            0x42,
+            0xC0,
+            0x22,
+            0xF5,
+        ]
+    )
 
-    PC_KEY = bytes([
-        0x46,  0xED,  0x8D,  0x3F,  0x94,  0x35,  0xE4,  0xEC,
-        0x12,  0x2C,  0xB2,  0xE2,  0xAF,  0x97,  0xC5,  0x7E,
-        0x4C,  0x5A,  0x8C,  0x30,  0x92,  0xC7,  0x84,  0x4E,
-        0x11,  0xC6,  0x86,  0xFF,  0x41,  0xDF,  0x41,  0x0F
-    ])
+    PC_KEY = bytes(
+        [
+            0x46,
+            0xED,
+            0x8D,
+            0x3F,
+            0x94,
+            0x35,
+            0xE4,
+            0xEC,
+            0x12,
+            0x2C,
+            0xB2,
+            0xE2,
+            0xAF,
+            0x97,
+            0xC5,
+            0x7E,
+            0x4C,
+            0x5A,
+            0x8C,
+            0x30,
+            0x92,
+            0xC7,
+            0x84,
+            0x4E,
+            0x11,
+            0xC6,
+            0x86,
+            0xFF,
+            0x41,
+            0xDF,
+            0x41,
+            0x0F,
+        ]
+    )
 
     GTAV_PS_HEADER_OFFSET = 0x114
     GTAV_PC_HEADER_OFFSET = 0x108
@@ -40,9 +102,8 @@ class Crypt_Rstar:
     TYPES = {
         GTAV_PS_HEADER_OFFSET: {"key": PS4_KEY, "type": TitleHashTypes.STANDARD},
         RDR2_PS_HEADER_OFFSET: {"key": PS4_KEY, "type": TitleHashTypes.STANDARD},
-
         GTAV_PC_HEADER_OFFSET: {"key": PC_KEY, "type": TitleHashTypes.STANDARD},
-        RDR2_PC_HEADER_OFFSET: {"key": PC_KEY, "type": TitleHashTypes.DATE}
+        RDR2_PC_HEADER_OFFSET: {"key": PC_KEY, "type": TitleHashTypes.DATE},
     }
 
     UNSUPPORTED_FORMATS = ("pgta", "prdr", "profile", "player")
@@ -61,13 +122,13 @@ class Crypt_Rstar:
                 for byte in chunk:
                     char = int8(byte).value
                     self.jooat.value += char
-                    self.jooat.value += (self.jooat.value << 10)
-                    self.jooat.value ^= (self.jooat.value >> 6)
+                    self.jooat.value += self.jooat.value << 10
+                    self.jooat.value ^= self.jooat.value >> 6
 
             def digest(self) -> bytes:
-                self.jooat.value += (self.jooat.value << 3)
-                self.jooat.value ^= (self.jooat.value >> 11)
-                self.jooat.value += (self.jooat.value << 15)
+                self.jooat.value += self.jooat.value << 3
+                self.jooat.value ^= self.jooat.value >> 11
+                self.jooat.value += self.jooat.value << 15
                 return self.jooat.as_bytes
 
         def create_ctx_jooat(self, seed: uint32 = uint32(0x3FAC7125, "big")) -> int:
@@ -80,7 +141,9 @@ class Crypt_Rstar:
 
             # title seed is jooat of iv with initial seed of 0
             await self.r_stream.seek(0)
-            iv = bytearray(await self.r_stream.read(4)) # normally 00 00 00 01 (gta), 00 00 00 04 (rdr2)
+            iv = bytearray(
+                await self.r_stream.read(4)
+            )  # normally 00 00 00 01 (gta), 00 00 00 04 (rdr2)
             self.ES32(iv)
             jooat.update(iv)
             jooat.digest()
@@ -98,7 +161,7 @@ class Crypt_Rstar:
 
             # data seed is jooat of iv with initial seed of 0
             await self.r_stream.seek(0)
-            iv = bytearray(await self.r_stream.read(4)) # normally 00 00 00 04
+            iv = bytearray(await self.r_stream.read(4))  # normally 00 00 00 04
             self.ES32(iv)
             jooat.update(iv)
             jooat.digest()
@@ -121,7 +184,9 @@ class Crypt_Rstar:
 
         async with CC(filepath) as cc:
             aes = cc.create_ctx_aes(key, cc.AES.MODE_ECB)
-            await cc.trim_trailing_bytes(min_required=16 + 1) # remove empty space that autosaves have towards EOF
+            await cc.trim_trailing_bytes(
+                min_required=16 + 1
+            )  # remove empty space that autosaves have towards EOF
             cc.set_ptr(start_off)
             while await cc.read():
                 cc.decrypt(aes)
@@ -137,7 +202,9 @@ class Crypt_Rstar:
 
         async with Crypt_Rstar.Rstar(filepath) as cc:
             aes = cc.create_ctx_aes(key, cc.AES.MODE_ECB)
-            await cc.trim_trailing_bytes(min_required=16 + 1) # remove empty space that autosaves have towards EOF
+            await cc.trim_trailing_bytes(
+                min_required=16 + 1
+            )  # remove empty space that autosaves have towards EOF
             match type_:
                 case Crypt_Rstar.TitleHashTypes.STANDARD:
                     await cc.fix_title_chks()
@@ -212,4 +279,3 @@ class Crypt_Rstar:
             if not filename.startswith(Crypt_Rstar.UNSUPPORTED_FORMATS):
                 valid.append(path)
         return valid
-

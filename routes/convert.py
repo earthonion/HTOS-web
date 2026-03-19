@@ -1,19 +1,26 @@
 import os
 import shutil
-from quart import Blueprint, render_template, request, session, redirect, url_for, flash
+
+from quart import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from auth import login_required
-from services.jobs import create_job, start_job
-from services.files import save_uploaded_files, create_result_zip, cleanup_upload, DangerousFileError
-from utils.namespaces import Converter, Crypto
-from utils.workspace import init_workspace, cleanup_simple
-from utils.extras import completed_print
 from data.converter.exceptions import ConverterError
 from data.crypto.exceptions import CryptoError
+from services.files import (
+    DangerousFileError,
+    cleanup_upload,
+    create_result_zip,
+    save_uploaded_files,
+)
+from services.jobs import create_job, start_job
+from utils.extras import completed_print
+from utils.namespaces import Converter, Crypto
+from utils.workspace import cleanup_simple, init_workspace
 
 convert_bp = Blueprint("convert", __name__)
 
 GAME_CHOICES = ["GTA V", "RDR 2", "BL 3", "TTWL", "XENO 2"]
+
 
 @convert_bp.route("/convert", methods=["GET", "POST"])
 @login_required
@@ -47,15 +54,31 @@ async def convert():
 
 
 async def _run_convert(job, upload_dir: str, game: str, platform_choice: str):
-    from app_core.helpers import prepare_files_input_folder
     from aiofiles.os import makedirs
+
+    from app_core.helpers import prepare_files_input_folder
 
     logger = job.logger
     logger.info(f"Starting conversion ({game})...")
 
-    newUPLOAD_ENCRYPTED, newUPLOAD_DECRYPTED, newDOWNLOAD_ENCRYPTED, newPNG_PATH, newPARAM_PATH, newDOWNLOAD_DECRYPTED, newKEYSTONE_PATH = init_workspace()
-    workspace_folders = [newUPLOAD_ENCRYPTED, newUPLOAD_DECRYPTED, newDOWNLOAD_ENCRYPTED,
-                        newPNG_PATH, newPARAM_PATH, newDOWNLOAD_DECRYPTED, newKEYSTONE_PATH]
+    (
+        newUPLOAD_ENCRYPTED,
+        newUPLOAD_DECRYPTED,
+        newDOWNLOAD_ENCRYPTED,
+        newPNG_PATH,
+        newPARAM_PATH,
+        newDOWNLOAD_DECRYPTED,
+        newKEYSTONE_PATH,
+    ) = init_workspace()
+    workspace_folders = [
+        newUPLOAD_ENCRYPTED,
+        newUPLOAD_DECRYPTED,
+        newDOWNLOAD_ENCRYPTED,
+        newPNG_PATH,
+        newPARAM_PATH,
+        newDOWNLOAD_DECRYPTED,
+        newKEYSTONE_PATH,
+    ]
     for folder in workspace_folders:
         await makedirs(folder, exist_ok=True)
 
@@ -149,7 +172,7 @@ async def _bl3_ps4_to_pc(filepath: str, ttwl: bool) -> str:
         await Crypto.BL3.encrypt_file(filepath, "pc", ttwl)
     except CryptoError as e:
         raise ConverterError(str(e))
-    except (ValueError, IOError, IndexError):
+    except (OSError, ValueError, IndexError):
         raise ConverterError("Invalid save!")
     return Converter.BL3.obtain_ret_val("ps4")
 
@@ -159,6 +182,6 @@ async def _bl3_pc_to_ps4(filepath: str, ttwl: bool) -> str:
         await Crypto.BL3.encrypt_file(filepath, "ps4", ttwl)
     except CryptoError as e:
         raise ConverterError(str(e))
-    except (ValueError, IOError, IndexError):
+    except (OSError, ValueError, IndexError):
         raise ConverterError("Invalid save!")
     return Converter.BL3.obtain_ret_val("pc")

@@ -1,43 +1,55 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from utils.helpers import TimeoutHelper
 
-import discord
 import asyncio
-import aiofiles
-
-from discord.ui.item import Item
 from typing import Literal
 
-from data.crypto.rstar_crypt import Crypt_Rstar as crypt
-from data.crypto.exceptions import CryptoError
+import aiofiles
+import discord
+from discord.ui.item import Item
+
 from data.cheats.common import QuickCheats
 from data.cheats.exceptions import QuickCheatsError
+from data.crypto.exceptions import CryptoError
+from data.crypto.rstar_crypt import Crypt_Rstar as crypt
 from utils.constants import OTHER_TIMEOUT, logger
-from utils.embeds import embDone_G, embchErr, embchrdr2
+from utils.embeds import embchErr, embchrdr2, embDone_G
 from utils.type_helpers import uint32
+
 
 class Cheats_RDR2:
     MONEY_LIMIT = 0x7FFFFFFF
-    MONEY_OFFSET_IDENTIFIER_BEFORE = b"\xCE\x54\x8C\xF5"
+    MONEY_OFFSET_IDENTIFIER_BEFORE = b"\xce\x54\x8c\xf5"
     BYTES_BETWEEN_IDENTIFIER = 16
 
     class MoneyModal(discord.ui.Modal):
         """Modal to modify money value for RDR 2."""
-        def __init__(self, ctx: discord.ApplicationContext, helper: TimeoutHelper, filepath: str, platform: Literal["ps4", "pc"]) -> None:
+
+        def __init__(
+            self,
+            ctx: discord.ApplicationContext,
+            helper: TimeoutHelper,
+            filepath: str,
+            platform: Literal["ps4", "pc"],
+        ) -> None:
             super().__init__(title="Alter money", timeout=None)
             self.ctx = ctx
             self.helper = helper
             self.filepath = filepath
             self.platform = platform
-            self.add_item(discord.ui.InputText(
-                label="Choose value",
-                custom_id="ValueChooseMoney_RDR2",
-                placeholder="99999",
-                max_length=10,
-                style=discord.InputTextStyle.short,
-            ))
+            self.add_item(
+                discord.ui.InputText(
+                    label="Choose value",
+                    custom_id="ValueChooseMoney_RDR2",
+                    placeholder="99999",
+                    max_length=10,
+                    style=discord.InputTextStyle.short,
+                )
+            )
 
         async def on_error(self, err: Exception, _: discord.Interaction) -> None:
             if isinstance(err, QuickCheatsError):
@@ -62,7 +74,14 @@ class Cheats_RDR2:
 
     class CheatsButton(discord.ui.View):
         """Button used for RDR 2 cheats."""
-        def __init__(self, ctx: discord.ApplicationContext, helper: TimeoutHelper, filepath: str, platform: Literal["ps4", "pc"]) -> None:
+
+        def __init__(
+            self,
+            ctx: discord.ApplicationContext,
+            helper: TimeoutHelper,
+            filepath: str,
+            platform: Literal["ps4", "pc"],
+        ) -> None:
             super().__init__(timeout=OTHER_TIMEOUT)
             self.ctx = ctx
             self.helper = helper
@@ -84,12 +103,22 @@ class Cheats_RDR2:
             await self.helper.handle_timeout(self.ctx)
             logger.info(f"{error} - {self.ctx.user.name}")
 
-        @discord.ui.button(label="Change money", style=discord.ButtonStyle.primary, custom_id="ChangeMoney_RDR2")
-        async def change_money_callback(self, _: discord.Button, interaction: discord.Interaction) -> None:
-            await interaction.response.send_modal(Cheats_RDR2.MoneyModal(self.ctx, self.helper, self.filepath, self.platform))
+        @discord.ui.button(
+            label="Change money", style=discord.ButtonStyle.primary, custom_id="ChangeMoney_RDR2"
+        )
+        async def change_money_callback(
+            self, _: discord.Button, interaction: discord.Interaction
+        ) -> None:
+            await interaction.response.send_modal(
+                Cheats_RDR2.MoneyModal(self.ctx, self.helper, self.filepath, self.platform)
+            )
 
-        @discord.ui.button(label="Save file", style=discord.ButtonStyle.green, custom_id="SaveFile_RDR2")
-        async def save_file_callback(self, _: discord.Button, interaction: discord.Interaction) -> None:
+        @discord.ui.button(
+            label="Save file", style=discord.ButtonStyle.green, custom_id="SaveFile_RDR2"
+        )
+        async def save_file_callback(
+            self, _: discord.Button, interaction: discord.Interaction
+        ) -> None:
             await interaction.response.edit_message(embed=embDone_G, view=None)
             if self.platform == "pc":
                 await crypt.encrypt_file(self.filepath, crypt.RDR2_PC_HEADER_OFFSET)
@@ -101,33 +130,41 @@ class Cheats_RDR2:
             await file.seek(crypt.RDR2_PC_HEADER_OFFSET)
             check_bytes = await file.read(len(crypt.RDR2_HEADER))
 
-            if check_bytes == b"\x00\x00\x00\x00": # ps4 if true
+            if check_bytes == b"\x00\x00\x00\x00":  # ps4 if true
                 platform = "ps4"
                 await file.seek(crypt.RDR2_PS_HEADER_OFFSET)
                 header = await file.read(len(crypt.RDR2_HEADER))
 
-            else: # pc if true or invalid
+            else:  # pc if true or invalid
                 platform = "pc"
                 header = await file.read(len(crypt.RDR2_HEADER))
 
         encrypted = header != crypt.RDR2_HEADER
 
         if encrypted:
-            start_offset = crypt.RDR2_PS_HEADER_OFFSET if platform == "ps4" else crypt.RDR2_PC_HEADER_OFFSET
+            start_offset = (
+                crypt.RDR2_PS_HEADER_OFFSET if platform == "ps4" else crypt.RDR2_PC_HEADER_OFFSET
+            )
             try:
                 await crypt.decrypt_file(filepath, start_offset)
-            except (ValueError, IOError, IndexError, CryptoError):
+            except (OSError, ValueError, IndexError, CryptoError):
                 raise QuickCheatsError("File not supported!")
         return platform
 
     @staticmethod
     async def change_money(filepath: str, money: int, platform: Literal["ps4", "pc"]) -> None:
         if money > Cheats_RDR2.MONEY_LIMIT or money < 0:
-            raise QuickCheatsError(f"Invalid money limit, maximum is {Cheats_RDR2.MONEY_LIMIT: ,} and it must be positive.")
+            raise QuickCheatsError(
+                f"Invalid money limit, maximum is {Cheats_RDR2.MONEY_LIMIT: ,} and it must be positive."
+            )
 
         try:
             async with QuickCheats(filepath) as qc:
-                money_offset = await qc.find_off_with_identifier32(Cheats_RDR2.MONEY_OFFSET_IDENTIFIER_BEFORE, None, Cheats_RDR2.BYTES_BETWEEN_IDENTIFIER)
+                money_offset = await qc.find_off_with_identifier32(
+                    Cheats_RDR2.MONEY_OFFSET_IDENTIFIER_BEFORE,
+                    None,
+                    Cheats_RDR2.BYTES_BETWEEN_IDENTIFIER,
+                )
                 if money_offset == -1:
                     raise QuickCheatsError("File not supported!")
 
@@ -135,10 +172,12 @@ class Cheats_RDR2:
                 money = uint32(money, "big")
                 await qc.w_stream.write(money.as_bytes)
 
-            start_offset = crypt.RDR2_PS_HEADER_OFFSET if platform == "ps4" else crypt.RDR2_PC_HEADER_OFFSET
+            start_offset = (
+                crypt.RDR2_PS_HEADER_OFFSET if platform == "ps4" else crypt.RDR2_PC_HEADER_OFFSET
+            )
             await crypt.encrypt_file(filepath, start_offset)
-            await crypt.decrypt_file(filepath, start_offset) # for better compatability
-        except (ValueError, IOError, IndexError, CryptoError):
+            await crypt.decrypt_file(filepath, start_offset)  # for better compatability
+        except (OSError, ValueError, IndexError, CryptoError):
             raise QuickCheatsError("File not supported!")
 
     @staticmethod
@@ -146,13 +185,17 @@ class Cheats_RDR2:
         stats = {}
         try:
             async with QuickCheats(filepath) as qc:
-                money_offset = await qc.find_off_with_identifier32(Cheats_RDR2.MONEY_OFFSET_IDENTIFIER_BEFORE, None, Cheats_RDR2.BYTES_BETWEEN_IDENTIFIER)
+                money_offset = await qc.find_off_with_identifier32(
+                    Cheats_RDR2.MONEY_OFFSET_IDENTIFIER_BEFORE,
+                    None,
+                    Cheats_RDR2.BYTES_BETWEEN_IDENTIFIER,
+                )
                 if money_offset == -1:
                     raise QuickCheatsError("File not supported!")
 
                 await qc.r_stream.seek(money_offset)
                 money = uint32(await qc.r_stream.read(4), "big").value
-        except (ValueError, IOError, IndexError, CryptoError):
+        except (OSError, ValueError, IndexError, CryptoError):
             raise QuickCheatsError("File not supported!")
 
         # display money like for example 555500 as 5,555.00
@@ -172,8 +215,5 @@ class Cheats_RDR2:
     @staticmethod
     def loaded_embed(stats: dict[str, str]) -> discord.Embed:
         emb = embchrdr2.copy()
-        emb.description = emb.description.format(
-            platform=stats["Platform"],
-            money=stats["Money"]
-        )
+        emb.description = emb.description.format(platform=stats["Platform"], money=stats["Money"])
         return emb

@@ -2,6 +2,7 @@ from data.crypto.common import CustomCrypto as CC
 
 # notes: start at 0x20
 
+
 class Crypt_Rev2:
     SECRET_KEY = b"zW$2eWaHNdT~6j86T_&j"
 
@@ -53,4 +54,3 @@ class Crypt_Rev2:
             is_dec = await cc.fraction_byte()
         if is_dec:
             await Crypt_Rev2.encrypt_file(filepath)
-

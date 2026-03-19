@@ -1,14 +1,23 @@
-import os
-import logging.config
-import re
 import errno
+import logging.config
+import os
+import re
 from zipfile import ZIP_STORED
+
 from dotenv import load_dotenv
-from utils.conversions import mb_to_bytes, saveblocks_to_bytes, minutes_to_seconds, bytes_to_mb, hours_to_seconds
+
+from utils.conversions import (
+    bytes_to_mb,
+    hours_to_seconds,
+    mb_to_bytes,
+    minutes_to_seconds,
+    saveblocks_to_bytes,
+)
 
 load_dotenv()
 
 VERSION = "v3.1.0-web"
+
 
 # LOGGER
 def setup_logger(path: str, logger_type: str, level: str) -> logging.Logger:
@@ -28,7 +37,7 @@ def setup_logger(path: str, logger_type: str, level: str) -> logging.Logger:
         "formatters": {
             "detailed": {
                 "format": "[%(levelname)s|%(module)s|L%(lineno)d] %(asctime)s: %(message)s",
-                "datefmt": "%Y-%m-%d - %H:%M:%S%z"
+                "datefmt": "%Y-%m-%d - %H:%M:%S%z",
             }
         },
         "handlers": {
@@ -38,21 +47,15 @@ def setup_logger(path: str, logger_type: str, level: str) -> logging.Logger:
                 "formatter": "detailed",
                 "filename": path,
                 "maxBytes": 25 * 1024 * 1024,
-                "backupCount": 3
+                "backupCount": 3,
             }
         },
-        "loggers": {
-            logger_type: {
-                "level": level,
-                "handlers": [
-                    logger_type
-                ]
-            }
-        }
+        "loggers": {logger_type: {"level": level, "handlers": [logger_type]}},
     }
     logging.config.dictConfig(config=logging_config)
 
     return _logger
+
 
 logger = setup_logger(os.path.join("logs", "HTOS.log"), "HTOS_LOGS", "ERROR")
 blacklist_logger = setup_logger(os.path.join("logs", "BLACKLIST.log"), "BLACKLIST_LOGS", "INFO")
@@ -72,9 +75,12 @@ DATABASENAME_THREADS = "valid_threads.db"
 DATABASENAME_ACCIDS = "account_ids.db"
 DATABASENAME_BLACKLIST = "blacklist.db"
 
+
 class NPSSO:
     def __init__(self) -> None:
         self.val: str = str(os.getenv("NPSSO", ""))
+
+
 NPSSO_global = NPSSO()
 
 psnawp = None
@@ -85,27 +91,59 @@ RDR2_TITLEID = frozenset(["CUSA03041", "CUSA08519", "CUSA08568", "CUSA15698", "C
 XENO2_TITLEID = frozenset(["CUSA05350", "CUSA05088", "CUSA04904", "CUSA05085", "CUSA05774"])
 BL3_TITLEID = frozenset(["CUSA07823", "CUSA08025", "CUSA07823"])
 WONDERLANDS_TITLEID = frozenset(["CUSA23766", "CUSA23767"])
-NDOG_TITLEID = frozenset([
-    "CUSA00557", "CUSA00559", "CUSA00552", "CUSA00556", "CUSA00554",
-    "CUSA00341", "CUSA00917", "CUSA00918", "CUSA04529", "CUSA00912",
-    "CUSA07875", "CUSA09564", "CUSA07737", "CUSA08347", "CUSA08352",
-    "CUSA03281", "CUSA03335", "CUSA03268", "CUSA03259",
-    "CUSA03282", "CUSA03260", "CUSA03271", "CUSA03336"
-])
+NDOG_TITLEID = frozenset(
+    [
+        "CUSA00557",
+        "CUSA00559",
+        "CUSA00552",
+        "CUSA00556",
+        "CUSA00554",
+        "CUSA00341",
+        "CUSA00917",
+        "CUSA00918",
+        "CUSA04529",
+        "CUSA00912",
+        "CUSA07875",
+        "CUSA09564",
+        "CUSA07737",
+        "CUSA08347",
+        "CUSA08352",
+        "CUSA03281",
+        "CUSA03335",
+        "CUSA03268",
+        "CUSA03259",
+        "CUSA03282",
+        "CUSA03260",
+        "CUSA03271",
+        "CUSA03336",
+    ]
+)
 NDOG_COL_TITLEID = frozenset(["CUSA02344", "CUSA02343", "CUSA02826", "CUSA02320", "CUSA01399"])
-NDOG_TLOU2_TITLEID = frozenset([
-    "CUSA07820", "CUSA10249", "CUSA13986", "CUSA14006", "CUSA17954",
-    "CUSA17962"
-])
+NDOG_TLOU2_TITLEID = frozenset(
+    ["CUSA07820", "CUSA10249", "CUSA13986", "CUSA14006", "CUSA17954", "CUSA17962"]
+)
 MGSV_TPP_TITLEID = frozenset(["CUSA01140", "CUSA01154", "CUSA01099"])
 MGSV_GZ_TITLEID = frozenset(["CUSA00218", "CUSA00211", "CUSA00225"])
-REV2_TITLEID = frozenset(["CUSA00924", "CUSA01133", "CUSA01141", "CUSA00804", "CUSA00901", "CUSA00999"])
-RE7_TITLEID = frozenset([
-    "CUSA03842", "CUSA03962", "CUSA09473", "CUSA09643", "CUSA09993",
-    "CUSA03839", "CUSA04927", "CUSA09443", "CUSA09470"
-])
+REV2_TITLEID = frozenset(
+    ["CUSA00924", "CUSA01133", "CUSA01141", "CUSA00804", "CUSA00901", "CUSA00999"]
+)
+RE7_TITLEID = frozenset(
+    [
+        "CUSA03842",
+        "CUSA03962",
+        "CUSA09473",
+        "CUSA09643",
+        "CUSA09993",
+        "CUSA03839",
+        "CUSA04927",
+        "CUSA09443",
+        "CUSA09470",
+    ]
+)
 RERES_TITLEID = frozenset(["CUSA14122", "CUSA14169", "CUSA16725"])
-DL1_TITLEID = frozenset(["CUSA00050", "CUSA02010", "CUSA03991", "CUSA03946", "CUSA00078", "CUSA01090", "CUSA01473"])
+DL1_TITLEID = frozenset(
+    ["CUSA00050", "CUSA02010", "CUSA03991", "CUSA03946", "CUSA00078", "CUSA01090", "CUSA01473"]
+)
 DL2_TITLEID = frozenset(["CUSA12555", "CUSA12584", "CUSA28617", "CUSA28743"])
 RGG_TITLEID = frozenset(["CUSA32173", "CUSA32174", "CUSA32171"])
 DI1_TITLEID = frozenset(["CUSA03291", "CUSA03290", "CUSA03684", "CUSA03685", "CUSA05688"])
@@ -115,49 +153,117 @@ TERRARIA_TITLEID = frozenset(["CUSA00737", "CUSA00740", "CUSA01616"])
 SMT5_TITLEID = frozenset(["CUSA42697", "CUSA42698", "CUSA42502", "CUSA42315"])
 RCUBE_TITLEID = frozenset(["CUSA16074", "CUSA27390"])
 DSR_TITLEID = frozenset(["CUSA08432", "CUSA08692", "CUSA08495", "CUSA08526"])
-RE4R_TITLEID = frozenset(["CUSA33388", "CUSA33387", "CUSA35714", "CUSA33389", "CUSA40600", "CUSA35714", "CUSA40603"])
-RE3R_TITLEID = frozenset(["CUSA14278", "CUSA14168", "CUSA14123", "CUSA14129", "CUSA14881", "CUSA16723", "CUSA16724"])
-RE2R_TITLEID = frozenset(["CUSA09171", "CUSA12590", "CUSA12497", "CUSA09171", "CUSA09161", "CUSA09193"])
+RE4R_TITLEID = frozenset(
+    ["CUSA33388", "CUSA33387", "CUSA35714", "CUSA33389", "CUSA40600", "CUSA35714", "CUSA40603"]
+)
+RE3R_TITLEID = frozenset(
+    ["CUSA14278", "CUSA14168", "CUSA14123", "CUSA14129", "CUSA14881", "CUSA16723", "CUSA16724"]
+)
+RE2R_TITLEID = frozenset(
+    ["CUSA09171", "CUSA12590", "CUSA12497", "CUSA09171", "CUSA09161", "CUSA09193"]
+)
 DIGIMON_TITLEID = frozenset(["CUSA06263", "CUSA05392", "CUSA05469"])
 SDEW_TITLEID = frozenset(["CUSA06829", "CUSA13911", "CUSA06840", "CUSA26625"])
 NIOH2_TITLEID = frozenset(["CUSA15532", "CUSA15526", "CUSA16157"])
-MINECRAFT_TITLEID = frozenset([
-    "CUSA17401", "CUSA20050", "CUSA17472", "CUSA19622", "CUSA17382", "CUSA00744", "CUSA00265",
-    "CUSA00283", "CUSA02169", "CUSA17908"
-])
-MHWI_TITLEID = frozenset([
-    "CUSA15919", "CUSA15825", "CUSA09554", "CUSA07708", "CUSA06027", "CUSA07713"
-])
-RE_VILLAGE_TITLEID = frozenset([
-    "CUSA35037", "CUSA35040", "CUSA18017", "CUSA18008", "CUSA18023",
-    "CUSA26891", "CUSA18468", "CUSA18045"
-])
+MINECRAFT_TITLEID = frozenset(
+    [
+        "CUSA17401",
+        "CUSA20050",
+        "CUSA17472",
+        "CUSA19622",
+        "CUSA17382",
+        "CUSA00744",
+        "CUSA00265",
+        "CUSA00283",
+        "CUSA02169",
+        "CUSA17908",
+    ]
+)
+MHWI_TITLEID = frozenset(
+    ["CUSA15919", "CUSA15825", "CUSA09554", "CUSA07708", "CUSA06027", "CUSA07713"]
+)
+RE_VILLAGE_TITLEID = frozenset(
+    [
+        "CUSA35037",
+        "CUSA35040",
+        "CUSA18017",
+        "CUSA18008",
+        "CUSA18023",
+        "CUSA26891",
+        "CUSA18468",
+        "CUSA18045",
+    ]
+)
 LA_NOIRE_TITLEID = frozenset(["CUSA09084", "CUSA10021", "CUSA09172"])
 LOH_TRAILS_CS4_TITLEID = frozenset(["CUSA20034", "CUSA19637"])
-LOH_TRAILS_ZERO_AZURE = frozenset([
-    "CUSA28934", "CUSA28935", "CUSA19220", "CUSA18052", "CUSA19221",
-    "CUSA29189", "CUSA29190"
-])
-LOH_TRAILS_DAYBREAK_TITLEID = frozenset([
-    "CUSA45506", "CUSA47787", "CUSA45505", "CUSA47786",
-    "CUSA49813", "CUSA49814",
-    "CUSA51533", "CUSA51534"
-])
+LOH_TRAILS_ZERO_AZURE = frozenset(
+    ["CUSA28934", "CUSA28935", "CUSA19220", "CUSA18052", "CUSA19221", "CUSA29189", "CUSA29190"]
+)
+LOH_TRAILS_DAYBREAK_TITLEID = frozenset(
+    [
+        "CUSA45506",
+        "CUSA47787",
+        "CUSA45505",
+        "CUSA47786",
+        "CUSA49813",
+        "CUSA49814",
+        "CUSA51533",
+        "CUSA51534",
+    ]
+)
+
 
 def verify_titleids() -> None:
     from utils.orbis import check_titleid
-    title_ids = frozenset([
-        GTAV_TITLEID, RDR2_TITLEID, XENO2_TITLEID, BL3_TITLEID, WONDERLANDS_TITLEID, NDOG_TITLEID, NDOG_COL_TITLEID, NDOG_TLOU2_TITLEID,
-        MGSV_TPP_TITLEID, MGSV_GZ_TITLEID, REV2_TITLEID, RE7_TITLEID, RERES_TITLEID, DL1_TITLEID, DL2_TITLEID, RGG_TITLEID, DI1_TITLEID,
-        DI2_TITLEID, NMS_TITLEID, TERRARIA_TITLEID, SMT5_TITLEID, RCUBE_TITLEID, DSR_TITLEID, RE4R_TITLEID, RE3R_TITLEID, RE2R_TITLEID,
-        DIGIMON_TITLEID, SDEW_TITLEID, NIOH2_TITLEID, MINECRAFT_TITLEID, MHWI_TITLEID, RE_VILLAGE_TITLEID, LA_NOIRE_TITLEID, LOH_TRAILS_CS4_TITLEID,
-        LOH_TRAILS_ZERO_AZURE, LOH_TRAILS_DAYBREAK_TITLEID
-    ])
+
+    title_ids = frozenset(
+        [
+            GTAV_TITLEID,
+            RDR2_TITLEID,
+            XENO2_TITLEID,
+            BL3_TITLEID,
+            WONDERLANDS_TITLEID,
+            NDOG_TITLEID,
+            NDOG_COL_TITLEID,
+            NDOG_TLOU2_TITLEID,
+            MGSV_TPP_TITLEID,
+            MGSV_GZ_TITLEID,
+            REV2_TITLEID,
+            RE7_TITLEID,
+            RERES_TITLEID,
+            DL1_TITLEID,
+            DL2_TITLEID,
+            RGG_TITLEID,
+            DI1_TITLEID,
+            DI2_TITLEID,
+            NMS_TITLEID,
+            TERRARIA_TITLEID,
+            SMT5_TITLEID,
+            RCUBE_TITLEID,
+            DSR_TITLEID,
+            RE4R_TITLEID,
+            RE3R_TITLEID,
+            RE2R_TITLEID,
+            DIGIMON_TITLEID,
+            SDEW_TITLEID,
+            NIOH2_TITLEID,
+            MINECRAFT_TITLEID,
+            MHWI_TITLEID,
+            RE_VILLAGE_TITLEID,
+            LA_NOIRE_TITLEID,
+            LOH_TRAILS_CS4_TITLEID,
+            LOH_TRAILS_ZERO_AZURE,
+            LOH_TRAILS_DAYBREAK_TITLEID,
+        ]
+    )
     for ts in title_ids:
         for t in ts:
             assert check_titleid(t), t
 
-SPECIAL_REREGION_TITLEIDS = frozenset.union(XENO2_TITLEID, MGSV_GZ_TITLEID, MGSV_TPP_TITLEID, MINECRAFT_TITLEID)
+
+SPECIAL_REREGION_TITLEIDS = frozenset.union(
+    XENO2_TITLEID, MGSV_GZ_TITLEID, MGSV_TPP_TITLEID, MINECRAFT_TITLEID
+)
 
 # CONFIG
 SYS_FILE_MAX = mb_to_bytes(1)
@@ -177,9 +283,9 @@ ZIPOUT_NAME = ("PS4", ".zip")
 
 # ORBIS CONSTANTS
 SCE_SYS_CONTENTS = frozenset(
-    ["param.sfo", "icon0.png", "keystone"] +
-    ["sce_icon0png" + str(i) for i in range(10)] +
-    ["sce_paramsfo" + str(i) for i in range(10)]
+    ["param.sfo", "icon0.png", "keystone"]
+    + ["sce_icon0png" + str(i) for i in range(10)]
+    + ["sce_paramsfo" + str(i) for i in range(10)]
 )
 MANDATORY_SCE_SYS_CONTENTS = frozenset(["param.sfo", "keystone"])
 
