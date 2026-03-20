@@ -19,6 +19,48 @@ savedb_bp = Blueprint("savedb", __name__)
 SAVEDB_DIR = os.path.join("workspace", "savedb")
 DELETE_THRESHOLD = -10
 PER_PAGE = 20
+SAVEDB_MAX_TOTAL_SIZE = 512 * 1024 * 1024  # 512MB max per save entry
+SAVEDB_MAX_FILES = 200  # max files per upload
+
+# File types that have no business being in a PS save
+# Note: .png is allowed (icon0.png in sce_sys), same for small images
+SAVEDB_BLOCKED_EXTENSIONS = {
+    # Video
+    ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v",
+    # Audio
+    ".mp3", ".flac", ".wav", ".aac", ".ogg", ".wma",
+    # Disc images / ROMs / packages
+    ".iso", ".cso", ".pkg", ".nsp", ".xci", ".nro", ".vpk",
+    # Archives (nested)
+    ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".zst",
+    # Documents
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+    # Code/scripts
+    ".py", ".js", ".php", ".sh", ".ps1", ".rb", ".pl",
+    ".html", ".htm", ".css",
+    # Torrents
+    ".torrent", ".nzb",
+}
+
+
+def _validate_savedb_contents(directory):
+    """Validate savedb upload contents: size, file count, file types."""
+    total_size = 0
+    file_count = 0
+    for root, _dirs, files in os.walk(directory):
+        for f in files:
+            file_count += 1
+            if file_count > SAVEDB_MAX_FILES:
+                return f"Too many files ({file_count}+). Max is {SAVEDB_MAX_FILES}."
+            filepath = os.path.join(root, f)
+            total_size += os.path.getsize(filepath)
+            if total_size > SAVEDB_MAX_TOTAL_SIZE:
+                mb = SAVEDB_MAX_TOTAL_SIZE // (1024 * 1024)
+                return f"Upload too large. Max is {mb}MB for save entries."
+            ext = os.path.splitext(f)[1].lower()
+            if ext in SAVEDB_BLOCKED_EXTENSIONS:
+                return f"File type not allowed in saves: {f}"
+    return None
 
 
 def _find_and_validate_sfo(directory):
@@ -183,6 +225,13 @@ async def contribute():
         except DangerousFileError as e:
             shutil.rmtree(temp_dir, ignore_errors=True)
             await flash(str(e), "error")
+            return await render_template("savedb_contribute.html")
+
+        # Validate contents: size, file count, file types
+        content_error = _validate_savedb_contents(temp_dir)
+        if content_error:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            await flash(content_error, "error")
             return await render_template("savedb_contribute.html")
 
         # Validate param.sfo and extract fields
