@@ -9,6 +9,7 @@
         <input type="text" name="name" placeholder="Profile name" required maxlength="20">
         <input type="text" name="account_id" placeholder="Account ID (16 hex chars)" required pattern="[0-9a-fA-F]{16}" maxlength="16">
         <button type="submit">Add Profile</button>
+        <span onclick="document.getElementById('accid-modal').style.display='flex'" style="cursor:pointer; color:var(--dim); font-size:0.85rem; text-decoration:underline;">How do I find my Account ID?</span>
     </form>
 
     {% if profiles %}
@@ -20,7 +21,7 @@
             {% for p in profiles %}
             <tr>
                 <td>{{ p.name }}</td>
-                <td><code>{{ p.account_id }}</code></td>
+                <td><code>{{ p.account_id | to_usb_id }}</code></td>
                 <td style="position: relative;">
                     <span class="dots-menu-btn" onclick="var m=this.nextElementSibling;document.querySelectorAll('.dots-menu').forEach(function(x){if(x!==m)x.style.display='none'});m.style.display=m.style.display==='block'?'none':'block'" style="cursor:pointer; font-size:1.2rem; padding:0 0.5rem;">&#8942;</span>
                     <div class="dots-menu" style="display:none; position:absolute; right:0; top:1.8rem; background:#12161f; border:1px solid #1a1f2b; border-radius:6px; z-index:20; min-width:160px; box-shadow:0 4px 12px rgba(0,0,0,0.5);">
@@ -63,6 +64,19 @@
     <p>No jobs yet.</p>
     {% endif %}
 </section>
+
+<div id="accid-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; align-items:center; justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:1.5rem; max-width:480px; width:90%;">
+        <h3 style="margin-top:0;">Finding your Account ID</h3>
+        <ol style="padding-left:1.2rem; line-height:1.8;">
+            <li>Copy any encrypted save from your PS4 to a <strong>USB drive</strong></li>
+            <li>Plug the USB into your PC and navigate to:<br><code>USB:/PS4/SAVEDATA/</code></li>
+            <li>You'll see a folder with a <strong>16-character hex name</strong> — that's your Account ID</li>
+        </ol>
+        <p style="font-size:0.85rem; color:var(--dim);">Example: <code>3e338f700e51db91</code></p>
+        <button onclick="document.getElementById('accid-modal').style.display='none'" style="width:100%;">Got it</button>
+    </div>
+</div>
 
 <div id="endian-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; align-items:center; justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
     <div style="background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:1.5rem; max-width:400px; width:90%;">

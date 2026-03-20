@@ -92,6 +92,13 @@ def create_app():
             mimetype="text/plain",
         )
 
+    @app.template_filter("to_usb_id")
+    def to_usb_id(account_id):
+        """Convert stored big-endian account ID to USB folder format (little-endian)."""
+        if len(account_id) == 16:
+            return "".join(reversed([account_id[i:i+2] for i in range(0, 16, 2)]))
+        return account_id
+
     @app.context_processor
     async def inject_worker_count():
         from models import get_db

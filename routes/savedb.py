@@ -11,7 +11,7 @@ from quart import jsonify
 from auth import login_required
 from models import get_db
 from services.jobs import create_job
-from services.files import check_dangerous_files, check_zip_safety, DangerousFileError, _safe_join
+from services.files import check_dangerous_files, check_zip_safety, DangerousFileError, _safe_join, account_id_to_usb
 from services.titles import lookup_title
 
 savedb_bp = Blueprint("savedb", __name__)
@@ -483,7 +483,7 @@ async def encrypt(entry_id):
                         saveblocks = struct.unpack_from('<Q', data, data_off + d_off)[0]
 
         params = {
-            "account_id": profile["account_id"],
+            "account_id": account_id_to_usb(profile["account_id"]),
             "upload_dir": upload_dir,
             "platform": platform,
         }

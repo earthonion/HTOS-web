@@ -71,8 +71,8 @@ async def create_profile():
         await flash("Invalid account ID. Must be 16 hex characters.", "error")
         return redirect(url_for("main.dashboard"))
 
-    # Always convert from big-endian (user-facing) to little-endian (SFO storage).
-    # The worker writes raw bytes to param.sfo which stores account ID as LE uint64.
+    # User enters account ID from USB folder (little-endian).
+    # Swap to big-endian for storage. Worker will swap back before patching SFO.
     account_id = "".join(reversed([account_id[i:i+2] for i in range(0, 16, 2)]))
 
     user_id = session["user_id"]

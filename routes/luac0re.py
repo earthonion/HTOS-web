@@ -7,6 +7,7 @@ from quart import Blueprint, render_template, request, session, redirect, url_fo
 from auth import login_required
 from models import get_db
 from services.jobs import create_job
+from services.files import account_id_to_usb
 
 luac0re_bp = Blueprint("luac0re", __name__)
 
@@ -58,7 +59,7 @@ async def luac0re():
             await flash("Invalid profile.", "error")
             return await render_template("luac0re.html", profiles=profiles, versions=VERSIONS)
 
-        account_id = profile["account_id"]
+        account_id = account_id_to_usb(profile["account_id"])
         info = VERSIONS[version]
 
         # Copy prebuilt save files to workspace

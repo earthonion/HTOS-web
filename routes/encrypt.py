@@ -10,7 +10,7 @@ from utils.constants import (
     SCE_SYS_NAME, PARAM_NAME,
 )
 from utils.orbis import validate_savedirname, sfo_ctx_create
-from services.files import _read_account_id_from_sfo, FileTooLargeError, DangerousFileError, check_dangerous_files, check_zip_safety, _check_file_sizes, _strip_sdimg_prefix, resolve_chunked_uploads
+from services.files import _read_account_id_from_sfo, FileTooLargeError, DangerousFileError, check_dangerous_files, check_zip_safety, _check_file_sizes, _strip_sdimg_prefix, resolve_chunked_uploads, account_id_to_usb
 from services.workers import ps5_workers_online
 
 encrypt_bp = Blueprint("encrypt", __name__)
@@ -67,7 +67,7 @@ async def encrypt():
             await flash("Invalid profile.", "error")
             return await render_template("encrypt.html", profiles=profiles)
 
-        account_id = profile["account_id"]
+        account_id = account_id_to_usb(profile["account_id"])
         import uuid as _uuid
         temp_job_id = str(_uuid.uuid4())
 

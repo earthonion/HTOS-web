@@ -3,7 +3,7 @@ from quart import Blueprint, render_template, request, session, redirect, url_fo
 from auth import login_required
 from models import get_db
 from services.jobs import create_job
-from services.files import save_uploaded_files, detect_platform_in_dir, resolve_chunked_uploads, FileTooLargeError, InvalidSaveFilesError, DangerousFileError, validate_save_pairs
+from services.files import save_uploaded_files, detect_platform_in_dir, resolve_chunked_uploads, FileTooLargeError, InvalidSaveFilesError, DangerousFileError, validate_save_pairs, account_id_to_usb
 from services.workers import ps5_workers_online
 
 resign_bp = Blueprint("resign", __name__)
@@ -50,7 +50,7 @@ async def resign():
             await flash("Invalid profile.", "error")
             return await render_template("resign.html", profiles=profiles)
 
-        account_id = profile["account_id"]
+        account_id = account_id_to_usb(profile["account_id"])
         # Create a temp job_id for file storage, but don't insert into DB yet
         import uuid
         temp_job_id = str(uuid.uuid4())
