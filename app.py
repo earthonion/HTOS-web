@@ -6,7 +6,7 @@ load_dotenv()
 
 def create_app():
     app = Quart(__name__)
-    app.secret_key = os.urandom(32).hex()
+    app.secret_key = os.getenv("SECRET_KEY") or os.urandom(32).hex()
     app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_UPLOAD_SIZE", str(2 * 1024 * 1024 * 1024)))
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
