@@ -61,17 +61,19 @@ async def resign():
                 upload_dir = await resolve_chunked_uploads(upload_ids, user_id, temp_job_id)
             else:
                 upload_dir = await save_uploaded_files(files, user_id, temp_job_id)
-            validate_save_pairs(upload_dir)
         except FileTooLargeError as e:
             await flash(f"Save file too large: {e}.", "error")
             return await render_template("resign.html", profiles=profiles)
         except DangerousFileError as e:
             await flash(str(e), "error")
             return await render_template("resign.html", profiles=profiles)
-        except InvalidSaveFilesError as e:
-            await flash(str(e), "error")
-            return await render_template("resign.html", profiles=profiles)
         platform = detect_platform_in_dir(upload_dir)
+        if platform != "ps5":
+            try:
+                validate_save_pairs(upload_dir)
+            except InvalidSaveFilesError as e:
+                await flash(str(e), "error")
+                return await render_template("resign.html", profiles=profiles)
 
         if platform == "ps5":
             if not await ps5_workers_online():

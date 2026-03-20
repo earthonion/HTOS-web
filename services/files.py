@@ -250,10 +250,16 @@ def detect_save_platform(filepath: str) -> str:
 
 def detect_platform_in_dir(directory: str) -> str:
     """Detect platform from save files in a directory.
+    Checks for sdimg_ prefix (PS5) and first-byte detection.
     Returns 'ps4', 'ps5', or 'unknown'."""
-    for name in os.listdir(directory):
-        filepath = os.path.join(directory, name)
-        if os.path.isfile(filepath) and not name.endswith(".bin"):
+    for root, _dirs, files in os.walk(directory):
+        for name in files:
+            if name.endswith(".bin") or name.lower() == "param.sfo":
+                continue
+            # sdimg_ prefix is a strong PS5 indicator
+            if name.startswith("sdimg_"):
+                return "ps5"
+            filepath = os.path.join(root, name)
             platform = detect_save_platform(filepath)
             if platform != "unknown":
                 return platform

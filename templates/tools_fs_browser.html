@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Filesystem Browser — Tools{% endblock %}
+{% block extra_head %}
+<style>
+.search-row {
+    display: flex;
+    gap: 0.75rem;
+    max-width: 600px;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+.search-row input[type="text"] {
+    flex: 1;
+    min-width: 200px;
+}
+.search-row select {
+    width: auto;
+    min-width: 100px;
+}
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+.results-table th {
+    text-align: left;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    color: var(--text-3);
+    letter-spacing: 0.06em;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+.results-table td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-1);
+}
+.results-table tr:hover td {
+    background: var(--bg-1);
+}
+.fs-path {
+    font-family: monospace;
+    font-size: 0.8rem;
+    word-break: break-all;
+}
+.fs-path .dirname { color: var(--text-3); }
+.fs-path .basename { color: var(--text-1); font-weight: 600; }
+.fs-type {
+    font-size: 0.75rem;
+    color: var(--text-2);
+    white-space: nowrap;
+}
+.fs-size {
+    font-family: monospace;
+    font-size: 0.78rem;
+    color: var(--text-2);
+    white-space: nowrap;
+    text-align: right;
+}
+.platform-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+}
+.platform-badge.ps4 {
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--indigo-light);
+}
+.platform-badge.ps5 {
+    background: rgba(6, 182, 212, 0.15);
+    color: var(--cyan);
+}
+.result-count {
+    font-size: 0.78rem;
+    color: var(--text-3);
+    margin-bottom: 0.75rem;
+}
+</style>
+{% endblock %}
+{% block content %}
+<h1>Filesystem Browser</h1>
+<p>Search PS4 and PS5 filesystem paths, files, and system binaries.</p>
+
+<div class="search-row">
+    <form method="GET" action="{{ url_for('tools.fs_browser') }}" style="display:contents;">
+        <input type="text" name="q" id="search-input" value="{{ q }}" placeholder="Search path or filename (e.g. SceShellCore, libkernel)" autofocus autocomplete="off">
+        <select name="platform" id="platform-filter">
+            <option value=""{% if not platform %} selected{% endif %}>Both</option>
+            <option value="ps4"{% if platform == 'ps4' %} selected{% endif %}>PS4</option>
+            <option value="ps5"{% if platform == 'ps5' %} selected{% endif %}>PS5</option>
+        </select>
+    </form>
+</div>
+
+<div id="results-container">
+{% if q %}
+<div class="result-count">{{ results|length }}{% if results|length == 50 %}+{% endif %} results for "{{ q }}"</div>
+{% endif %}
+
+{% if results %}
+<table class="results-table">
+    <thead>
+        <tr>
+            <th>Path</th>
+            <th>Type</th>
+            <th>Size</th>
+            <th>Platform</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in results %}
+        <tr>
+            <td class="fs-path">{% set parts = r.path.rsplit('/', 1) %}<span class="dirname">{{ parts[0] }}/</span><span class="basename">{{ parts[1] if parts|length > 1 else '' }}</span></td>
+            <td class="fs-type">{{ r.ftype }}</td>
+            <td class="fs-size">{% if r.size is not none %}{{ r.size | filesizeformat }}{% else %}—{% endif %}</td>
+            <td><span class="platform-badge {{ r.platform }}">{{ r.platform }}</span></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% elif q %}
+<p style="color:var(--text-3);">No results found.</p>
+{% endif %}
+</div>
+
+<div style="margin-top:1.5rem;">
+    <a href="{{ url_for('tools.tools_index') }}">&larr; Back to Tools</a>
+</div>
+
+<script>
+let debounceTimer;
+const input = document.getElementById('search-input');
+const platformSel = document.getElementById('platform-filter');
+const container = document.getElementById('results-container');
+
+function doSearch() {
+    clearTimeout(debounceTimer);
+    const q = input.value.trim();
+    if (q.length < 2) {
+        container.innerHTML = '';
+        return;
+    }
+    debounceTimer = setTimeout(async () => {
+        try {
+            const plat = platformSel.value;
+            let url = '/tools/api/fs-search?q=' + encodeURIComponent(q);
+            if (plat) url += '&platform=' + plat;
+            const resp = await fetch(url);
+            const data = await resp.json();
+            if (!data.results.length) {
+                container.innerHTML = '<p style="color:var(--text-3);">No results found.</p>';
+                return;
+            }
+            let html = `<div class="result-count">${data.results.length}${data.results.length >= 50 ? '+' : ''} results</div>`;
+            html += '<table class="results-table"><thead><tr><th>Path</th><th>Type</th><th>Size</th><th>Platform</th></tr></thead><tbody>';
+            for (const r of data.results) {
+                const lastSlash = r.path.lastIndexOf('/');
+                const dir = r.path.substring(0, lastSlash + 1);
+                const base = r.path.substring(lastSlash + 1);
+                const size = r.size != null ? formatSize(r.size) : '—';
+                const plat = r.platform || 'ps4';
+                html += `<tr><td class="fs-path"><span class="dirname">${esc(dir)}</span><span class="basename">${esc(base)}</span></td><td class="fs-type">${esc(r.ftype)}</td><td class="fs-size">${size}</td><td><span class="platform-badge ${plat}">${plat}</span></td></tr>`;
+            }
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        } catch {}
+    }, 300);
+}
+
+input.addEventListener('input', doSearch);
+platformSel.addEventListener('change', doSearch);
+
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+function formatSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    const val = bytes / Math.pow(1024, i);
+    return (i === 0 ? val : val.toFixed(1)) + ' ' + units[i];
+}
+</script>
+{% endblock %}

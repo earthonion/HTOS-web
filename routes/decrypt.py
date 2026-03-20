@@ -40,12 +40,13 @@ async def decrypt():
         except DangerousFileError as e:
             await flash(str(e), "error")
             return await render_template("decrypt.html")
-        try:
-            validate_save_pairs(upload_dir)
-        except InvalidSaveFilesError as e:
-            await flash(str(e), "error")
-            return await render_template("decrypt.html")
         platform = detect_platform_in_dir(upload_dir)
+        if platform != "ps5":
+            try:
+                validate_save_pairs(upload_dir)
+            except InvalidSaveFilesError as e:
+                await flash(str(e), "error")
+                return await render_template("decrypt.html")
         params = {"upload_dir": upload_dir, "platform": platform}
         acct = extract_account_id(upload_dir, platform)
         if acct:

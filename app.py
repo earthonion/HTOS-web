@@ -27,6 +27,7 @@ def create_app():
     from routes.admin_web import admin_web_bp
     from routes.luac0re import luac0re_bp
     from routes.savedb import savedb_bp
+    from routes.tools import tools_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -45,6 +46,7 @@ def create_app():
     app.register_blueprint(admin_web_bp)
     app.register_blueprint(luac0re_bp)
     app.register_blueprint(savedb_bp)
+    app.register_blueprint(tools_bp)
 
     @app.route("/ads.txt")
     async def ads_txt():
