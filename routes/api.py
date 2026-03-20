@@ -1,3 +1,4 @@
+import hmac
 import json
 import os
 import shutil
@@ -86,7 +87,7 @@ def require_worker_key(f):
     async def decorated(*args, **kwargs):
         key = request.headers.get("X-Worker-Key", "")
         # Global key (backward compat)
-        if WORKER_KEY and key == WORKER_KEY:
+        if WORKER_KEY and hmac.compare_digest(key, WORKER_KEY):
             await _ensure_global_key_in_db()
             return await f(*args, **kwargs)
         # User-generated key from DB
@@ -244,8 +245,12 @@ async def update_status(job_id):
             fields.append("error = ?")
             values.append(data["error"])
         if "result_path" in data:
-            fields.append("result_path = ?")
-            values.append(data["result_path"])
+            # Validate result_path stays within workspace
+            rp = data["result_path"]
+            allowed_prefix = os.path.realpath("workspace")
+            if os.path.realpath(rp).startswith(allowed_prefix + os.sep):
+                fields.append("result_path = ?")
+                values.append(rp)
         # Track which worker handled this job
         if status == "running" and worker_key:
             cursor = await db.execute(

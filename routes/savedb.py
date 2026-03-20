@@ -11,7 +11,7 @@ from quart import jsonify
 from auth import login_required
 from models import get_db
 from services.jobs import create_job
-from services.files import check_dangerous_files, check_zip_safety, DangerousFileError
+from services.files import check_dangerous_files, check_zip_safety, DangerousFileError, _safe_join
 from services.titles import lookup_title
 
 savedb_bp = Blueprint("savedb", __name__)
@@ -76,7 +76,10 @@ def _find_and_validate_sfo(directory):
 @login_required
 async def browse():
     q = request.args.get("q", "").strip()
-    page = max(1, int(request.args.get("page", 1)))
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (ValueError, TypeError):
+        page = 1
     offset = (page - 1) * PER_PAGE
     user_id = session["user_id"]
 
@@ -153,19 +156,23 @@ async def contribute():
         try:
             if is_folder_upload:
                 for f in folder_files:
-                    if not f.filename:
+                    if not f.filename or f.filename.endswith('/'):
                         continue
-                    rel_path = f.filename
-                    dest = os.path.join(temp_dir, rel_path)
+                    dest = _safe_join(temp_dir, f.filename)
                     os.makedirs(os.path.dirname(dest), exist_ok=True)
                     await f.save(dest)
                 check_dangerous_files(temp_dir)
             else:
-                zip_path = os.path.join(temp_dir, zipfile_upload.filename)
+                zip_name = os.path.basename(zipfile_upload.filename) or "upload.zip"
+                zip_path = os.path.join(temp_dir, zip_name)
                 await zipfile_upload.save(zip_path)
                 try:
                     check_zip_safety(zip_path)
                     with zipfile.ZipFile(zip_path, "r") as zf:
+                        # Validate member names before extraction
+                        for info in zf.infolist():
+                            if ".." in info.filename or info.filename.startswith("/"):
+                                raise DangerousFileError(f"Suspicious path in zip: {info.filename}")
                         zf.extractall(temp_dir)
                     os.unlink(zip_path)
                 except zipfile.BadZipFile:
