@@ -18,7 +18,7 @@
                 <span class="profile-card-dot"></span>
                 <span class="profile-card-info">
                     <span class="profile-card-name">{{ p.name }}</span>
-                    <span class="profile-card-id">{{ p.account_id }}</span>
+                    <span class="profile-card-id">{{ p.account_id | to_usb_id }}</span>
                 </span>
             </label>
             {% endfor %}
