@@ -79,7 +79,7 @@ async def createsave():
             await flash("Invalid profile.", "error")
             return await render_template("createsave.html", profiles=profiles)
 
-        account_id = account_id_to_usb(profile["account_id"])
+        account_id = profile["account_id"]
         platform = "ps5" if form.get("platform") == "ps5" else "ps4"
         if platform == "ps5" and not await ps5_workers_online():
             await flash("PS5 saves not currently supported!", "error")

@@ -67,7 +67,7 @@ async def encrypt():
             await flash("Invalid profile.", "error")
             return await render_template("encrypt.html", profiles=profiles)
 
-        account_id = account_id_to_usb(profile["account_id"])
+        account_id = profile["account_id"]
         import uuid as _uuid
         temp_job_id = str(_uuid.uuid4())
 

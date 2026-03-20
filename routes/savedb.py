@@ -483,7 +483,7 @@ async def encrypt(entry_id):
                         saveblocks = struct.unpack_from('<Q', data, data_off + d_off)[0]
 
         params = {
-            "account_id": account_id_to_usb(profile["account_id"]),
+            "account_id": profile["account_id"],
             "upload_dir": upload_dir,
             "platform": platform,
         }
