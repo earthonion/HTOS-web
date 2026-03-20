@@ -6,8 +6,11 @@ load_dotenv()
 
 def create_app():
     app = Quart(__name__)
-    app.secret_key = os.getenv("SECRET_KEY", "change-me-in-production")
+    app.secret_key = os.urandom(32).hex()
     app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_UPLOAD_SIZE", str(2 * 1024 * 1024 * 1024)))
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["SESSION_COOKIE_SECURE"] = os.getenv("HTTPS", "0") == "1"
 
     from models import init_db
     from auth import auth_bp
@@ -102,4 +105,4 @@ def create_app():
 
 if __name__ == "__main__":
     app = create_app()
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=os.getenv("DEBUG", "0") == "1")

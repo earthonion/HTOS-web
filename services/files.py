@@ -24,6 +24,24 @@ class DangerousFileError(Exception):
     pass
 
 
+def _safe_join(base_dir: str, untrusted_path: str) -> str:
+    """Safely join base_dir with an untrusted path, preventing path traversal.
+    Raises DangerousFileError if the result escapes base_dir."""
+    # Normalize and strip leading slashes/backslashes
+    cleaned = untrusted_path.replace("\\", "/")
+    # Remove any path components that are ".." or absolute
+    parts = [p for p in cleaned.split("/") if p and p != ".."]
+    if not parts:
+        raise DangerousFileError("Invalid filename.")
+    safe_path = os.path.join(base_dir, *parts)
+    # Final check: resolved path must be under base_dir
+    real_base = os.path.realpath(base_dir)
+    real_path = os.path.realpath(safe_path)
+    if not real_path.startswith(real_base + os.sep) and real_path != real_base:
+        raise DangerousFileError(f"Path traversal blocked: {untrusted_path}")
+    return safe_path
+
+
 def check_dangerous_files(directory):
     """Scan directory for blocked file extensions."""
     for root, dirs, files in os.walk(directory):
@@ -53,8 +71,13 @@ def check_zip_safety(zip_path):
                     "Suspicious zip file detected (possible zip bomb). Upload rejected."
                 )
 
-            # Check for blocked files inside zip
+            # Check for blocked files and path traversal inside zip
             for info in zf.infolist():
+                # Block path traversal in zip member names
+                if ".." in info.filename or info.filename.startswith("/"):
+                    raise DangerousFileError(
+                        f"Suspicious path in zip: {info.filename}. Upload rejected."
+                    )
                 ext = os.path.splitext(info.filename)[1].lower()
                 if ext in BLOCKED_EXTENSIONS:
                     raise DangerousFileError(
@@ -184,9 +207,10 @@ async def resolve_chunked_uploads(upload_ids: list, user_id: int, job_id: str) -
         with open(meta_path) as f:
             meta = json.load(f)
         filename = meta["filename"]
-        src = os.path.join(chunk_dir, filename)
+        src = _safe_join(chunk_dir, filename)
+        dst = _safe_join(upload_dir, filename)
         if os.path.isfile(src):
-            shutil.move(src, os.path.join(upload_dir, filename))
+            shutil.move(src, dst)
         # Clean up chunk dir
         shutil.rmtree(chunk_dir, ignore_errors=True)
 
@@ -208,7 +232,7 @@ async def save_uploaded_files(files, user_id: int, job_id: str) -> str:
     for f in files:
         if not f.filename or f.filename.endswith('/'):
             continue
-        filepath = os.path.join(upload_dir, f.filename)
+        filepath = _safe_join(upload_dir, f.filename)
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         await f.save(filepath)
 
@@ -225,7 +249,9 @@ async def save_uploaded_files_to(files, dest_dir: str) -> str:
     """Save uploaded files to a specific directory."""
     os.makedirs(dest_dir, exist_ok=True)
     for f in files:
-        filepath = os.path.join(dest_dir, f.filename)
+        if not f.filename or f.filename.endswith('/'):
+            continue
+        filepath = _safe_join(dest_dir, f.filename)
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         await f.save(filepath)
     return dest_dir

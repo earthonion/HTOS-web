@@ -24,7 +24,8 @@ def _require_auth(f):
         if key:
             from config import WORKER_KEY
             from routes.api import validate_worker_key
-            if (WORKER_KEY and key == WORKER_KEY) or await validate_worker_key(key):
+            import hmac
+            if (WORKER_KEY and hmac.compare_digest(key, WORKER_KEY)) or await validate_worker_key(key):
                 return await f(*args, **kwargs)
         abort(401)
 
@@ -43,10 +44,13 @@ async def init_upload():
     chunk_dir = os.path.join(CHUNK_DIR, upload_id)
     os.makedirs(chunk_dir, exist_ok=True)
 
-    # Write metadata
+    # Write metadata (sanitize filename)
     import json
+    safe_name = os.path.basename(data["filename"])
+    if not safe_name:
+        abort(400)
     meta = {
-        "filename": data["filename"],
+        "filename": safe_name,
         "total_size": data["total_size"],
         "chunk_size": data.get("chunk_size", 50 * 1024 * 1024),
         "created_at": time.time(),
@@ -99,8 +103,10 @@ async def complete_upload(upload_id):
     if not parts:
         abort(400)
 
-    # Assemble into final file
-    filename = meta["filename"]
+    # Assemble into final file (sanitize filename to prevent traversal)
+    filename = os.path.basename(meta["filename"])
+    if not filename:
+        abort(400)
     final_path = os.path.join(chunk_dir, filename)
     with open(final_path, "wb") as out:
         for part in parts:

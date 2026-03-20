@@ -1,3 +1,6 @@
+import time
+from collections import defaultdict
+
 import bcrypt
 from functools import wraps
 from quart import Blueprint, render_template, request, redirect, url_for, session, flash, abort
@@ -5,6 +8,23 @@ from quart import Blueprint, render_template, request, redirect, url_for, sessio
 from models import get_db
 
 auth_bp = Blueprint("auth", __name__)
+
+# Rate limiting: max 10 attempts per IP per 15 minutes
+_login_attempts = defaultdict(list)
+_RATE_LIMIT = 10
+_RATE_WINDOW = 900  # 15 minutes
+
+
+def _is_rate_limited(ip: str) -> bool:
+    now = time.time()
+    attempts = _login_attempts[ip]
+    # Prune old entries
+    _login_attempts[ip] = [t for t in attempts if now - t < _RATE_WINDOW]
+    return len(_login_attempts[ip]) >= _RATE_LIMIT
+
+
+def _record_attempt(ip: str):
+    _login_attempts[ip].append(time.time())
 
 def login_required(f):
     @wraps(f)
@@ -49,6 +69,12 @@ async def register():
     invite_only = await is_invite_only()
 
     if request.method == "POST":
+        client_ip = request.remote_addr or "unknown"
+        if _is_rate_limited(client_ip):
+            await flash("Too many attempts. Please try again later.", "error")
+            return await render_template("register.html", invite_only=invite_only)
+
+        _record_attempt(client_ip)
         form = await request.form
         username = form.get("username", "").strip()
         password = form.get("password", "")
@@ -121,6 +147,11 @@ async def login():
     if "user_id" in session:
         return redirect(url_for("main.dashboard"))
     if request.method == "POST":
+        client_ip = request.remote_addr or "unknown"
+        if _is_rate_limited(client_ip):
+            await flash("Too many login attempts. Please try again later.", "error")
+            return await render_template("login.html")
+
         form = await request.form
         username = form.get("username", "").strip()
         password = form.get("password", "")
@@ -132,6 +163,7 @@ async def login():
             )
             row = await cursor.fetchone()
             if not row or not check_password(password, row["password_hash"]):
+                _record_attempt(client_ip)
                 await flash("Invalid username or password.", "error")
                 return await render_template("login.html")
 
