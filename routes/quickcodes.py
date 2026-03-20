@@ -29,7 +29,7 @@ async def quickcodes():
             return await render_template("quickcodes.html")
 
         try:
-            qc = QC("", codes)
+            QC("", codes)
         except QuickCodesError as e:
             await flash(f"Invalid codes: {e}", "error")
             return await render_template("quickcodes.html")

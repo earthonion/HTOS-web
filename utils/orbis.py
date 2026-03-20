@@ -6,9 +6,7 @@ import aiofiles.os
 import os
 import asyncio
 import struct
-import shutil
 from typing import TYPE_CHECKING
-from enum import Enum
 from dataclasses import dataclass
 
 if TYPE_CHECKING:
@@ -16,11 +14,11 @@ if TYPE_CHECKING:
 
 from utils.constants import (
     FILE_LIMIT_DISCORD, SCE_SYS_CONTENTS, SYS_FILE_MAX, SEALED_KEY_ENC_SIZE, MAX_FILENAME_LEN,
-    MAX_PATH_LEN, RANDOMSTRING_LENGTH, MANDATORY_SCE_SYS_CONTENTS, SCE_SYS_NAME,
+    MAX_PATH_LEN, RANDOMSTRING_LENGTH, MANDATORY_SCE_SYS_CONTENTS,
     XENO2_TITLEID, MGSV_TPP_TITLEID, MGSV_GZ_TITLEID, MINECRAFT_TITLEID
 )
 from utils.embeds import embfn, embFileLarge, embnvSys, embpn, embnvBin
-from utils.extras import generate_random_string, obtain_savenames, completed_print
+from utils.extras import generate_random_string
 from utils.type_helpers import uint32, uint64, utf_8, utf_8_s, TypeCategory
 from utils.exceptions import OrbisError
 from utils.conversions import bytes_to_mb
@@ -236,14 +234,14 @@ class SFOContext:
             if ctx.bytelen >= max_len:
                raise OrbisError(f"The parameter: {parameter} reached the max length it has of {max_len}! Remember last byte is reserved for null termination for this parameter.")
             v = ctx.to_cstr()
-            l = len(v)
+            vlen = len(v)
         else:
             if ctx.bytelen > max_len:
                 raise OrbisError(f"The parameter: {parameter} reached the max length it has of {max_len}!")
             v = ctx.as_bytes
-            l = ctx.bytelen
+            vlen = ctx.bytelen
 
-        param.length = l
+        param.length = vlen
         param.value = v
 
     def sfo_get_param_value(self, parameter: str) -> bytes:
@@ -411,8 +409,8 @@ async def save_pair_check(ctx: discord.ApplicationContext | discord.Message, att
         if attachment.filename.endswith(".bin"): # look for corresponding file
             for attachment_nested in valid_attachments_check1:
                 filename_nested = attachment_nested.filename
-                if filename_nested == attachment.filename: continue
-
+                if filename_nested == attachment.filename:
+                    continue
                 elif filename_nested == os.path.splitext(attachment.filename)[0]:
                     valid_attachments_final.append(attachment)
                     valid_attachments_final.append(attachment_nested)
@@ -483,7 +481,7 @@ async def reregion_write(ctx: SFOContext, title_id: str, dec_files_folder: str) 
         savename = utf_8(ctx.sfo_get_param_value("SAVEDATA_DIRECTORY")).to_str()
         savename = savename.split("-")
         # legacy edition only
-        if not savename[0] in MINECRAFT_TITLEID:
+        if savename[0] not in MINECRAFT_TITLEID:
             return
         savename[0] = title_id
         savename = "-".join(savename)

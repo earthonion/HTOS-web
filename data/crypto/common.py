@@ -134,10 +134,10 @@ class CustomCrypto:
         del self.ctx_container[ctx]
 
     def _prepare_write(self) -> None:
-        assert type(self.chunk) == bytearray
+        assert isinstance(self.chunk, bytearray)
 
     def _prepare_list_write(self) -> None:
-        assert type(self.chunk) == list
+        assert isinstance(self.chunk, list)
 
     def _prepare_compression(self) -> None:
         assert not self.in_place

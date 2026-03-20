@@ -27,7 +27,7 @@ class InstanceLock:
     def _timeout_handler(self, disc_userid: int) -> None:
         """Call inside lock."""
 
-        if not disc_userid in self.instances:
+        if disc_userid not in self.instances:
             return
 
         epoch = time.time()
@@ -62,7 +62,7 @@ class InstanceLock:
 
     async def release(self, disc_userid: int) -> None:
         async with self.lock:
-            if not disc_userid in self.instances or self.instances_len == 0:
+            if disc_userid not in self.instances or self.instances_len == 0:
                 return
 
             instance = self.instances[disc_userid]
