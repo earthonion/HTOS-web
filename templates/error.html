@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} — {{ title }}{% endblock %}
+{% block content %}
+<div style="text-align:center; padding:3rem 0;">
+    <h1 style="font-size:3rem; font-weight:800; color:var(--text-3); margin-bottom:0.5rem;">{{ code }}</h1>
+    <p style="font-size:1.1rem; color:var(--text-2); margin-bottom:1.5rem;">{{ message }}</p>
+    <a href="/" class="btn">Go Home</a>
+</div>
+{% endblock %}

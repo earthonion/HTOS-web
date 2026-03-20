@@ -1,5 +1,5 @@
 import os
-from quart import Quart, Response
+from quart import Quart, Response, render_template
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -50,6 +50,36 @@ def create_app():
     app.register_blueprint(luac0re_bp)
     app.register_blueprint(savedb_bp)
     app.register_blueprint(tools_bp)
+
+    @app.errorhandler(400)
+    async def bad_request(e):
+        return await render_template("error.html", code=400, title="Bad Request",
+                                      message="The request could not be understood."), 400
+
+    @app.errorhandler(403)
+    async def forbidden(e):
+        return await render_template("error.html", code=403, title="Forbidden",
+                                      message="You don't have permission to access this."), 403
+
+    @app.errorhandler(404)
+    async def not_found(e):
+        return await render_template("error.html", code=404, title="Not Found",
+                                      message="The page you're looking for doesn't exist."), 404
+
+    @app.errorhandler(413)
+    async def too_large(e):
+        return await render_template("error.html", code=413, title="File Too Large",
+                                      message="The uploaded file exceeds the size limit."), 413
+
+    @app.errorhandler(429)
+    async def rate_limited(e):
+        return await render_template("error.html", code=429, title="Too Many Requests",
+                                      message="Slow down. Please try again later."), 429
+
+    @app.errorhandler(500)
+    async def server_error(e):
+        return await render_template("error.html", code=500, title="Server Error",
+                                      message="Something went wrong. Please try again later."), 500
 
     @app.route("/ads.txt")
     async def ads_txt():
