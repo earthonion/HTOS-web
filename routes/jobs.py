@@ -8,7 +8,7 @@ from quart import Blueprint, render_template, session, send_file, Response, abor
 
 from auth import login_required
 from models import get_db
-from services.jobs import get_job, get_or_create_job_logger
+from services.jobs import get_or_create_job_logger
 from services.files import extract_account_id_from_zip
 
 jobs_bp = Blueprint("jobs", __name__)
@@ -100,7 +100,7 @@ async def job_stream(job_id):
                         job.status = row["status"]
                         yield f"data: {json.dumps({'level': 'STATUS', 'msg': row['status']})}\n\n"
                         break
-                    yield f": keepalive\n\n"
+                    yield ": keepalive\n\n"
         finally:
             job.logger.unsubscribe(q)
 
