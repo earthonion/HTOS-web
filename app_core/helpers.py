@@ -10,12 +10,12 @@ if TYPE_CHECKING:
     from services.jobs import WebLogger as Logger, ServerSettings as Settings
 
 from utils.constants import MAX_FILENAME_LEN, MAX_PATH_LEN, RANDOMSTRING_LENGTH
-
-# PS4 upload dir path for save validation (matches cecie.nim default)
-PS_UPLOADDIR = "/data/saves"
 from utils.orbis import OrbisError, parse_pfs_header, parse_sealedkey
 from utils.exceptions import FileError
 from utils.extras import generate_random_string
+
+# PS4 upload dir path for save validation (matches cecie.nim default)
+PS_UPLOADDIR = "/data/saves"
 
 async def get_files_nonrecursive(folder_path: str) -> list[str]:
     files = []
@@ -184,7 +184,7 @@ async def prepare_single_save_folder(savepair: tuple[str, str], output_folder_pa
 
 def int_validation(s: str | int, min_: int, max_: int) -> bool:
     assert min_ < max_
-    if type(s) == str and s.lower().startswith("0x"):
+    if isinstance(s, str) and s.lower().startswith("0x"):
         s = s[2:]
         try:
             n = int(s, 16)

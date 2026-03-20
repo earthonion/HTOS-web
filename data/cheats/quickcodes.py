@@ -775,7 +775,7 @@ class QuickCodes(CustomCrypto):
                         off = off.value
 
                         tmp3 = line[9:11]
-                        l = int32(tmp3)
+                        length = int32(tmp3)
 
                         tmp4 = line[13:17]
                         val = int32(tmp4).value
@@ -814,8 +814,8 @@ class QuickCodes(CustomCrypto):
                                 off = 1
 
                         if not off:
-                            while l.value > 0:
-                                l.value -= 1
+                            while length.value > 0:
+                                length.value -= 1
                                 line = self.lines[line_index + 1]
                                 line_index += 1
             except (CryptoError, ValueError, IOError, IndexError):
