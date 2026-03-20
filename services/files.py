@@ -24,6 +24,15 @@ class DangerousFileError(Exception):
     pass
 
 
+def account_id_to_usb(stored_id: str) -> str:
+    """Convert stored big-endian account ID to little-endian (USB/SFO worker format).
+    The worker does uint64(hex, "little") which interprets the hex as an integer
+    then packs as LE bytes. Passing the USB-format hex produces correct SFO raw bytes."""
+    if len(stored_id) == 16:
+        return "".join(reversed([stored_id[i:i+2] for i in range(0, 16, 2)]))
+    return stored_id
+
+
 def _safe_join(base_dir: str, untrusted_path: str) -> str:
     """Safely join base_dir with an untrusted path, preventing path traversal.
     Raises DangerousFileError if the result escapes base_dir."""

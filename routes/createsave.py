@@ -3,7 +3,7 @@ from quart import Blueprint, render_template, request, session, redirect, url_fo
 from auth import login_required
 from models import get_db
 from services.jobs import create_job
-from services.files import save_uploaded_files, resolve_chunked_uploads, InvalidSaveFilesError, DangerousFileError, validate_createsave_files
+from services.files import save_uploaded_files, resolve_chunked_uploads, InvalidSaveFilesError, DangerousFileError, validate_createsave_files, account_id_to_usb
 from services.workers import ps5_workers_online
 from utils.constants import SAVEBLOCKS_MIN, SAVEBLOCKS_MAX
 from utils.orbis import validate_savedirname
@@ -79,7 +79,7 @@ async def createsave():
             await flash("Invalid profile.", "error")
             return await render_template("createsave.html", profiles=profiles)
 
-        account_id = profile["account_id"]
+        account_id = account_id_to_usb(profile["account_id"])
         platform = "ps5" if form.get("platform") == "ps5" else "ps4"
         if platform == "ps5" and not await ps5_workers_online():
             await flash("PS5 saves not currently supported!", "error")

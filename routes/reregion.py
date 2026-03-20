@@ -7,7 +7,7 @@ from auth import login_required
 from config import CHUNK_DIR
 from models import get_db
 from services.jobs import create_job
-from services.files import detect_platform_in_dir
+from services.files import detect_platform_in_dir, account_id_to_usb
 from services.workers import ps5_workers_online
 
 reregion_bp = Blueprint("reregion", __name__)
@@ -59,7 +59,7 @@ async def reregion():
             await flash("Invalid profile.", "error")
             return await render_template("reregion.html", profiles=profiles)
 
-        account_id = profile["account_id"]
+        account_id = account_id_to_usb(profile["account_id"])
         import uuid as _uuid
         temp_job_id = str(_uuid.uuid4())
 
