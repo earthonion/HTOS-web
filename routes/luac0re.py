@@ -59,7 +59,7 @@ async def luac0re():
             await flash("Invalid profile.", "error")
             return await render_template("luac0re.html", profiles=profiles, versions=VERSIONS)
 
-        account_id = account_id_to_usb(profile["account_id"])
+        account_id = profile["account_id"]
         info = VERSIONS[version]
 
         # Copy prebuilt save files to workspace

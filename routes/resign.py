@@ -50,7 +50,7 @@ async def resign():
             await flash("Invalid profile.", "error")
             return await render_template("resign.html", profiles=profiles)
 
-        account_id = account_id_to_usb(profile["account_id"])
+        account_id = profile["account_id"]
         # Create a temp job_id for file storage, but don't insert into DB yet
         import uuid
         temp_job_id = str(uuid.uuid4())
