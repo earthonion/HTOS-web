@@ -10,7 +10,7 @@ from utils.constants import (
     SCE_SYS_NAME, PARAM_NAME,
 )
 from utils.orbis import validate_savedirname, sfo_ctx_create
-from services.files import _read_account_id_from_sfo, FileTooLargeError, DangerousFileError, check_dangerous_files, check_zip_safety, _check_file_sizes, _strip_sdimg_prefix, resolve_chunked_uploads, detect_platform_in_dir
+from services.files import _read_account_id_from_sfo, FileTooLargeError, DangerousFileError, check_dangerous_files, check_zip_safety, _check_file_sizes, _strip_sdimg_prefix, resolve_chunked_uploads
 from services.workers import ps5_workers_online
 
 encrypt_bp = Blueprint("encrypt", __name__)

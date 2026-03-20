@@ -8,7 +8,7 @@ from quart import Blueprint, render_template, request, session, redirect, url_fo
 
 from quart import jsonify
 
-from auth import login_required, admin_required
+from auth import login_required
 from models import get_db
 from services.jobs import create_job
 from services.files import check_dangerous_files, check_zip_safety, DangerousFileError
