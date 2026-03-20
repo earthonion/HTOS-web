@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import re
 import zipfile
 
 from quart import Blueprint, render_template, session, send_file, Response, abort
@@ -151,8 +152,18 @@ async def job_download(job_id):
     else:
         filename = f"{job.operation}_{job_id[:8]}.zip"
 
+    # Sanitize filenames inside zip for Windows compatibility
+    serve_path = job.result_path
+    if _zip_needs_sanitizing(job.result_path):
+        sanitized_path = job.result_path.replace(".zip", "_safe.zip")
+        try:
+            _sanitize_result_zip(job.result_path, sanitized_path)
+            serve_path = sanitized_path
+        except Exception:
+            pass
+
     return await send_file(
-        job.result_path,
+        serve_path,
         as_attachment=True,
         attachment_filename=filename
     )
@@ -187,16 +198,50 @@ def _extract_sfo_fields_from_zip(zip_path):
     return result
 
 
-def _restructure_ps4_zip(src_zip, dst_zip, account_id, title_id):
-    """Repack zip with PS4 USB structure: PS4/SAVEDATA/<account_id>/<title_id>/"""
-    prefix = f"PS4/SAVEDATA/{account_id}/{title_id}/"
+def _sanitize_zip_filename(name):
+    """Replace characters illegal on Windows filesystems: \\ / : * ? \" < > |"""
+    # Sanitize each path component but preserve directory separators
+    parts = name.replace("\\", "/").split("/")
+    sanitized = []
+    for part in parts:
+        part = re.sub(r'[:<>"|?*]', '_', part)
+        sanitized.append(part)
+    return "/".join(sanitized)
+
+
+def _sanitize_result_zip(src_zip, dst_zip):
+    """Rewrite zip with sanitized filenames for Windows compatibility."""
     with zipfile.ZipFile(src_zip, "r") as zin, \
-         zipfile.ZipFile(dst_zip, "w", zipfile.ZIP_STORED) as zout:
+         zipfile.ZipFile(dst_zip, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zout:
         for info in zin.infolist():
             if info.is_dir():
                 continue
             data = zin.read(info.filename)
-            zout.writestr(prefix + info.filename, data)
+            zout.writestr(_sanitize_zip_filename(info.filename), data)
+
+
+def _zip_needs_sanitizing(zip_path):
+    """Check if any filename in the zip contains Windows-illegal characters."""
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            for name in zf.namelist():
+                if re.search(r'[:<>"|?*]', name):
+                    return True
+    except Exception:
+        pass
+    return False
+
+
+def _restructure_ps4_zip(src_zip, dst_zip, account_id, title_id):
+    """Repack zip with PS4 USB structure: PS4/SAVEDATA/<account_id>/<title_id>/"""
+    prefix = f"PS4/SAVEDATA/{account_id}/{title_id}/"
+    with zipfile.ZipFile(src_zip, "r") as zin, \
+         zipfile.ZipFile(dst_zip, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zout:
+        for info in zin.infolist():
+            if info.is_dir():
+                continue
+            data = zin.read(info.filename)
+            zout.writestr(prefix + _sanitize_zip_filename(info.filename), data)
 
 @jobs_bp.route("/jobs/<job_id>/files")
 @login_required

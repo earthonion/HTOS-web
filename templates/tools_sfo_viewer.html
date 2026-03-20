@@ -1,0 +1,321 @@
+{% extends "base.html" %}
+{% block title %}param.sfo Viewer — Tools{% endblock %}
+{% block extra_head %}
+<style>
+.drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--r);
+    padding: 3rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    margin-bottom: 1.5rem;
+}
+.drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--indigo);
+    background: var(--indigo-glow);
+}
+.drop-zone input { display: none; }
+.drop-zone p { margin: 0.5rem 0 0; font-size: 0.85rem; color: var(--text-2); }
+.sfo-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+.sfo-table th {
+    text-align: left;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    color: var(--text-3);
+    letter-spacing: 0.06em;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+.sfo-table td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-1);
+}
+.sfo-table tr:hover td { background: var(--bg-1); }
+.sfo-key {
+    font-family: monospace;
+    font-weight: 600;
+    white-space: nowrap;
+    color: var(--indigo-light);
+}
+.sfo-value {
+    font-family: monospace;
+    word-break: break-all;
+}
+.sfo-type {
+    font-size: 0.75rem;
+    color: var(--text-3);
+    white-space: nowrap;
+}
+.sfo-header {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+.sfo-header-item {
+    min-width: 120px;
+}
+.sfo-header-item .label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    color: var(--text-3);
+    letter-spacing: 0.06em;
+}
+.sfo-header-item .value {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+.platform-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+}
+.platform-badge.ps4 {
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--indigo-light);
+}
+.platform-badge.ps5 {
+    background: rgba(6, 182, 212, 0.15);
+    color: var(--cyan);
+}
+.status-msg {
+    padding: 0.75rem 1rem;
+    border-radius: var(--r);
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+}
+.status-msg.error { background: rgba(239,68,68,0.1); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+</style>
+{% endblock %}
+{% block content %}
+<h1>param.sfo Viewer</h1>
+<p>Drop a <code>param.sfo</code> file or a zip containing one to view all fields. Runs entirely in your browser — nothing is uploaded.</p>
+
+<div class="drop-zone" id="drop-zone">
+    <input type="file" id="file-input" accept=".sfo,.zip">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-3);"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    <p>Drop <strong>param.sfo</strong> or <strong>.zip</strong> here, or click to browse</p>
+</div>
+
+<div id="status"></div>
+<div id="results" style="display:none;">
+    <div class="sfo-header" id="sfo-summary"></div>
+    <table class="sfo-table">
+        <thead><tr><th>Key</th><th>Type</th><th>Value</th><th>Size</th></tr></thead>
+        <tbody id="sfo-body"></tbody>
+    </table>
+</div>
+
+<div style="margin-top:1.5rem;">
+    <a href="{{ url_for('tools.tools_index') }}">&larr; Back to Tools</a>
+</div>
+
+<script>
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const statusEl = document.getElementById('status');
+const resultsEl = document.getElementById('results');
+const sfoBody = document.getElementById('sfo-body');
+const sfoSummary = document.getElementById('sfo-summary');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) processFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files.length) processFile(fileInput.files[0]); });
+
+const FMT_NAMES = { 0x0004: 'Special', 0x0204: 'UTF-8', 0x0404: 'Integer' };
+
+function parseSfo(buf) {
+    const dv = new DataView(buf);
+    if (dv.getUint32(0, false) !== 0x00505346) return null;
+
+    const version = dv.getUint32(4, true);
+    const keyOff = dv.getUint32(8, true);
+    const dataOff = dv.getUint32(12, true);
+    const count = dv.getUint32(16, true);
+
+    const entries = [];
+    for (let i = 0; i < count; i++) {
+        const base = 20 + i * 16;
+        const kOff = dv.getUint16(base, true);
+        const fmt = dv.getUint16(base + 2, true);
+        const usedLen = dv.getUint32(base + 4, true);
+        const maxLen = dv.getUint32(base + 8, true);
+        const dOff = dv.getUint32(base + 12, true);
+
+        // Read key
+        let key = '';
+        for (let j = keyOff + kOff; j < buf.byteLength; j++) {
+            const c = dv.getUint8(j);
+            if (c === 0) break;
+            key += String.fromCharCode(c);
+        }
+
+        // Read value based on format
+        let value;
+        let displayValue;
+        if (fmt === 0x0204) {
+            const bytes = new Uint8Array(buf, dataOff + dOff, usedLen);
+            let end = bytes.indexOf(0);
+            if (end < 0) end = usedLen;
+            value = new TextDecoder().decode(bytes.subarray(0, end));
+            displayValue = value;
+        } else if (fmt === 0x0004) {
+            // Special/binary — display as hex
+            const bytes = new Uint8Array(buf, dataOff + dOff, usedLen);
+            displayValue = Array.from(bytes).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+            value = displayValue;
+            // For ACCOUNT_ID (8 bytes), show as a single hex string
+            if (key === 'ACCOUNT_ID' && usedLen === 8) {
+                displayValue = '0x' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+            }
+        } else if (fmt === 0x0404) {
+            value = dv.getUint32(dataOff + dOff, true);
+            displayValue = value.toString();
+            // Show hex for large values
+            if (value > 9999) {
+                displayValue = `${value} (0x${value.toString(16).toUpperCase()})`;
+            }
+        } else {
+            const bytes = new Uint8Array(buf, dataOff + dOff, usedLen);
+            displayValue = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' ');
+            value = displayValue;
+        }
+
+        entries.push({ key, fmt, value, displayValue, usedLen, maxLen });
+    }
+
+    return { version, count, entries };
+}
+
+async function extractSfoFromZip(file) {
+    const buf = await file.arrayBuffer();
+    const dv = new DataView(buf);
+    let off = 0;
+    while (off < buf.byteLength - 30) {
+        if (dv.getUint32(off, true) !== 0x04034b50) break;
+        const compMethod = dv.getUint16(off + 8, true);
+        const compSize = dv.getUint32(off + 18, true);
+        const uncompSize = dv.getUint32(off + 22, true);
+        const nameLen = dv.getUint16(off + 26, true);
+        const extraLen = dv.getUint16(off + 28, true);
+        const nameBytes = new Uint8Array(buf, off + 30, nameLen);
+        const name = new TextDecoder().decode(nameBytes);
+        const dataStart = off + 30 + nameLen + extraLen;
+        if (name.toLowerCase().endsWith('param.sfo') && compMethod === 0) {
+            return new Uint8Array(buf, dataStart, uncompSize).buffer;
+        }
+        off = dataStart + compSize;
+    }
+    return null;
+}
+
+async function processFile(file) {
+    statusEl.innerHTML = '';
+    resultsEl.style.display = 'none';
+
+    let buf;
+    if (file.name.toLowerCase().endsWith('.zip')) {
+        buf = await extractSfoFromZip(file);
+        if (!buf) {
+            statusEl.innerHTML = '<div class="status-msg error">No param.sfo found in this zip file.</div>';
+            return;
+        }
+    } else {
+        buf = await file.arrayBuffer();
+    }
+
+    const sfo = parseSfo(buf);
+    if (!sfo) {
+        statusEl.innerHTML = '<div class="status-msg error">Not a valid param.sfo file (bad magic bytes).</div>';
+        return;
+    }
+
+    // Build summary from key fields
+    const fields = {};
+    for (const e of sfo.entries) fields[e.key] = e.value;
+
+    const title = fields.MAINTITLE || fields.TITLE || '—';
+    const titleId = fields.TITLE_ID || '—';
+    const category = fields.CATEGORY || '—';
+    const appVer = fields.APP_VER || fields.VERSION || '—';
+    const saveDir = fields.SAVEDATA_DIRECTORY || '';
+
+    // Detect platform from FORMAT field (ppr=PS5, obs=PS4), fall back to TITLE_ID prefix
+    const format = fields.FORMAT || '';
+    let platform = '—';
+    if (format === 'ppr') platform = 'PS5';
+    else if (format === 'obs') platform = 'PS4';
+    else if (titleId !== '—') {
+        const prefix = titleId.substring(0, 4).toUpperCase();
+        if (prefix === 'PPSA') platform = 'PS5';
+        else if (prefix === 'CUSA') platform = 'PS4';
+        else platform = prefix;
+    }
+
+    // Category codes
+    const catNames = {
+        'gd': 'Game', 'gdc': 'Game Content', 'gdd': 'Game Demo',
+        'gde': 'Game Digital Extra', 'gdgd': 'Game with Extra',
+        'gdk': 'Game Key', 'gdl': 'Game DLC', 'gdo': 'Game Trial',
+        'gp': 'Game Patch', 'gpc': 'Game Patch Content',
+        'sd': 'Save Data', 'ac': 'Additional Content',
+    };
+    const catDisplay = catNames[category] ? `${category} (${catNames[category]})` : category;
+
+    let summaryHtml = '';
+    summaryHtml += `<div class="sfo-header-item"><div class="label">Title</div><div class="value">${esc(String(title))}</div></div>`;
+    summaryHtml += `<div class="sfo-header-item"><div class="label">Title ID</div><div class="value" style="font-family:monospace;">${esc(String(titleId))}</div></div>`;
+    const platClass = platform === 'PS4' ? 'ps4' : platform === 'PS5' ? 'ps5' : '';
+    summaryHtml += `<div class="sfo-header-item"><div class="label">Platform</div><div class="value"><span class="platform-badge ${platClass}">${esc(platform)}</span></div></div>`;
+    summaryHtml += `<div class="sfo-header-item"><div class="label">Category</div><div class="value">${esc(String(catDisplay))}</div></div>`;
+    summaryHtml += `<div class="sfo-header-item"><div class="label">Version</div><div class="value">${esc(String(appVer))}</div></div>`;
+    if (saveDir) summaryHtml += `<div class="sfo-header-item"><div class="label">Save Directory</div><div class="value" style="font-family:monospace;">${esc(saveDir)}</div></div>`;
+    summaryHtml += `<div class="sfo-header-item"><div class="label">Entries</div><div class="value">${sfo.count}</div></div>`;
+    sfoSummary.innerHTML = summaryHtml;
+
+    // Build table
+    let html = '';
+    for (const e of sfo.entries) {
+        const typeName = FMT_NAMES[e.fmt] || `0x${e.fmt.toString(16)}`;
+        html += `<tr>`;
+        html += `<td class="sfo-key">${esc(e.key)}</td>`;
+        html += `<td class="sfo-type">${typeName}</td>`;
+        if (e.key === 'PARAMS' && e.displayValue.length > 40) {
+            html += `<td class="sfo-value"><span class="params-collapsed" style="color:var(--text-3);font-size:0.78rem;">${e.usedLen} bytes</span> <button class="btn-small" onclick="this.style.display='none';this.previousElementSibling.style.display='none';this.nextElementSibling.style.display='inline';" style="font-size:0.7rem;padding:0.15rem 0.5rem;">View</button><span style="display:none;word-break:break-all;">${esc(String(e.displayValue))}</span></td>`;
+        } else {
+            html += `<td class="sfo-value">${esc(String(e.displayValue))}</td>`;
+        }
+        html += `<td class="sfo-type">${e.usedLen}/${e.maxLen}</td>`;
+        html += `</tr>`;
+    }
+    sfoBody.innerHTML = html;
+    resultsEl.style.display = '';
+}
+
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+{% block title %}Entitlement Dumper — Tools{% endblock %}
+{% block extra_head %}
+<style>
+.drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--r);
+    padding: 3rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    margin-bottom: 1.5rem;
+}
+.drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--indigo);
+    background: var(--indigo-glow);
+}
+.drop-zone input { display: none; }
+.drop-zone p { margin: 0.5rem 0 0; font-size: 0.85rem; color: var(--text-2); }
+.results-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+.results-bar .count {
+    font-size: 0.78rem;
+    color: var(--text-3);
+}
+.ent-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+.ent-table th {
+    text-align: left;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    color: var(--text-3);
+    letter-spacing: 0.06em;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+.ent-table td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-1);
+}
+.ent-table tr:hover td { background: var(--bg-1); }
+.ent-table .ent-id { font-family: monospace; font-size: 0.78rem; white-space: nowrap; }
+.ent-table .ent-url {
+    font-family: monospace;
+    font-size: 0.72rem;
+    color: var(--text-2);
+    word-break: break-all;
+    max-width: 400px;
+}
+.status-msg {
+    padding: 0.75rem 1rem;
+    border-radius: var(--r);
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+}
+.status-msg.error { background: rgba(239,68,68,0.1); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+.status-msg.info { background: rgba(99,102,241,0.1); color: var(--indigo-light); border: 1px solid rgba(99,102,241,0.2); }
+#search-filter {
+    max-width: 300px;
+}
+</style>
+{% endblock %}
+{% block content %}
+<h1>Entitlement Dumper</h1>
+<p>Drop your entitlement database to extract game titles, IDs, and download URLs. Everything runs in your browser — nothing is uploaded. FTP into your console and grab the file from the path below.</p>
+<div style="display:flex; gap:1rem; flex-wrap:wrap; margin:1rem 0;">
+    <div style="background:var(--bg-1); border:1px solid var(--border); border-radius:var(--r); padding:0.75rem 1rem; flex:1; min-width:220px;">
+        <div style="font-size:0.72rem; text-transform:uppercase; color:var(--text-3); margin-bottom:0.25rem;">PS4</div>
+        <code style="font-size:0.82rem;">/system_data/priv/license/entitlement.db</code>
+    </div>
+    <div style="background:var(--bg-1); border:1px solid var(--border); border-radius:var(--r); padding:0.75rem 1rem; flex:1; min-width:220px;">
+        <div style="font-size:0.72rem; text-transform:uppercase; color:var(--text-3); margin-bottom:0.25rem;">PS5</div>
+        <code style="font-size:0.82rem;">/system_data/priv/license/entitlement4.db</code>
+    </div>
+</div>
+
+<div class="drop-zone" id="drop-zone">
+    <input type="file" id="file-input" accept=".db,.sqlite,.sqlite3">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-3);"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    <p>Drop <strong>entitlement.db</strong> or <strong>entitlement4.db</strong> here or click to browse</p>
+</div>
+
+<div id="status"></div>
+<div id="results" style="display:none;">
+    <div class="results-bar">
+        <input type="text" id="search-filter" placeholder="Filter by title or ID...">
+        <span class="count" id="result-count"></span>
+        <button class="btn-small" id="dl-csv">Download CSV</button>
+    </div>
+    <div style="overflow-x:auto;">
+        <table class="ent-table">
+            <thead><tr><th>ID</th><th>Title</th><th>Package URL</th></tr></thead>
+            <tbody id="results-body"></tbody>
+        </table>
+    </div>
+</div>
+
+<div style="margin-top:1.5rem;">
+    <a href="{{ url_for('tools.tools_index') }}">&larr; Back to Tools</a>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<script>
+let allEntries = [];
+
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const statusEl = document.getElementById('status');
+const resultsEl = document.getElementById('results');
+const resultsBody = document.getElementById('results-body');
+const resultCount = document.getElementById('result-count');
+const searchFilter = document.getElementById('search-filter');
+const dlCsvBtn = document.getElementById('dl-csv');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) processFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files.length) processFile(fileInput.files[0]); });
+
+async function processFile(file) {
+    statusEl.innerHTML = '<div class="status-msg info">Loading database...</div>';
+    resultsEl.style.display = 'none';
+    allEntries = [];
+
+    try {
+        const buf = await file.arrayBuffer();
+        const SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${f}` });
+        const db = new SQL.Database(new Uint8Array(buf));
+
+        // Find entitlement table
+        const tables = db.exec("SELECT name FROM sqlite_master WHERE type='table'");
+        let targetTable = '';
+        if (tables.length && tables[0].values) {
+            for (const row of tables[0].values) {
+                if (row[0].toLowerCase().includes('entitlement')) {
+                    targetTable = row[0];
+                    break;
+                }
+            }
+        }
+
+        if (!targetTable) {
+            statusEl.innerHTML = '<div class="status-msg error">No entitlement table found in this database.</div>';
+            return;
+        }
+
+        // Query all JSON rows
+        const rows = db.exec(`SELECT json FROM "${targetTable}"`);
+        if (!rows.length || !rows[0].values.length) {
+            statusEl.innerHTML = '<div class="status-msg error">Entitlement table is empty.</div>';
+            return;
+        }
+
+        // Detect PS4 vs PS5 from filename
+        const isPs5 = file.name.toLowerCase().includes('4.db');
+
+        let skipped = 0;
+        for (const row of rows[0].values) {
+            try {
+                const data = JSON.parse(row[0]);
+                const gameId = data.id || '';
+                // PS4: game_meta.name / entitlement_attributes[0].reference_package_url
+                // PS5: gameMeta.name / entitlementAttributes[0].referencePackageUrl
+                let title = '';
+                let pkgUrl = '';
+                try {
+                    if (isPs5) {
+                        title = (data.gameMeta && data.gameMeta.name) || '';
+                        pkgUrl = data.entitlementAttributes[0].referencePackageUrl || '';
+                    } else {
+                        title = (data.game_meta && data.game_meta.name) || '';
+                        pkgUrl = data.entitlement_attributes[0].reference_package_url || '';
+                    }
+                } catch {}
+                // Fallback: try both formats if title is empty
+                if (!title) {
+                    title = (data.game_meta && data.game_meta.name)
+                         || (data.gameMeta && data.gameMeta.name)
+                         || '';
+                }
+                if (!pkgUrl) {
+                    try { pkgUrl = data.entitlement_attributes[0].reference_package_url || ''; } catch {}
+                    if (!pkgUrl) try { pkgUrl = data.entitlementAttributes[0].referencePackageUrl || ''; } catch {}
+                }
+                if (gameId || title) {
+                    allEntries.push({ id: gameId, title: title, url: pkgUrl });
+                } else {
+                    skipped++;
+                }
+            } catch {
+                skipped++;
+            }
+        }
+
+        db.close();
+
+        if (!allEntries.length) {
+            statusEl.innerHTML = '<div class="status-msg error">No valid entitlements found.</div>';
+            return;
+        }
+
+        statusEl.innerHTML = '';
+        resultsEl.style.display = '';
+        renderTable(allEntries);
+    } catch (err) {
+        statusEl.innerHTML = `<div class="status-msg error">Error reading database: ${esc(err.message)}</div>`;
+    }
+}
+
+function renderTable(entries) {
+    resultCount.textContent = entries.length + ' entitlement' + (entries.length !== 1 ? 's' : '');
+    let html = '';
+    for (const e of entries) {
+        html += `<tr><td class="ent-id">${esc(e.id)}</td><td>${esc(e.title)}</td><td class="ent-url">${e.url ? esc(e.url) : '<span style="color:var(--text-3);">—</span>'}</td></tr>`;
+    }
+    resultsBody.innerHTML = html;
+}
+
+searchFilter.addEventListener('input', () => {
+    const q = searchFilter.value.trim().toLowerCase();
+    if (!q) { renderTable(allEntries); return; }
+    const filtered = allEntries.filter(e =>
+        e.id.toLowerCase().includes(q) || e.title.toLowerCase().includes(q)
+    );
+    renderTable(filtered);
+});
+
+dlCsvBtn.addEventListener('click', () => {
+    if (!allEntries.length) return;
+    let csv = 'id,title,url\n';
+    for (const e of allEntries) {
+        csv += csvRow(e.id) + ',' + csvRow(e.title) + ',' + csvRow(e.url) + '\n';
+    }
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'entitlements.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+});
+
+function csvRow(s) {
+    if (!s) return '';
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+        return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+}
+
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+</script>
+{% endblock %}

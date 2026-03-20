@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=11">
     {% block extra_head %}{% endblock %}
-    {% if adsense_client %}
+    {% if not session.get('is_admin') and not no_ads and adsense_client %}
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
          crossorigin="anonymous"></script>
     {% endif %}
@@ -44,6 +44,7 @@
 
                 {% endif %}
                 <a href="{{ url_for('savedb.browse') }}">Save DB <span style="font-size:0.6rem; color:var(--amber); vertical-align:super;">BETA</span></a>
+                <a href="{{ url_for('tools.tools_index') }}">Tools</a>
                 <a href="{{ url_for('contribute.contribute') }}">Contribute</a>
                 <a href="{{ url_for('main.about') }}">About</a>
                 {% if session.get('is_admin') %}
@@ -65,6 +66,8 @@
     {% else %}
     <nav class="topbar">
         <div class="nav-brand"><img src="{{ url_for('static', filename='favicon.svg') }}" alt="" style="height:1.4em;vertical-align:middle;margin-right:0.3em;">garlicsaves</div>
+        <a href="{{ url_for('tools.tools_index') }}" style="font-size:0.85rem; color:var(--text-2); text-decoration:none; margin-left:auto;">Tools</a>
+        <a href="{{ url_for('main.about') }}" style="font-size:0.85rem; color:var(--text-2); text-decoration:none; margin-left:1rem;">About</a>
     </nav>
     {% endif %}
 
