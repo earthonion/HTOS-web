@@ -35,9 +35,9 @@ SAVEDB_BLOCKED_EXTENSIONS = {
     ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".zst",
     # Documents
     ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-    # Code/scripts
-    ".py", ".js", ".php", ".sh", ".ps1", ".rb", ".pl",
-    ".html", ".htm", ".css",
+    # Code/scripts (allow .py, .lua — used in some saves)
+    ".php", ".sh", ".ps1", ".rb", ".pl",
+    ".html", ".htm",
     # Torrents
     ".torrent", ".nzb",
 }
