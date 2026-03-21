@@ -192,6 +192,16 @@ async def encrypt():
             await flash("Could not read SAVEDATA_BLOCKS from param.sfo.", "error")
             return await render_template("encrypt.html", profiles=profiles)
 
+        # Recalculate blocks from actual file sizes (1 block = 32KB)
+        # Add overhead for PFS metadata (~5%)
+        total_size = 0
+        for root, _d, fnames in os.walk(save_dir):
+            for fname in fnames:
+                total_size += os.path.getsize(os.path.join(root, fname))
+        needed_blocks = (total_size * 105 // 100 + 32767) // 32768  # ceil + 5% overhead
+        if needed_blocks > saveblocks:
+            saveblocks = needed_blocks
+
         if not (SAVEBLOCKS_MIN <= saveblocks <= SAVEBLOCKS_MAX):
             await flash(f"Invalid save blocks: {saveblocks}", "error")
             return await render_template("encrypt.html", profiles=profiles)
