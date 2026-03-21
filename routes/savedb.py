@@ -482,6 +482,15 @@ async def encrypt(entry_id):
                     elif key == "SAVEDATA_BLOCKS":
                         saveblocks = struct.unpack_from('<Q', data, data_off + d_off)[0]
 
+        # Recalculate blocks from actual file sizes (1 block = 32KB)
+        total_size = 0
+        for root, _d, fnames in os.walk(upload_dir):
+            for fname in fnames:
+                total_size += os.path.getsize(os.path.join(root, fname))
+        needed_blocks = (total_size * 105 // 100 + 32767) // 32768  # ceil + 5% overhead
+        if saveblocks is None or needed_blocks > saveblocks:
+            saveblocks = needed_blocks
+
         params = {
             "account_id": profile["account_id"],
             "upload_dir": upload_dir,
