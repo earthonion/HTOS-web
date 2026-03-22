@@ -109,6 +109,7 @@ MIGRATIONS = [
     "ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0",
     "ALTER TABLE worker_keys ADD COLUMN online_since TIMESTAMP",
     "ALTER TABLE jobs ADD COLUMN logs TEXT",
+    "ALTER TABLE entitlements ADD COLUMN verified BOOLEAN DEFAULT NULL",
 ]
 
 
