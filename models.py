@@ -1,4 +1,5 @@
 import aiosqlite
+
 from config import DATABASE_PATH
 
 SCHEMA = """
@@ -110,6 +111,7 @@ MIGRATIONS = [
     "ALTER TABLE jobs ADD COLUMN logs TEXT",
 ]
 
+
 async def init_db():
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.executescript(SCHEMA)
@@ -119,6 +121,7 @@ async def init_db():
             except Exception:
                 pass  # column already exists
         await db.commit()
+
 
 async def get_db():
     db = await aiosqlite.connect(DATABASE_PATH)

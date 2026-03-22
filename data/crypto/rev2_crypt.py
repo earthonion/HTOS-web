@@ -2,13 +2,16 @@ from data.crypto.common import CustomCrypto as CC
 
 # notes: start at 0x20
 
+
 class Crypt_Rev2:
     SECRET_KEY = b"zW$2eWaHNdT~6j86T_&j"
 
     @staticmethod
     async def decrypt_file(filepath: str) -> None:
         async with CC(filepath) as cc:
-            blowfish_ecb = cc.create_ctx_blowfish(Crypt_Rev2.SECRET_KEY, cc.Blowfish.MODE_ECB)
+            blowfish_ecb = cc.create_ctx_blowfish(
+                Crypt_Rev2.SECRET_KEY, cc.Blowfish.MODE_ECB
+            )
             cc.set_ptr(0x20)
             while await cc.read():
                 cc.ES32()
@@ -19,7 +22,9 @@ class Crypt_Rev2:
     @staticmethod
     async def encrypt_file(filepath: str) -> None:
         async with CC(filepath) as cc:
-            blowfish_ecb = cc.create_ctx_blowfish(Crypt_Rev2.SECRET_KEY, cc.Blowfish.MODE_ECB)
+            blowfish_ecb = cc.create_ctx_blowfish(
+                Crypt_Rev2.SECRET_KEY, cc.Blowfish.MODE_ECB
+            )
             sha1 = cc.create_ctx_sha1()
             cc.set_ptr(0x20)
 
@@ -53,4 +58,3 @@ class Crypt_Rev2:
             is_dec = await cc.fraction_byte()
         if is_dec:
             await Crypt_Rev2.encrypt_file(filepath)
-

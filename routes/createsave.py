@@ -1,15 +1,22 @@
-from quart import Blueprint, render_template, request, session, redirect, url_for, flash
+from quart import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from auth import login_required
 from models import get_db
+from services.files import (
+    DangerousFileError,
+    InvalidSaveFilesError,
+    resolve_chunked_uploads,
+    save_uploaded_files,
+    validate_createsave_files,
+)
 from services.jobs import create_job
-from services.files import save_uploaded_files, resolve_chunked_uploads, InvalidSaveFilesError, DangerousFileError, validate_createsave_files, account_id_to_usb
 from services.workers import ps5_workers_online
-from utils.constants import SAVEBLOCKS_MIN, SAVEBLOCKS_MAX
-from utils.orbis import validate_savedirname
+from utils.constants import SAVEBLOCKS_MAX, SAVEBLOCKS_MIN
 from utils.conversions import mb_to_saveblocks
+from utils.orbis import validate_savedirname
 
 createsave_bp = Blueprint("createsave", __name__)
+
 
 @createsave_bp.route("/createsave", methods=["GET", "POST"])
 @login_required
@@ -51,12 +58,20 @@ async def createsave():
         saveblocks = None
         if saveblocks_str:
             try:
-                saveblocks = int(saveblocks_str, 16) if saveblocks_str.lower().startswith("0x") else int(saveblocks_str)
+                saveblocks = (
+                    int(saveblocks_str, 16)
+                    if saveblocks_str.lower().startswith("0x")
+                    else int(saveblocks_str)
+                )
             except ValueError:
                 pass
         if saveblocks is None and savesize_mb_str:
             try:
-                mb = int(savesize_mb_str, 16) if savesize_mb_str.lower().startswith("0x") else int(savesize_mb_str)
+                mb = (
+                    int(savesize_mb_str, 16)
+                    if savesize_mb_str.lower().startswith("0x")
+                    else int(savesize_mb_str)
+                )
                 saveblocks = mb_to_saveblocks(mb)
             except ValueError:
                 pass
@@ -69,7 +84,7 @@ async def createsave():
         try:
             cursor = await db.execute(
                 "SELECT account_id FROM profiles WHERE id = ? AND user_id = ?",
-                (profile_id, user_id)
+                (profile_id, user_id),
             )
             profile = await cursor.fetchone()
         finally:
@@ -84,18 +99,25 @@ async def createsave():
         if platform == "ps5" and not await ps5_workers_online():
             await flash("PS5 saves not currently supported!", "error")
             return await render_template("createsave.html", profiles=profiles)
-        job = await create_job(user_id, "createsave", {
-            "account_id": account_id,
-            "savename": savename,
-            "saveblocks": saveblocks,
-            "ignore_secondlayer": ignore_secondlayer,
-            "platform": platform,
-        })
+        job = await create_job(
+            user_id,
+            "createsave",
+            {
+                "account_id": account_id,
+                "savename": savename,
+                "saveblocks": saveblocks,
+                "ignore_secondlayer": ignore_secondlayer,
+                "platform": platform,
+            },
+        )
         try:
             if upload_ids_json:
                 import json
+
                 upload_ids = json.loads(upload_ids_json)
-                upload_dir = await resolve_chunked_uploads(upload_ids, user_id, job.job_id)
+                upload_dir = await resolve_chunked_uploads(
+                    upload_ids, user_id, job.job_id
+                )
             else:
                 upload_dir = await save_uploaded_files(files, user_id, job.job_id)
             validate_createsave_files(upload_dir)

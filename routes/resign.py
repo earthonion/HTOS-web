@@ -1,12 +1,21 @@
-from quart import Blueprint, render_template, request, session, redirect, url_for, flash
+from quart import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from auth import login_required
 from models import get_db
+from services.files import (
+    DangerousFileError,
+    FileTooLargeError,
+    InvalidSaveFilesError,
+    detect_platform_in_dir,
+    resolve_chunked_uploads,
+    save_uploaded_files,
+    validate_save_pairs,
+)
 from services.jobs import create_job
-from services.files import save_uploaded_files, detect_platform_in_dir, resolve_chunked_uploads, FileTooLargeError, InvalidSaveFilesError, DangerousFileError, validate_save_pairs, account_id_to_usb
 from services.workers import ps5_workers_online
 
 resign_bp = Blueprint("resign", __name__)
+
 
 @resign_bp.route("/resign", methods=["GET", "POST"])
 @login_required
@@ -40,7 +49,7 @@ async def resign():
         try:
             cursor = await db.execute(
                 "SELECT account_id FROM profiles WHERE id = ? AND user_id = ?",
-                (profile_id, user_id)
+                (profile_id, user_id),
             )
             profile = await cursor.fetchone()
         finally:
@@ -53,12 +62,16 @@ async def resign():
         account_id = profile["account_id"]
         # Create a temp job_id for file storage, but don't insert into DB yet
         import uuid
+
         temp_job_id = str(uuid.uuid4())
         try:
             if upload_ids_json:
                 import json
+
                 upload_ids = json.loads(upload_ids_json)
-                upload_dir = await resolve_chunked_uploads(upload_ids, user_id, temp_job_id)
+                upload_dir = await resolve_chunked_uploads(
+                    upload_ids, user_id, temp_job_id
+                )
             else:
                 upload_dir = await save_uploaded_files(files, user_id, temp_job_id)
         except FileTooLargeError as e:
@@ -82,6 +95,7 @@ async def resign():
 
         # Extract save name from uploaded filenames for display
         import os
+
         savename = ""
         for f in os.listdir(upload_dir):
             if f.endswith(".bin") and not f.startswith("."):

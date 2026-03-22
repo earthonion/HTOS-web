@@ -1,34 +1,38 @@
 import os
-from quart import Quart, Response, render_template
+
 from dotenv import load_dotenv
+from quart import Quart, Response, render_template
 
 load_dotenv()
+
 
 def create_app():
     app = Quart(__name__)
     app.secret_key = os.getenv("SECRET_KEY") or os.urandom(32).hex()
-    app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_UPLOAD_SIZE", str(2 * 1024 * 1024 * 1024)))
+    app.config["MAX_CONTENT_LENGTH"] = int(
+        os.getenv("MAX_UPLOAD_SIZE", str(2 * 1024 * 1024 * 1024))
+    )
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     app.config["SESSION_COOKIE_SECURE"] = os.getenv("HTTPS", "0") == "1"
 
-    from models import init_db
     from auth import auth_bp
-    from routes.main import main_bp
-    from routes.resign import resign_bp
+    from models import init_db
+    from routes.admin_web import admin_web_bp
+    from routes.api import api_bp
+    from routes.chunked import chunked_bp
+    from routes.contribute import contribute_bp
+    from routes.convert import convert_bp
+    from routes.createsave import createsave_bp
     from routes.decrypt import decrypt_bp
     from routes.encrypt import encrypt_bp
-    from routes.reregion import reregion_bp
-    from routes.createsave import createsave_bp
-    from routes.convert import convert_bp
-    from routes.quickcodes import quickcodes_bp
     from routes.jobs import jobs_bp
-    from routes.api import api_bp
-    from routes.contribute import contribute_bp
-    from routes.rest_api import rest_bp
-    from routes.chunked import chunked_bp
-    from routes.admin_web import admin_web_bp
     from routes.luac0re import luac0re_bp
+    from routes.main import main_bp
+    from routes.quickcodes import quickcodes_bp
+    from routes.reregion import reregion_bp
+    from routes.resign import resign_bp
+    from routes.rest_api import rest_bp
     from routes.savedb import savedb_bp
     from routes.tools import tools_bp
 
@@ -53,33 +57,57 @@ def create_app():
 
     @app.errorhandler(400)
     async def bad_request(e):
-        return await render_template("error.html", code=400, title="Bad Request",
-                                      message="The request could not be understood."), 400
+        return await render_template(
+            "error.html",
+            code=400,
+            title="Bad Request",
+            message="The request could not be understood.",
+        ), 400
 
     @app.errorhandler(403)
     async def forbidden(e):
-        return await render_template("error.html", code=403, title="Forbidden",
-                                      message="You don't have permission to access this."), 403
+        return await render_template(
+            "error.html",
+            code=403,
+            title="Forbidden",
+            message="You don't have permission to access this.",
+        ), 403
 
     @app.errorhandler(404)
     async def not_found(e):
-        return await render_template("error.html", code=404, title="Not Found",
-                                      message="The page you're looking for doesn't exist."), 404
+        return await render_template(
+            "error.html",
+            code=404,
+            title="Not Found",
+            message="The page you're looking for doesn't exist.",
+        ), 404
 
     @app.errorhandler(413)
     async def too_large(e):
-        return await render_template("error.html", code=413, title="File Too Large",
-                                      message="The uploaded file exceeds the size limit."), 413
+        return await render_template(
+            "error.html",
+            code=413,
+            title="File Too Large",
+            message="The uploaded file exceeds the size limit.",
+        ), 413
 
     @app.errorhandler(429)
     async def rate_limited(e):
-        return await render_template("error.html", code=429, title="Too Many Requests",
-                                      message="Slow down. Please try again later."), 429
+        return await render_template(
+            "error.html",
+            code=429,
+            title="Too Many Requests",
+            message="Slow down. Please try again later.",
+        ), 429
 
     @app.errorhandler(500)
     async def server_error(e):
-        return await render_template("error.html", code=500, title="Server Error",
-                                      message="Something went wrong. Please try again later."), 500
+        return await render_template(
+            "error.html",
+            code=500,
+            title="Server Error",
+            message="Something went wrong. Please try again later.",
+        ), 500
 
     @app.route("/ads.txt")
     async def ads_txt():
@@ -96,12 +124,13 @@ def create_app():
     def to_usb_id(account_id):
         """Convert stored big-endian account ID to USB folder format (little-endian)."""
         if len(account_id) == 16:
-            return "".join(reversed([account_id[i:i+2] for i in range(0, 16, 2)]))
+            return "".join(reversed([account_id[i : i + 2] for i in range(0, 16, 2)]))
         return account_id
 
     @app.context_processor
     async def inject_worker_count():
         from models import get_db
+
         ps4_count = 0
         ps5_count = 0
         try:
@@ -135,10 +164,17 @@ def create_app():
     @app.before_serving
     async def startup():
         await init_db()
-        for d in ["workspace/uploads", "workspace/results", "workspace/processing", "workspace/chunks", "workspace/savedb"]:
+        for d in [
+            "workspace/uploads",
+            "workspace/results",
+            "workspace/processing",
+            "workspace/chunks",
+            "workspace/savedb",
+        ]:
             os.makedirs(d, exist_ok=True)
 
     return app
+
 
 if __name__ == "__main__":
     app = create_app()

@@ -1,8 +1,14 @@
 from dataclasses import dataclass
+
 from data.crypto.common import CustomCrypto as CC
 from data.crypto.exceptions import CryptoError
-from utils.constants import LOH_TRAILS_CS4_TITLEID, LOH_TRAILS_DAYBREAK_TITLEID, LOH_TRAILS_ZERO_AZURE
+from utils.constants import (
+    LOH_TRAILS_CS4_TITLEID,
+    LOH_TRAILS_DAYBREAK_TITLEID,
+    LOH_TRAILS_ZERO_AZURE,
+)
 from utils.type_helpers import uint32
+
 
 class Crypt_LoHTrails:
     class Decompression_LoHTrails:
@@ -83,8 +89,8 @@ class Crypt_LoHTrails:
         async def decompress(self) -> None:
             await self.cc.r_stream.seek(0)
             self.target_size = uint32(await self.cc.r_stream.read(4), "little").value
-            source_size      = uint32(await self.cc.r_stream.read(4), "little").value
-            backref_byte     = uint32(await self.cc.r_stream.read(4), "little").value
+            source_size = uint32(await self.cc.r_stream.read(4), "little").value
+            backref_byte = uint32(await self.cc.r_stream.read(4), "little").value
             self.cc.set_ptr(self.source_position)
 
             if self.target_size > self.cc.SAVESIZE_MAX:
@@ -122,6 +128,7 @@ class Crypt_LoHTrails:
         class Backref:
             position: int
             length: int
+
         MAX_BACKREF_LENGTH = 32
         MAX_BACKREF_OFFSET = 32
 
@@ -159,7 +166,7 @@ class Crypt_LoHTrails:
         async def write_alloc_target(self) -> None:
             size = await self.cc.w_stream.seek(self.target_buf_start)
             if size + len(self.target_buf) > self.target_position:
-                del self.target_buf[self.target_position - self.target_buf_start:]
+                del self.target_buf[self.target_position - self.target_buf_start :]
                 self.target_buf_end = self.target_buf_start + len(self.target_buf)
             await self.cc.w_stream.write(self.target_buf)
 
@@ -225,11 +232,13 @@ class Crypt_LoHTrails:
             await self.write_alloc_target()
 
             # write header
-            uncompressed_length = uint32(self.cc.size,         "little").as_bytes
-            compressed_length   = uint32(self.target_position, "little").as_bytes
-            backref_byte        = uint32(self.backref_byte,    "little").as_bytes
+            uncompressed_length = uint32(self.cc.size, "little").as_bytes
+            compressed_length = uint32(self.target_position, "little").as_bytes
+            backref_byte = uint32(self.backref_byte, "little").as_bytes
             await self.cc.w_stream.seek(0)
-            await self.cc.w_stream.write(uncompressed_length + compressed_length + backref_byte)
+            await self.cc.w_stream.write(
+                uncompressed_length + compressed_length + backref_byte
+            )
 
             self.clear()
 
@@ -248,27 +257,36 @@ class Crypt_LoHTrails:
             best_backref = self.Backref(0, 0)
 
             if self.source_position == 0:
-                return best_backref # no backref possible
+                return best_backref  # no backref possible
 
             # Calculate search range
             first_possible_backref_position = (
-                0 if self.source_position < self.MAX_BACKREF_OFFSET
+                0
+                if self.source_position < self.MAX_BACKREF_OFFSET
                 else self.source_position - self.MAX_BACKREF_OFFSET
             )
             last_possible_backref_position = self.source_position - 1
             current_backref_test = last_possible_backref_position
 
             r_len = self.source_position - first_possible_backref_position
-            if first_possible_backref_position >= self.cc.chunk_start and first_possible_backref_position + r_len <= self.cc.chunk_end:
+            if (
+                first_possible_backref_position >= self.cc.chunk_start
+                and first_possible_backref_position + r_len <= self.cc.chunk_end
+            ):
                 r_pos = first_possible_backref_position - self.cc.chunk_start
-                self.buf[:r_len] = self.cc.chunk[r_pos:r_pos + r_len]
+                self.buf[:r_len] = self.cc.chunk[r_pos : r_pos + r_len]
             else:
                 await self.cc.r_stream.seek(first_possible_backref_position)
                 self.buf[:r_len] = await self.cc.r_stream.read(r_len)
 
-            if self.source_position >= self.cc.chunk_start and self.source_position + self.MAX_BACKREF_LENGTH <= self.cc.chunk_end:
+            if (
+                self.source_position >= self.cc.chunk_start
+                and self.source_position + self.MAX_BACKREF_LENGTH <= self.cc.chunk_end
+            ):
                 c_pos = self.source_position - self.cc.chunk_start
-                self.buf[r_len:] = self.cc.chunk[c_pos:c_pos + self.MAX_BACKREF_LENGTH]
+                self.buf[r_len:] = self.cc.chunk[
+                    c_pos : c_pos + self.MAX_BACKREF_LENGTH
+                ]
             else:
                 await self.cc.r_stream.seek(self.source_position)
                 self.buf[r_len:] = await self.cc.r_stream.read(self.MAX_BACKREF_LENGTH)
@@ -278,8 +296,7 @@ class Crypt_LoHTrails:
                 count = 0
                 local_max_backref_length = self.source_position - current_backref_test
                 allowed_backref_length = min(
-                    local_max_backref_length,
-                    self.cc.size - self.source_position
+                    local_max_backref_length, self.cc.size - self.source_position
                 )
 
                 for i in range(allowed_backref_length):
@@ -315,13 +332,22 @@ class Crypt_LoHTrails:
         async with CC(filepath) as cc:
             if title_id in LOH_TRAILS_DAYBREAK_TITLEID:
                 seed = cc.size - 12
-                crc32 = cc.create_ctx_crc32_any(0x4C11DB7, cc.reverse_32_bits(seed), True, True, 0, uint32(cc.size - 12, "little", const=True))
+                crc32 = cc.create_ctx_crc32_any(
+                    0x4C11DB7,
+                    cc.reverse_32_bits(seed),
+                    True,
+                    True,
+                    0,
+                    uint32(cc.size - 12, "little", const=True),
+                )
                 await cc.checksum(crc32, start_off=12, end_off=cc.size)
                 await cc.write_checksum(crc32, 8)
             elif title_id in LOH_TRAILS_ZERO_AZURE:
                 file_size_max_pos = cc.size - 1
                 file_savedata_checksum = uint32(0, "little")
-                file_size_checksum = uint32(-1 * (((file_size_max_pos - 0x08) // 0x04) + 0x01), "little")
+                file_size_checksum = uint32(
+                    -1 * (((file_size_max_pos - 0x08) // 0x04) + 0x01), "little"
+                )
                 while await cc.read(stop_off=cc.size - 8):
                     cc.bytes_to_u32array("little")
                     file_savedata_checksum.value += sum(u32.value for u32 in cc.chunk)
@@ -333,7 +359,14 @@ class Crypt_LoHTrails:
             else:
                 # LOH_TRAILS_CS4_TITLEID
                 seed = cc.size - 0x10
-                crc32 = cc.create_ctx_crc32_any(0x04C11DB7, cc.reverse_32_bits(seed), True, True, 0, uint32(seed, "little", const=True))
+                crc32 = cc.create_ctx_crc32_any(
+                    0x04C11DB7,
+                    cc.reverse_32_bits(seed),
+                    True,
+                    True,
+                    0,
+                    uint32(seed, "little", const=True),
+                )
                 await cc.checksum(crc32, start_off=0x10, end_off=cc.size)
                 await cc.write_checksum(crc32, 12)
 

@@ -17,7 +17,7 @@ def load_nid_map(csv_path):
             line = line.strip()
             if not line:
                 continue
-            parts = line.split(' ', 1)
+            parts = line.split(" ", 1)
             if len(parts) == 2:
                 nid_map[parts[0]] = parts[1]
     return nid_map
@@ -29,21 +29,21 @@ def extract_exports(filepath, nid_map):
 
     funcs = set()
     try:
-        with open(filepath, 'rb') as f:
+        with open(filepath, "rb") as f:
             elf = ELFFile(f)
             for segment in elf.iter_segments():
-                if segment.header.p_type != 'PT_DYNAMIC':
+                if segment.header.p_type != "PT_DYNAMIC":
                     continue
                 for sym in segment.iter_symbols():
-                    if sym.entry['st_shndx'] == 'SHN_UNDEF':
+                    if sym.entry["st_shndx"] == "SHN_UNDEF":
                         continue
                     if not sym.name:
                         continue
-                    sym_type = sym.entry['st_info']['type']
-                    if sym_type not in ('STT_FUNC', 'STT_OBJECT'):
+                    sym_type = sym.entry["st_info"]["type"]
+                    if sym_type not in ("STT_FUNC", "STT_OBJECT"):
                         continue
                     # NID format: nid#lid#mid
-                    parts = sym.name.split('#')
+                    parts = sym.name.split("#")
                     if len(parts) >= 1:
                         nid = parts[0]
                         if nid in nid_map:
@@ -79,7 +79,9 @@ def build():
     conn.execute("CREATE INDEX idx_func_library ON functions(library)")
 
     total = 0
-    files = sorted(f for f in os.listdir(libs_dir) if f.endswith(".dec") or f.endswith(".sprx"))
+    files = sorted(
+        f for f in os.listdir(libs_dir) if f.endswith(".dec") or f.endswith(".sprx")
+    )
     for fname in files:
         filepath = os.path.join(libs_dir, fname)
         lib_name = fname.replace(".dec", "")
@@ -91,7 +93,7 @@ def build():
                 ftype = "function" if sym_type == "STT_FUNC" else "object"
                 conn.execute(
                     "INSERT INTO functions (name, library, type) VALUES (?, ?, ?)",
-                    (name, lib_name, ftype)
+                    (name, lib_name, ftype),
                 )
             total += len(exports)
 

@@ -1,7 +1,10 @@
 from data.crypto.common import CustomCrypto
 
+
 class QuickCheats(CustomCrypto):
-    async def find_off_with_identifier32(self, before_offset: bytes, after_offset: bytes | None, bytes_between: int) -> int:
+    async def find_off_with_identifier32(
+        self, before_offset: bytes, after_offset: bytes | None, bytes_between: int
+    ) -> int:
         """Used to find an offset using values that identify the location (32 bit / 4 byte)."""
         index = 0
         target_offset = -1

@@ -1,7 +1,7 @@
 import hashlib
 import hmac
 
-from quart import Blueprint, render_template, request, redirect, url_for, session, flash
+from quart import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from auth import login_required
 from config import WORKER_SIGNING_KEY
@@ -38,7 +38,7 @@ async def contribute():
             # Insert a placeholder row to get the key_id
             cursor = await db.execute(
                 "INSERT INTO worker_keys (user_id, key, name) VALUES (?, '', ?)",
-                (user_id, name)
+                (user_id, name),
             )
             key_id = cursor.lastrowid
 
@@ -47,8 +47,7 @@ async def contribute():
 
             # Update the row with the real key
             await db.execute(
-                "UPDATE worker_keys SET key = ? WHERE id = ?",
-                (key, key_id)
+                "UPDATE worker_keys SET key = ? WHERE id = ?", (key, key_id)
             )
             await db.commit()
         finally:
@@ -56,7 +55,9 @@ async def contribute():
 
         # Store in session so it's not exposed in URL
         session["new_worker_key"] = key
-        await flash("Worker key created! Copy it now, it won't be shown again.", "success")
+        await flash(
+            "Worker key created! Copy it now, it won't be shown again.", "success"
+        )
         return redirect(url_for("contribute.contribute"))
 
     # GET — list user's keys with success rate from job_stats
@@ -76,7 +77,7 @@ async def contribute():
             "  SUM(total) as hist_total FROM job_stats GROUP BY worker_key_id"
             ") ps ON ps.worker_key_id = wk.id "
             "WHERE wk.user_id = ? ORDER BY wk.created_at DESC",
-            (user_id,)
+            (user_id,),
         )
         keys = [dict(row) for row in await cursor.fetchall()]
     finally:
@@ -86,10 +87,10 @@ async def contribute():
 
     if any(k["is_suspended"] for k in keys):
         await flash(
-            'Oops! Your worker has been suspended! This isn\'t your fault. Your console just needs to be rebooted '
+            "Oops! Your worker has been suspended! This isn't your fault. Your console just needs to be rebooted "
             'and make sure you are running the <a href="https://github.com/earthonion/garlicsaves-worker/releases" target="_blank">latest worker ELF</a>, '
-            'then simply click the Reactivate button. Suspension happens after 10 failed jobs in a row.',
-            "error"
+            "then simply click the Reactivate button. Suspension happens after 10 failed jobs in a row.",
+            "error",
         )
 
     return await render_template("contribute.html", keys=keys, new_key=new_key)
@@ -103,7 +104,7 @@ async def revoke_key(key_id):
     try:
         await db.execute(
             "UPDATE worker_keys SET is_active = 0 WHERE id = ? AND user_id = ?",
-            (key_id, user_id)
+            (key_id, user_id),
         )
         await db.commit()
     finally:
@@ -121,11 +122,13 @@ async def reactivate_key(key_id):
     try:
         await db.execute(
             "UPDATE worker_keys SET suspended_until = NULL WHERE id = ? AND user_id = ?",
-            (key_id, user_id)
+            (key_id, user_id),
         )
         await db.commit()
     finally:
         await db.close()
 
-    await flash("Worker reactivated. Make sure you've rebooted your console!", "success")
+    await flash(
+        "Worker reactivated. Make sure you've rebooted your console!", "success"
+    )
     return redirect(url_for("contribute.contribute"))

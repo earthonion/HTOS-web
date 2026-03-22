@@ -3,19 +3,22 @@ from __future__ import annotations
 import os
 import shutil
 from typing import TYPE_CHECKING
-from aiofiles.os import mkdir, listdir
-from aiofiles.ospath import exists, isfile, isdir, getsize
+
+from aiofiles.os import listdir, mkdir
+from aiofiles.ospath import exists, getsize, isdir, isfile
 
 if TYPE_CHECKING:
-    from services.jobs import WebLogger as Logger, ServerSettings as Settings
+    from services.jobs import ServerSettings as Settings
+    from services.jobs import WebLogger as Logger
 
 from utils.constants import MAX_FILENAME_LEN, MAX_PATH_LEN, RANDOMSTRING_LENGTH
-from utils.orbis import OrbisError, parse_pfs_header, parse_sealedkey
 from utils.exceptions import FileError
 from utils.extras import generate_random_string
+from utils.orbis import OrbisError, parse_pfs_header, parse_sealedkey
 
 # PS4 upload dir path for save validation (matches cecie.nim default)
 PS_UPLOADDIR = "/data/saves"
+
 
 async def get_files_nonrecursive(folder_path: str) -> list[str]:
     files = []
@@ -24,6 +27,7 @@ async def get_files_nonrecursive(folder_path: str) -> list[str]:
         if await isfile(full_path):
             files.append(full_path)
     return files
+
 
 async def get_files_recursive(folder: str, files: list[str] | None = None) -> list[str]:
     if files is None:
@@ -40,7 +44,10 @@ async def get_files_recursive(folder: str, files: list[str] | None = None) -> li
             await get_files_recursive(entry_path, files)
     return files
 
-def save_pair_check(logger: Logger, paths: list[str], savepair_limit: int | None) -> list[str]:
+
+def save_pair_check(
+    logger: Logger, paths: list[str], savepair_limit: int | None
+) -> list[str]:
     valid_files_temp = []
     for file in paths:
         filename = os.path.basename(file) + f"_{'X' * RANDOMSTRING_LENGTH}"
@@ -49,10 +56,14 @@ def save_pair_check(logger: Logger, paths: list[str], savepair_limit: int | None
         path_len = len(path)
 
         if filename_len > MAX_PATH_LEN:
-            logger.warning(f"Filename {filename} ({filename_len}) will exceed {MAX_FILENAME_LEN}. Skipping...")
+            logger.warning(
+                f"Filename {filename} ({filename_len}) will exceed {MAX_FILENAME_LEN}. Skipping..."
+            )
             continue
         if path_len > MAX_PATH_LEN:
-            logger.warning(f"Path {path} ({path_len}) will exceed {MAX_FILENAME_LEN}. Skipping...")
+            logger.warning(
+                f"Path {path} ({path_len}) will exceed {MAX_FILENAME_LEN}. Skipping..."
+            )
             continue
         valid_files_temp.append(file)
 
@@ -69,18 +80,27 @@ def save_pair_check(logger: Logger, paths: list[str], savepair_limit: int | None
                 # pair found
                 if filename_nested == os.path.splitext(filename)[0]:
                     valid_files.append(file)
-                    valid_files.append(file_nested) 
+                    valid_files.append(file_nested)
 
     valid_files_cnt = len(valid_files)
     savepair_cnt = valid_files_cnt / 2
     if valid_files_cnt == 0:
         raise OrbisError("No valid saves found!")
     if savepair_limit and savepair_cnt > savepair_limit:
-        raise FileError(f"Maximum savepair limit of {savepair_limit} exceeded ({savepair_cnt})!")
+        raise FileError(
+            f"Maximum savepair limit of {savepair_limit} exceeded ({savepair_cnt})!"
+        )
 
     return valid_files
 
-async def prepare_save_input_folder(settings: Settings, logger: Logger, folder_path: str, output_folder_path: str, savepair_limit: int | None = None) -> list[list[str]]:
+
+async def prepare_save_input_folder(
+    settings: Settings,
+    logger: Logger,
+    folder_path: str,
+    output_folder_path: str,
+    savepair_limit: int | None = None,
+) -> list[list[str]]:
     finished_files = []
 
     if settings.recursivity.value:
@@ -90,7 +110,9 @@ async def prepare_save_input_folder(settings: Settings, logger: Logger, folder_p
     saves = save_pair_check(logger, files, savepair_limit)
 
     # no files in output root, only folder for each batch
-    cur_output_dir = os.path.join(output_folder_path, os.path.basename(output_folder_path))
+    cur_output_dir = os.path.join(
+        output_folder_path, os.path.basename(output_folder_path)
+    )
     await mkdir(cur_output_dir)
 
     finished_files_cycle = []
@@ -104,7 +126,9 @@ async def prepare_save_input_folder(settings: Settings, logger: Logger, folder_p
         filename = os.path.basename(file)
         filepath_out = os.path.join(cur_output_dir, filename)
         if await exists(filepath_out):
-            cur_output_dir = os.path.join(output_folder_path, generate_random_string(RANDOMSTRING_LENGTH))
+            cur_output_dir = os.path.join(
+                output_folder_path, generate_random_string(RANDOMSTRING_LENGTH)
+            )
             await mkdir(cur_output_dir)
             filepath_out = os.path.join(cur_output_dir, filename)
             finished_files.append(finished_files_cycle)
@@ -115,7 +139,10 @@ async def prepare_save_input_folder(settings: Settings, logger: Logger, folder_p
     finished_files.append(finished_files_cycle)
     return finished_files
 
-async def prepare_files_input_folder(settings: Settings, folder_path: str, output_folder_path: str) -> list[list[str]]:
+
+async def prepare_files_input_folder(
+    settings: Settings, folder_path: str, output_folder_path: str
+) -> list[list[str]]:
     finished_files = []
 
     if settings.recursivity.value:
@@ -123,7 +150,9 @@ async def prepare_files_input_folder(settings: Settings, folder_path: str, outpu
     else:
         files = await get_files_nonrecursive(folder_path)
 
-    cur_output_dir = os.path.join(output_folder_path, os.path.basename(output_folder_path))
+    cur_output_dir = os.path.join(
+        output_folder_path, os.path.basename(output_folder_path)
+    )
     await mkdir(cur_output_dir)
 
     finished_files_cycle = []
@@ -131,7 +160,9 @@ async def prepare_files_input_folder(settings: Settings, folder_path: str, outpu
         filename = os.path.basename(file)
         filepath_out = os.path.join(cur_output_dir, filename)
         if await exists(filepath_out):
-            cur_output_dir = os.path.join(output_folder_path, generate_random_string(RANDOMSTRING_LENGTH))
+            cur_output_dir = os.path.join(
+                output_folder_path, generate_random_string(RANDOMSTRING_LENGTH)
+            )
             await mkdir(cur_output_dir)
             filepath_out = os.path.join(cur_output_dir, filename)
             finished_files.append(finished_files_cycle)
@@ -142,7 +173,10 @@ async def prepare_files_input_folder(settings: Settings, folder_path: str, outpu
     finished_files.append(finished_files_cycle)
     return finished_files
 
-async def calculate_foldersize(settings: Settings, folder_path: str) -> tuple[int, list[str]]:
+
+async def calculate_foldersize(
+    settings: Settings, folder_path: str
+) -> tuple[int, list[str]]:
     if settings.recursivity.value:
         files = await get_files_recursive(folder_path)
     else:
@@ -152,6 +186,7 @@ async def calculate_foldersize(settings: Settings, folder_path: str) -> tuple[in
     for f in files:
         size += await getsize(f)
     return size, files
+
 
 async def check_save(path: str) -> tuple[bool, tuple[str, str]]:
     if path.endswith(".bin"):
@@ -170,7 +205,10 @@ async def check_save(path: str) -> tuple[bool, tuple[str, str]]:
         return False, ("", "")
     return True, (savefile, binfile)
 
-async def prepare_single_save_folder(savepair: tuple[str, str], output_folder_path: str) -> tuple[str, str]:
+
+async def prepare_single_save_folder(
+    savepair: tuple[str, str], output_folder_path: str
+) -> tuple[str, str]:
     output_dir = os.path.join(output_folder_path, os.path.basename(output_folder_path))
     await mkdir(output_dir)
 
@@ -181,6 +219,7 @@ async def prepare_single_save_folder(savepair: tuple[str, str], output_folder_pa
         shutil.copyfile(file, filepath_out)
         outpair.append(filepath_out)
     return tuple(outpair)
+
 
 def int_validation(s: str | int, min_: int, max_: int) -> bool:
     assert min_ < max_

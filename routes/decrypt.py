@@ -1,11 +1,21 @@
-from quart import Blueprint, render_template, request, session, redirect, url_for, flash
+from quart import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from auth import login_required
+from services.files import (
+    DangerousFileError,
+    FileTooLargeError,
+    InvalidSaveFilesError,
+    detect_platform_in_dir,
+    extract_account_id,
+    resolve_chunked_uploads,
+    save_uploaded_files,
+    validate_save_pairs,
+)
 from services.jobs import create_job
-from services.files import save_uploaded_files, extract_account_id, detect_platform_in_dir, FileTooLargeError, InvalidSaveFilesError, DangerousFileError, validate_save_pairs, resolve_chunked_uploads
 from services.workers import ps5_workers_online
 
 decrypt_bp = Blueprint("decrypt", __name__)
+
 
 @decrypt_bp.route("/decrypt", methods=["GET", "POST"])
 @login_required
@@ -23,19 +33,30 @@ async def decrypt():
             return await render_template("decrypt.html")
 
         user_id = session["user_id"]
-        job = await create_job(user_id, "decrypt", {
-            "include_sce_sys": include_sce_sys,
-            "ignore_secondlayer": ignore_secondlayer,
-        }, ready=False)
+        job = await create_job(
+            user_id,
+            "decrypt",
+            {
+                "include_sce_sys": include_sce_sys,
+                "ignore_secondlayer": ignore_secondlayer,
+            },
+            ready=False,
+        )
         try:
             if upload_ids_json:
                 import json
+
                 upload_ids = json.loads(upload_ids_json)
-                upload_dir = await resolve_chunked_uploads(upload_ids, user_id, job.job_id)
+                upload_dir = await resolve_chunked_uploads(
+                    upload_ids, user_id, job.job_id
+                )
             else:
                 upload_dir = await save_uploaded_files(files, user_id, job.job_id)
         except FileTooLargeError as e:
-            await flash(f"Save file too large: {e}. Worker cannot process files this big.", "error")
+            await flash(
+                f"Save file too large: {e}. Worker cannot process files this big.",
+                "error",
+            )
             return await render_template("decrypt.html")
         except DangerousFileError as e:
             await flash(str(e), "error")
@@ -49,6 +70,7 @@ async def decrypt():
                 return await render_template("decrypt.html")
         # Extract save name from uploaded filenames for display
         import os
+
         savename = ""
         for f in os.listdir(upload_dir):
             if f.endswith(".bin") and not f.startswith("."):

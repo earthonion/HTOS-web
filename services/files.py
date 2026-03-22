@@ -3,16 +3,27 @@ import os
 import shutil
 import struct
 import zipfile
-from config import UPLOAD_DIR, RESULT_DIR, MAX_SAVE_FILE_SIZE, CHUNK_DIR
+
+from config import CHUNK_DIR, MAX_SAVE_FILE_SIZE, RESULT_DIR, UPLOAD_DIR
 
 # Upload security
 # Only block Windows/macOS executables and installers — not scripts or media
 # that could legitimately appear in PS4/PS5 saves (lua, py, svg, html, etc.)
 BLOCKED_EXTENSIONS = {
-    ".exe", ".bat", ".cmd", ".com", ".msi", ".scr", ".pif",
-    ".dll", ".sys", ".drv",
-    ".app", ".dmg",
-    ".deb", ".rpm",
+    ".exe",
+    ".bat",
+    ".cmd",
+    ".com",
+    ".msi",
+    ".scr",
+    ".pif",
+    ".dll",
+    ".sys",
+    ".drv",
+    ".app",
+    ".dmg",
+    ".deb",
+    ".rpm",
 }
 
 # Max total decompressed size for zips (2GB)
@@ -30,7 +41,7 @@ def account_id_to_usb(stored_id: str) -> str:
     The worker does uint64(hex, "little") which interprets the hex as an integer
     then packs as LE bytes. Passing the USB-format hex produces correct SFO raw bytes."""
     if len(stored_id) == 16:
-        return "".join(reversed([stored_id[i:i+2] for i in range(0, 16, 2)]))
+        return "".join(reversed([stored_id[i : i + 2] for i in range(0, 16, 2)]))
     return stored_id
 
 
@@ -72,8 +83,8 @@ def check_zip_safety(zip_path):
 
             if decompressed > MAX_ZIP_DECOMPRESSED:
                 raise DangerousFileError(
-                    f"Zip decompressed size ({decompressed // (1024*1024)}MB) exceeds limit. "
-                    f"Max allowed is {MAX_ZIP_DECOMPRESSED // (1024*1024)}MB."
+                    f"Zip decompressed size ({decompressed // (1024 * 1024)}MB) exceeds limit. "
+                    f"Max allowed is {MAX_ZIP_DECOMPRESSED // (1024 * 1024)}MB."
                 )
 
             if compressed > 0 and decompressed / compressed > MAX_ZIP_RATIO:
@@ -157,21 +168,31 @@ def validate_save_pairs(directory: str):
     """Check that the upload directory contains valid save pairs.
     Each save file should have a matching .bin companion.
     Raises InvalidSaveFilesError with a user-friendly message if not."""
-    files = [n for n in os.listdir(directory) if os.path.isfile(os.path.join(directory, n))]
+    files = [
+        n for n in os.listdir(directory) if os.path.isfile(os.path.join(directory, n))
+    ]
     if not files:
-        raise InvalidSaveFilesError("No files found. Please upload save file pairs (.bin + matching save file) or a .zip.")
+        raise InvalidSaveFilesError(
+            "No files found. Please upload save file pairs (.bin + matching save file) or a .zip."
+        )
     # If there's a zip, that's fine — it will be extracted
     if any(f.lower().endswith(".zip") for f in files):
         return
     bin_files = {f[:-4] for f in files if f.lower().endswith(".bin")}
     save_files = [f for f in files if not f.lower().endswith(".bin")]
     if not save_files:
-        raise InvalidSaveFilesError("No save files found. You uploaded only .bin files — please include the matching save files too.")
+        raise InvalidSaveFilesError(
+            "No save files found. You uploaded only .bin files — please include the matching save files too."
+        )
     if not bin_files:
-        raise InvalidSaveFilesError("No .bin files found. Encrypted saves need a .bin companion file. Please upload save pairs (.bin + matching save file) or a .zip.")
+        raise InvalidSaveFilesError(
+            "No .bin files found. Encrypted saves need a .bin companion file. Please upload save pairs (.bin + matching save file) or a .zip."
+        )
     unmatched = [f for f in save_files if f not in bin_files]
     if unmatched and not bin_files:
-        raise InvalidSaveFilesError(f"Missing .bin files for: {', '.join(unmatched[:3])}. Please upload the matching .bin companion files.")
+        raise InvalidSaveFilesError(
+            f"Missing .bin files for: {', '.join(unmatched[:3])}. Please upload the matching .bin companion files."
+        )
 
 
 def validate_createsave_files(directory: str):
@@ -185,9 +206,13 @@ def validate_createsave_files(directory: str):
                 has_sfo = True
                 break
     if not has_sce_sys:
-        raise InvalidSaveFilesError("No sce_sys folder found. Please upload a save folder or zip containing an sce_sys directory.")
+        raise InvalidSaveFilesError(
+            "No sce_sys folder found. Please upload a save folder or zip containing an sce_sys directory."
+        )
     if not has_sfo:
-        raise InvalidSaveFilesError("Missing param.sfo inside sce_sys. Please make sure your save folder includes sce_sys/param.sfo.")
+        raise InvalidSaveFilesError(
+            "Missing param.sfo inside sce_sys. Please make sure your save folder includes sce_sys/param.sfo."
+        )
 
 
 def _strip_sdimg_prefix(directory: str):
@@ -240,7 +265,7 @@ async def save_uploaded_files(files, user_id: int, job_id: str) -> str:
     os.makedirs(upload_dir, exist_ok=True)
 
     for f in files:
-        if not f.filename or f.filename.endswith('/'):
+        if not f.filename or f.filename.endswith("/"):
             continue
         filepath = _safe_join(upload_dir, f.filename)
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -259,7 +284,7 @@ async def save_uploaded_files_to(files, dest_dir: str) -> str:
     """Save uploaded files to a specific directory."""
     os.makedirs(dest_dir, exist_ok=True)
     for f in files:
-        if not f.filename or f.filename.endswith('/'):
+        if not f.filename or f.filename.endswith("/"):
             continue
         filepath = _safe_join(dest_dir, f.filename)
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -351,22 +376,22 @@ def patch_sfo_saveblocks(sfo_path: str, saveblocks: int) -> bool:
     try:
         with open(sfo_path, "r+b") as fh:
             data = fh.read()
-            if len(data) < 20 or data[:4] != b'\x00PSF':
+            if len(data) < 20 or data[:4] != b"\x00PSF":
                 return False
-            key_off = struct.unpack_from('<I', data, 8)[0]
-            data_off = struct.unpack_from('<I', data, 12)[0]
-            count = struct.unpack_from('<I', data, 16)[0]
+            key_off = struct.unpack_from("<I", data, 8)[0]
+            data_off = struct.unpack_from("<I", data, 12)[0]
+            count = struct.unpack_from("<I", data, 16)[0]
             for i in range(count):
                 base = 20 + i * 16
                 if base + 16 > len(data):
                     return False
-                k_off = struct.unpack_from('<H', data, base)[0]
-                d_off = struct.unpack_from('<I', data, base + 12)[0]
-                end = data.index(b'\x00', key_off + k_off)
-                key = data[key_off + k_off:end].decode()
+                k_off = struct.unpack_from("<H", data, base)[0]
+                d_off = struct.unpack_from("<I", data, base + 12)[0]
+                end = data.index(b"\x00", key_off + k_off)
+                key = data[key_off + k_off : end].decode()
                 if key == "SAVEDATA_BLOCKS":
                     fh.seek(data_off + d_off)
-                    fh.write(struct.pack('<Q', saveblocks))
+                    fh.write(struct.pack("<Q", saveblocks))
                     return True
         return False
     except (OSError, ValueError, UnicodeDecodeError):

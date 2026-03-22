@@ -1,13 +1,13 @@
 import csv
 import io
 
-from quart import Blueprint, render_template, request, jsonify, session, Response
+from quart import Blueprint, Response, jsonify, render_template, request, session
 
-from auth import login_required, admin_required
+from auth import admin_required, login_required
 from models import get_db
-from services.titles import search_titles
 from services.filesystem import search_filesystem
 from services.functions import search_functions
+from services.titles import search_titles
 
 tools_bp = Blueprint("tools", __name__)
 
@@ -52,7 +52,9 @@ async def fs_browser():
     results = []
     if q and len(q) >= 2:
         results = search_filesystem(q, platform=platform, limit=50)
-    return await render_template("tools_fs_browser.html", q=q, platform=platform, results=results)
+    return await render_template(
+        "tools_fs_browser.html", q=q, platform=platform, results=results
+    )
 
 
 @tools_bp.route("/tools/api/fs-search")
@@ -117,7 +119,7 @@ async def api_submit_entitlements():
                         e.get("platform", "")[:10],
                         e.get("content_type", "")[:50],
                         user_id,
-                    )
+                    ),
                 )
                 inserted += db.total_changes
             except Exception:
@@ -159,20 +161,28 @@ async def admin_entitlements():
         cursor = await db.execute(
             f"SELECT * FROM entitlements {where_sql} "
             "ORDER BY created_at DESC LIMIT ? OFFSET ?",
-            params + [per_page + 1, offset]
+            params + [per_page + 1, offset],
         )
         rows = [dict(r) for r in await cursor.fetchall()]
         has_next = len(rows) > per_page
         entries = rows[:per_page]
 
-        cursor = await db.execute(f"SELECT COUNT(*) FROM entitlements {where_sql}", params)
+        cursor = await db.execute(
+            f"SELECT COUNT(*) FROM entitlements {where_sql}", params
+        )
         total = (await cursor.fetchone())[0]
     finally:
         await db.close()
 
-    return await render_template("admin_entitlements.html",
-                                 entries=entries, q=q, page=page,
-                                 has_next=has_next, total=total, platform=platform)
+    return await render_template(
+        "admin_entitlements.html",
+        entries=entries,
+        q=q,
+        page=page,
+        has_next=has_next,
+        total=total,
+        platform=platform,
+    )
 
 
 @tools_bp.route("/admin/entitlements/csv")
@@ -186,7 +196,7 @@ async def admin_entitlements_csv():
             cursor = await db.execute(
                 "SELECT entitlement_id, title, title_id, package_url, platform, content_type "
                 "FROM entitlements WHERE platform = ? ORDER BY title",
-                (platform,)
+                (platform,),
             )
         else:
             cursor = await db.execute(
@@ -199,13 +209,31 @@ async def admin_entitlements_csv():
 
     out = io.StringIO()
     writer = csv.writer(out)
-    writer.writerow(["entitlement_id", "title", "title_id", "package_url", "platform", "content_type"])
+    writer.writerow(
+        [
+            "entitlement_id",
+            "title",
+            "title_id",
+            "package_url",
+            "platform",
+            "content_type",
+        ]
+    )
     for r in rows:
-        writer.writerow([r["entitlement_id"], r["title"], r["title_id"], r["package_url"], r["platform"], r["content_type"]])
+        writer.writerow(
+            [
+                r["entitlement_id"],
+                r["title"],
+                r["title_id"],
+                r["package_url"],
+                r["platform"],
+                r["content_type"],
+            ]
+        )
 
     filename = f"entitlements_{platform}.csv" if platform else "entitlements_all.csv"
     return Response(
         out.getvalue(),
         content_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )

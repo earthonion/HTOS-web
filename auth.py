@@ -1,9 +1,18 @@
 import time
 from collections import defaultdict
+from functools import wraps
 
 import bcrypt
-from functools import wraps
-from quart import Blueprint, render_template, request, redirect, url_for, session, flash, abort
+from quart import (
+    Blueprint,
+    abort,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
 from models import get_db
 
@@ -26,12 +35,14 @@ def _is_rate_limited(ip: str) -> bool:
 def _record_attempt(ip: str):
     _login_attempts[ip].append(time.time())
 
+
 def login_required(f):
     @wraps(f)
     async def decorated(*args, **kwargs):
         if "user_id" not in session:
             return redirect(url_for("auth.login"))
         return await f(*args, **kwargs)
+
     return decorated
 
 
@@ -43,18 +54,24 @@ def admin_required(f):
         if not session.get("is_admin"):
             abort(403)
         return await f(*args, **kwargs)
+
     return decorated
+
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
+
 def check_password(password: str, password_hash: str) -> bool:
     return bcrypt.checkpw(password.encode(), password_hash.encode())
+
 
 async def is_invite_only():
     db = await get_db()
     try:
-        cursor = await db.execute("SELECT value FROM settings WHERE key = 'invite_only'")
+        cursor = await db.execute(
+            "SELECT value FROM settings WHERE key = 'invite_only'"
+        )
         row = await cursor.fetchone()
         return row and row["value"] == "1"
     finally:
@@ -107,14 +124,18 @@ async def register():
             if invite_only:
                 cursor = await db.execute(
                     "SELECT id FROM invite_codes WHERE code = ? AND used_by IS NULL",
-                    (invite_code,)
+                    (invite_code,),
                 )
                 code_row = await cursor.fetchone()
                 if not code_row:
                     await flash("Invalid or already used invite code.", "error")
-                    return await render_template("register.html", invite_only=invite_only)
+                    return await render_template(
+                        "register.html", invite_only=invite_only
+                    )
 
-            existing = await db.execute("SELECT id FROM users WHERE username = ?", (username,))
+            existing = await db.execute(
+                "SELECT id FROM users WHERE username = ?", (username,)
+            )
             if await existing.fetchone():
                 await flash("Username already taken.", "error")
                 return await render_template("register.html", invite_only=invite_only)
@@ -122,7 +143,7 @@ async def register():
             pw_hash = hash_password(password)
             cursor = await db.execute(
                 "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-                (username, pw_hash)
+                (username, pw_hash),
             )
             user_id = cursor.lastrowid
 
@@ -130,7 +151,7 @@ async def register():
             if invite_only:
                 await db.execute(
                     "UPDATE invite_codes SET used_by = ?, used_at = CURRENT_TIMESTAMP WHERE code = ?",
-                    (user_id, invite_code)
+                    (user_id, invite_code),
                 )
 
             await db.commit()
@@ -141,6 +162,7 @@ async def register():
             await db.close()
 
     return await render_template("register.html", invite_only=invite_only)
+
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 async def login():
@@ -159,7 +181,8 @@ async def login():
         db = await get_db()
         try:
             cursor = await db.execute(
-                "SELECT id, password_hash, is_admin FROM users WHERE username = ?", (username,)
+                "SELECT id, password_hash, is_admin FROM users WHERE username = ?",
+                (username,),
             )
             row = await cursor.fetchone()
             if not row or not check_password(password, row["password_hash"]):
@@ -175,6 +198,7 @@ async def login():
             await db.close()
 
     return await render_template("login.html")
+
 
 @auth_bp.route("/logout", methods=["POST"])
 async def logout():

@@ -20,18 +20,18 @@ def parse_fs_file(filepath, platform):
             if not line or line.startswith("==="):
                 continue
             # Match: /path: type (N bytes)  or  /path: [excluded]  or  /path: type
-            m = re.match(r'^(/\S*?):\s+(.+)$', line)
+            m = re.match(r"^(/\S*?):\s+(.+)$", line)
             if not m:
                 continue
             path = m.group(1)
             rest = m.group(2)
 
             # Parse type and size
-            size_match = re.search(r'\((\d+)\s+bytes?\)', rest)
+            size_match = re.search(r"\((\d+)\s+bytes?\)", rest)
             size = int(size_match.group(1)) if size_match else None
 
             # Clean up the type description
-            ftype = re.sub(r'\s*\(\d+\s+bytes?\)', '', rest).strip()
+            ftype = re.sub(r"\s*\(\d+\s+bytes?\)", "", rest).strip()
 
             entries.append((path, ftype, size, platform))
     return entries
@@ -69,7 +69,7 @@ def build():
             filename = os.path.basename(path) or path
             conn.execute(
                 "INSERT INTO filesystem (path, filename, ftype, size, platform) VALUES (?, ?, ?, ?, ?)",
-                (path, filename, ftype, size, plat)
+                (path, filename, ftype, size, plat),
             )
         total += len(entries)
 

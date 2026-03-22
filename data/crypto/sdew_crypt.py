@@ -1,6 +1,9 @@
-import aiofiles
 from os.path import basename
+
+import aiofiles
+
 from data.crypto.common import CustomCrypto as CC
+
 
 class Crypt_Sdew:
     EXCLUDE = ["startup_preferences", "SaveGameInfo"]
