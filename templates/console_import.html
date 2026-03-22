@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Console Import — {{ entry.title }}</title>
+<style>
+:root { --bg: #0f1117; --bg-1: #1a1d27; --border: #2a2d3a; --text: #e4e4e7; --text-2: #a1a1aa; --green: #22c55e; --red: #ef4444; --indigo: #6366f1; --r: 8px; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 2rem; max-width: 600px; margin: 0 auto; }
+h1 { font-size: 1.3rem; margin-bottom: 0.5rem; }
+.sub { color: var(--text-2); font-size: 0.85rem; margin-bottom: 1.5rem; }
+.panel { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--r); padding: 1.25rem; margin-bottom: 1rem; }
+.step { display: flex; gap: 0.75rem; align-items: flex-start; margin-bottom: 1rem; }
+.step-num { background: var(--indigo); color: #fff; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+.step-num.done { background: var(--green); }
+.step-num.fail { background: var(--red); }
+.step-text { font-size: 0.9rem; }
+.step-text small { color: var(--text-2); font-size: 0.78rem; display: block; margin-top: 2px; }
+#log { font-family: monospace; font-size: 0.78rem; color: var(--text-2); max-height: 200px; overflow-y: auto; margin-top: 1rem; white-space: pre-wrap; word-break: break-all; }
+input { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 0.5rem 0.75rem; width: 100%; font-size: 0.9rem; margin-bottom: 0.75rem; }
+button { background: var(--indigo); color: #fff; border: none; border-radius: var(--r); padding: 0.6rem 1.25rem; font-size: 0.9rem; cursor: pointer; width: 100%; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.status { padding: 0.5rem 0.75rem; border-radius: var(--r); font-size: 0.85rem; margin-top: 0.75rem; }
+.status.ok { background: rgba(34,197,94,0.1); color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+.status.err { background: rgba(239,68,68,0.1); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+</style>
+</head>
+<body>
+
+<h1>Send to Console</h1>
+<p class="sub"><strong>{{ entry.title }}</strong> ({{ entry.title_id }}) — {{ entry.platform | upper }}</p>
+
+<div class="panel">
+    <label style="font-size:0.8rem; color:var(--text-2); text-transform:uppercase; letter-spacing:0.05em;">Console IP (garlic-savemgr on port 8082)</label>
+    <input type="text" id="console-ip" placeholder="192.168.1.xxx" value="">
+
+    <button id="start-btn" onclick="startImport()">Send to Console</button>
+
+    <div id="steps" style="margin-top:1.25rem; display:none;">
+        <div class="step"><div class="step-num" id="s1">1</div><div class="step-text">Connecting to garlic-savemgr<small id="s1-sub"></small></div></div>
+        <div class="step"><div class="step-num" id="s2">2</div><div class="step-text">Downloading save from server<small id="s2-sub"></small></div></div>
+        <div class="step"><div class="step-num" id="s3">3</div><div class="step-text">Uploading to console & encrypting<small id="s3-sub"></small></div></div>
+        <div class="step"><div class="step-num" id="s4">4</div><div class="step-text">Finalizing import<small id="s4-sub"></small></div></div>
+    </div>
+
+    <div id="result"></div>
+    <div id="log"></div>
+</div>
+
+<script>
+const ENTRY_ID = {{ entry.id }};
+const log = document.getElementById('log');
+const steps = document.getElementById('steps');
+const result = document.getElementById('result');
+
+function addLog(msg) {
+    log.textContent += msg + '\n';
+    log.scrollTop = log.scrollHeight;
+}
+
+function setStep(n, state, sub) {
+    const el = document.getElementById('s' + n);
+    const subEl = document.getElementById('s' + n + '-sub');
+    el.className = 'step-num' + (state === 'done' ? ' done' : state === 'fail' ? ' fail' : '');
+    if (sub) subEl.textContent = sub;
+}
+
+async function startImport() {
+    const ip = document.getElementById('console-ip').value.trim();
+    if (!ip) { alert('Enter the console IP'); return; }
+
+    const btn = document.getElementById('start-btn');
+    btn.disabled = true;
+    steps.style.display = 'block';
+    result.innerHTML = '';
+    log.textContent = '';
+
+    const base = 'http://' + ip + ':8082';
+
+    // Step 1: Check connection
+    addLog('Connecting to ' + base + ' ...');
+    try {
+        const r = await fetch(base + '/api/status', { mode: 'cors', signal: AbortSignal.timeout(5000) });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        setStep(1, 'done', 'Connected');
+        addLog('Connected to garlic-savemgr');
+    } catch (e) {
+        setStep(1, 'fail', 'Failed: ' + e.message);
+        addLog('Connection failed: ' + e.message);
+        addLog('Make sure garlic-savemgr is running and on the same network.');
+        result.innerHTML = '<div class="status err">Could not connect to console.</div>';
+        btn.disabled = false;
+        return;
+    }
+
+    // Step 2: Download save zip from server
+    addLog('Downloading save zip...');
+    let zipBlob;
+    try {
+        const r = await fetch('/console-import/' + ENTRY_ID + '/zip');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        zipBlob = await r.blob();
+        setStep(2, 'done', (zipBlob.size / 1024 / 1024).toFixed(1) + ' MB');
+        addLog('Downloaded ' + zipBlob.size + ' bytes');
+    } catch (e) {
+        setStep(2, 'fail', 'Failed: ' + e.message);
+        addLog('Download failed: ' + e.message);
+        result.innerHTML = '<div class="status err">Failed to download save.</div>';
+        btn.disabled = false;
+        return;
+    }
+
+    // Step 3: Upload to console
+    addLog('Uploading to console (encrypt_upload)...');
+    try {
+        const r = await fetch(base + '/api/encrypt_upload', {
+            method: 'POST',
+            mode: 'cors',
+            body: zipBlob,
+            headers: { 'Content-Type': 'application/octet-stream' },
+        });
+        const data = await r.json();
+        if (data.error) throw new Error(data.error);
+        setStep(3, 'done', 'Encrypted');
+        addLog('Upload OK: ' + JSON.stringify(data));
+    } catch (e) {
+        setStep(3, 'fail', 'Failed: ' + e.message);
+        addLog('Upload failed: ' + e.message);
+        result.innerHTML = '<div class="status err">Failed to upload to console.</div>';
+        btn.disabled = false;
+        return;
+    }
+
+    // Step 4: Finalize import
+    addLog('Finalizing import...');
+    try {
+        const r = await fetch(base + '/api/import_finish', { mode: 'cors' });
+        const data = await r.json();
+        if (data.error) throw new Error(data.error);
+        if (data.sfo_zeroed) {
+            // SFO was zeroed, retry with force
+            addLog('SFO zeroed, retrying with force...');
+            const r2 = await fetch(base + '/api/import_finish?force=1', { mode: 'cors' });
+            const data2 = await r2.json();
+            if (data2.error) throw new Error(data2.error);
+            setStep(4, 'done', data2.title || 'Imported');
+            addLog('Import finalized: ' + JSON.stringify(data2));
+        } else {
+            setStep(4, 'done', data.title || 'Imported');
+            addLog('Import finalized: ' + JSON.stringify(data));
+        }
+        result.innerHTML = '<div class="status ok">Save imported to console!</div>';
+    } catch (e) {
+        setStep(4, 'fail', 'Failed: ' + e.message);
+        addLog('Import failed: ' + e.message);
+        result.innerHTML = '<div class="status err">Import failed: ' + e.message + '</div>';
+        btn.disabled = false;
+        return;
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Done!';
+}
+
+// Try to load last used IP from localStorage
+const lastIP = localStorage.getItem('garlic_console_ip');
+if (lastIP) document.getElementById('console-ip').value = lastIP;
+
+document.getElementById('console-ip').addEventListener('change', function() {
+    localStorage.setItem('garlic_console_ip', this.value.trim());
+});
+</script>
+</body>
+</html>
