@@ -22,7 +22,7 @@ async def title_lookup():
     q = request.args.get("q", "").strip()
     results = []
     if q and len(q) >= 2:
-        results = search_titles(q, limit=50)
+        results = await search_titles(q, limit=50)
     return await render_template("tools_title_lookup.html", q=q, results=results)
 
 
@@ -31,7 +31,7 @@ async def api_title_search():
     q = request.args.get("q", "").strip()
     if not q or len(q) < 2:
         return jsonify({"results": []})
-    results = search_titles(q, limit=20)
+    results = await search_titles(q, limit=20)
     return jsonify({"results": results})
 
 
@@ -51,7 +51,7 @@ async def fs_browser():
     platform = request.args.get("platform", "").strip()
     results = []
     if q and len(q) >= 2:
-        results = search_filesystem(q, platform=platform, limit=50)
+        results = await search_filesystem(q, platform=platform, limit=50)
     return await render_template(
         "tools_fs_browser.html", q=q, platform=platform, results=results
     )
@@ -63,7 +63,7 @@ async def api_fs_search():
     platform = request.args.get("platform", "").strip()
     if not q or len(q) < 2:
         return jsonify({"results": []})
-    results = search_filesystem(q, platform=platform, limit=50)
+    results = await search_filesystem(q, platform=platform, limit=50)
     return jsonify({"results": results})
 
 
@@ -72,7 +72,7 @@ async def function_lookup():
     q = request.args.get("q", "").strip()
     results = []
     if q and len(q) >= 3:
-        results = search_functions(q, limit=50)
+        results = await search_functions(q, limit=50)
     return await render_template("tools_function_lookup.html", q=q, results=results)
 
 
@@ -81,7 +81,7 @@ async def api_function_search():
     q = request.args.get("q", "").strip()
     if not q or len(q) < 3:
         return jsonify({"results": []})
-    results = search_functions(q, limit=50)
+    results = await search_functions(q, limit=50)
     return jsonify({"results": results})
 
 
