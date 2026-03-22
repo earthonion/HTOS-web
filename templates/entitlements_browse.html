@@ -46,7 +46,7 @@
             <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-family:monospace;">{{ e.title_id or '-' }}</td>
             <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border);">{{ e.platform | upper }}</td>
             <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.78rem;">{{ e.content_type or '-' }}</td>
-            <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border);">{% if e.package_url %}<span style="display:flex; gap:0.4rem;"><button class="btn-small show-url-btn" data-url="{{ e.package_url }}">Show</button><button class="btn-small copy-url-btn" data-url="{{ e.package_url }}">Copy</button></span>{% else %}<span style="color:var(--text-3);">-</span>{% endif %}</td>
+            <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border);">{% if e.package_url %}<span style="display:flex; gap:0.4rem; align-items:center;">{% if e.verified %}<span title="Verified" style="color:#22c55e; font-size:1rem;">&#10003;</span>{% endif %}<button class="btn-small show-url-btn" data-url="{{ e.package_url }}">Show</button><button class="btn-small copy-url-btn" data-url="{{ e.package_url }}">Copy</button></span>{% else %}<span style="color:var(--text-3);">-</span>{% endif %}</td>
         </tr>
         {% endfor %}
     </tbody>
