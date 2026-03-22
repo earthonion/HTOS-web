@@ -39,7 +39,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
     <div id="steps" style="margin-top:1.25rem; display:none;">
         <div class="step"><div class="step-num" id="s1">1</div><div class="step-text">Connecting to garlic-savemgr<small id="s1-sub"></small></div></div>
-        <div class="step"><div class="step-num" id="s2">2</div><div class="step-text">Downloading save from server<small id="s2-sub"></small></div></div>
+        <div class="step"><div class="step-num" id="s2">2</div><div class="step-text">Getting file list<small id="s2-sub"></small></div></div>
         <div class="step"><div class="step-num" id="s3">3</div><div class="step-text">Creating save & uploading files<small id="s3-sub"></small></div></div>
         <div class="step"><div class="step-num" id="s4">4</div><div class="step-text">Finalizing import<small id="s4-sub"></small></div></div>
     </div>
@@ -94,48 +94,61 @@ async function startImport() {
         return;
     }
 
-    // Step 2: Download save zip from server
-    addLog('Downloading save zip...');
-    let zipBlob;
+    // Step 2: Get file listing from server
+    addLog('Getting file list...');
+    let fileList;
     try {
-        const r = await fetch('/console-import/' + ENTRY_ID + '/zip');
+        const r = await fetch('/console-import/' + ENTRY_ID + '/files');
         if (!r.ok) throw new Error('HTTP ' + r.status);
-        zipBlob = await r.blob();
-        setStep(2, 'done', (zipBlob.size / 1024 / 1024).toFixed(1) + ' MB');
-        addLog('Downloaded ' + zipBlob.size + ' bytes');
+        const data = await r.json();
+        if (data.error) throw new Error(data.error);
+        fileList = data.files;
+        const totalSize = fileList.reduce((s, f) => s + f.size, 0);
+        setStep(2, 'done', fileList.length + ' files, ' + (totalSize / 1024 / 1024).toFixed(1) + ' MB');
+        addLog('Found ' + fileList.length + ' files (' + totalSize + ' bytes)');
     } catch (e) {
         setStep(2, 'fail', 'Failed: ' + e.message);
-        addLog('Download failed: ' + e.message);
-        result.innerHTML = '<div class="status err">Failed to download save.</div>';
+        addLog('File list failed: ' + e.message);
+        result.innerHTML = '<div class="status err">Failed to get file list.</div>';
         btn.disabled = false;
         return;
     }
 
-    // Step 3: Create PFS, upload files, keep mounted
+    // Step 3: Create PFS on console, upload each file individually
     addLog('Creating PFS image on console...');
     try {
-        // Create fresh PFS (stays mounted)
-        const cr = await fetch(base + '/api/create_pfs?size=' + zipBlob.size, { mode: 'cors' });
+        const totalSize = fileList.reduce((s, f) => s + f.size, 0);
+        const cr = await fetch(base + '/api/create_pfs?size=' + totalSize, { mode: 'cors' });
         const cdata = await cr.json();
         if (cdata.error) throw new Error('create_pfs: ' + cdata.error);
         addLog('PFS created and mounted');
 
-        // Upload zip into mounted save
-        addLog('Uploading save files...');
-        const ur = await fetch(base + '/api/upload', {
-            method: 'POST',
-            mode: 'cors',
-            body: zipBlob,
-            headers: { 'Content-Type': 'application/octet-stream' },
-        });
-        const udata = await ur.json();
-        if (udata.error) throw new Error('upload: ' + udata.error);
-        setStep(3, 'done', udata.files + ' files uploaded');
-        addLog('Uploaded ' + udata.files + ' files into PFS');
+        // Upload each file from server to console
+        for (let i = 0; i < fileList.length; i++) {
+            const f = fileList[i];
+            addLog('Uploading (' + (i + 1) + '/' + fileList.length + ') ' + f.name + ' (' + f.size + ' bytes)...');
+
+            // Download file from server
+            const dl = await fetch('/console-import/' + ENTRY_ID + '/file?name=' + encodeURIComponent(f.name));
+            if (!dl.ok) throw new Error('Download failed: ' + f.name);
+            const blob = await dl.blob();
+
+            // Upload to console
+            const ur = await fetch(base + '/api/upload_file?name=' + encodeURIComponent(f.name), {
+                method: 'POST',
+                mode: 'cors',
+                body: blob,
+            });
+            const udata = await ur.json();
+            if (udata.error) throw new Error('upload ' + f.name + ': ' + udata.error);
+        }
+        setStep(3, 'done', fileList.length + ' files uploaded');
+        addLog('All ' + fileList.length + ' files uploaded');
     } catch (e) {
         setStep(3, 'fail', 'Failed: ' + e.message);
         addLog('Upload failed: ' + e.message);
         result.innerHTML = '<div class="status err">Failed to upload to console.</div>';
+        try { await fetch(base + '/api/unmount', { mode: 'cors' }); } catch(x) {}
         btn.disabled = false;
         return;
     }
@@ -143,11 +156,17 @@ async function startImport() {
     // Step 4: Finalize import
     addLog('Finalizing import...');
     try {
+        // Check if save already exists
+        const chk = await fetch(base + '/api/import_check', { mode: 'cors' });
+        const chkData = await chk.json();
+        if (chkData.exists) {
+            addLog('Save already exists on console, will overwrite');
+        }
+
         const r = await fetch(base + '/api/import_finish', { mode: 'cors' });
         const data = await r.json();
         if (data.error) throw new Error(data.error);
         if (data.sfo_zeroed) {
-            // SFO was zeroed, retry with force
             addLog('SFO zeroed, retrying with force...');
             const r2 = await fetch(base + '/api/import_finish?force=1', { mode: 'cors' });
             const data2 = await r2.json();
@@ -163,6 +182,7 @@ async function startImport() {
         setStep(4, 'fail', 'Failed: ' + e.message);
         addLog('Import failed: ' + e.message);
         result.innerHTML = '<div class="status err">Import failed: ' + e.message + '</div>';
+        try { await fetch(base + '/api/unmount', { mode: 'cors' }); } catch(x) {}
         btn.disabled = false;
         return;
     }
