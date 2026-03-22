@@ -43,7 +43,7 @@
             <a href="{{ url_for('savedb.detail', entry_id=e.id) }}" class="btn-small">Details</a>
             {% if e.platform != 'ps5' %}<a href="{{ url_for('savedb.encrypt', entry_id=e.id) }}" class="btn-small" style="background:var(--indigo); color:#fff;">Encrypt</a>{% endif %}
             <a href="{{ url_for('savedb.download', entry_id=e.id) }}" class="btn-small" {% if e.platform == 'ps5' %}style="background:var(--indigo); color:#fff;"{% endif %}>Download</a>
-            {% if e.platform == 'ps5' %}<a href="http://{{ request.host.split(':')[0] }}/console-import/{{ e.id }}" class="btn-small" target="_blank">Import <span class="badge-beta">BETA</span></a>{% endif %}
+            {% if e.platform == 'ps5' %}<a href="http://{{ request.host.split(':')[0] }}/console-import/{{ e.id }}" class="btn-small" style="white-space:nowrap;" target="_blank">Import <span class="badge-beta">BETA</span></a>{% endif %}
         </div>
     </div>
     {% endfor %}
