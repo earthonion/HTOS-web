@@ -195,13 +195,18 @@ async function startImport() {
     btn.textContent = 'Done!';
 }
 
-// Try to load last used IP from localStorage
+// Try to load last used IP, then auto-scan
 const lastIP = localStorage.getItem('garlic_console_ip');
 if (lastIP) document.getElementById('console-ip').value = lastIP;
 
 document.getElementById('console-ip').addEventListener('change', function() {
     localStorage.setItem('garlic_console_ip', this.value.trim());
 });
+
+// Auto-scan on page load
+if (!lastIP) {
+    scanNetwork();
+}
 
 function getLocalIP() {
     return new Promise(resolve => {
