@@ -1,10 +1,19 @@
 import csv
 import io
 
+import httpx
 from quart import Blueprint, Response, jsonify, render_template, request, session
 
 from auth import login_required
 from models import get_db
+
+VALID_URL_HOSTS = {
+    "gs2.ww.prod.dl.playstation.net",
+    "sgst.prod.dl.playstation.net",
+    "zeus.dl.playstation.net",
+    "ares.dl.playstation.net",
+    "gs2-ww-prod.psn.akadns.net",
+}
 from services.filesystem import search_filesystem
 from services.functions import search_functions
 from services.titles import search_titles
@@ -98,14 +107,49 @@ async def api_submit_entitlements():
         return jsonify({"ok": False, "error": "Invalid or too many entries"}), 400
 
     user_id = session.get("user_id")
+
+    # Filter to valid PSN hostnames only
+    from urllib.parse import urlparse
+
+    valid_entries = []
+    for e in entries:
+        eid = e.get("id", "").strip()
+        url = e.get("url", "").strip()
+        if not eid or not url:
+            continue
+        parsed = urlparse(url)
+        if parsed.hostname not in VALID_URL_HOSTS:
+            continue
+        if parsed.scheme not in ("http", "https"):
+            continue
+        valid_entries.append(e)
+
+    if not valid_entries:
+        return jsonify({"ok": True, "inserted": 0, "skipped": len(entries)})
+
+    # Spot-check a sample of URLs with HEAD requests to verify they resolve
+    import random
+
+    sample = random.sample(valid_entries, min(5, len(valid_entries)))
+    verified = 0
+    async with httpx.AsyncClient(verify=False, timeout=10) as client:
+        for e in sample:
+            try:
+                resp = await client.head(e["url"].strip())
+                if resp.status_code == 200:
+                    verified += 1
+            except Exception:
+                pass
+
+    # If none of the sample URLs resolve, reject the entire batch
+    if verified == 0:
+        return jsonify({"ok": False, "error": "URL validation failed — none of the sampled URLs resolved."}), 400
+
     inserted = 0
     db = await get_db()
     try:
-        for e in entries:
+        for e in valid_entries:
             eid = e.get("id", "").strip()
-            url = e.get("url", "").strip()
-            if not eid or not url:
-                continue
             try:
                 await db.execute(
                     "INSERT OR IGNORE INTO entitlements "
@@ -115,7 +159,7 @@ async def api_submit_entitlements():
                         eid,
                         e.get("title", "")[:200],
                         e.get("title_id", "")[:20],
-                        e.get("url", "")[:500],
+                        e.get("url", "").strip()[:500],
                         e.get("platform", "")[:10],
                         e.get("content_type", "")[:50],
                         user_id,
