@@ -40,7 +40,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
     <div id="steps" style="margin-top:1.25rem; display:none;">
         <div class="step"><div class="step-num" id="s1">1</div><div class="step-text">Connecting to garlic-savemgr<small id="s1-sub"></small></div></div>
         <div class="step"><div class="step-num" id="s2">2</div><div class="step-text">Downloading save from server<small id="s2-sub"></small></div></div>
-        <div class="step"><div class="step-num" id="s3">3</div><div class="step-text">Uploading to console & encrypting<small id="s3-sub"></small></div></div>
+        <div class="step"><div class="step-num" id="s3">3</div><div class="step-text">Creating save & uploading files<small id="s3-sub"></small></div></div>
         <div class="step"><div class="step-num" id="s4">4</div><div class="step-text">Finalizing import<small id="s4-sub"></small></div></div>
     </div>
 
@@ -111,19 +111,27 @@ async function startImport() {
         return;
     }
 
-    // Step 3: Upload to console
-    addLog('Uploading to console (encrypt_upload)...');
+    // Step 3: Create PFS, upload files, keep mounted
+    addLog('Creating PFS image on console...');
     try {
-        const r = await fetch(base + '/api/encrypt_upload', {
+        // Create fresh PFS (stays mounted)
+        const cr = await fetch(base + '/api/create_pfs?size=' + zipBlob.size, { mode: 'cors' });
+        const cdata = await cr.json();
+        if (cdata.error) throw new Error('create_pfs: ' + cdata.error);
+        addLog('PFS created and mounted');
+
+        // Upload zip into mounted save
+        addLog('Uploading save files...');
+        const ur = await fetch(base + '/api/upload', {
             method: 'POST',
             mode: 'cors',
             body: zipBlob,
             headers: { 'Content-Type': 'application/octet-stream' },
         });
-        const data = await r.json();
-        if (data.error) throw new Error(data.error);
-        setStep(3, 'done', 'Encrypted');
-        addLog('Upload OK: ' + JSON.stringify(data));
+        const udata = await ur.json();
+        if (udata.error) throw new Error('upload: ' + udata.error);
+        setStep(3, 'done', udata.files + ' files uploaded');
+        addLog('Uploaded ' + udata.files + ' files into PFS');
     } catch (e) {
         setStep(3, 'fail', 'Failed: ' + e.message);
         addLog('Upload failed: ' + e.message);
