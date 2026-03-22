@@ -41,7 +41,7 @@
                 <button type="submit" name="vote" value="down" class="btn-small {% if uv == -1 %}btn-active{% endif %}" title="Downvote">&#9660;</button>
             </form>
             <a href="{{ url_for('savedb.detail', entry_id=e.id) }}" class="btn-small">Details</a>
-            <a href="{{ url_for('savedb.encrypt', entry_id=e.id) }}" class="btn-small" style="background:var(--indigo); color:#fff;">Encrypt</a>
+            {% if e.platform != 'ps5' %}<a href="{{ url_for('savedb.encrypt', entry_id=e.id) }}" class="btn-small" style="background:var(--indigo); color:#fff;">Encrypt</a>{% endif %}
             <a href="{{ url_for('savedb.download', entry_id=e.id) }}" class="btn-small">Download</a>
         </div>
     </div>
