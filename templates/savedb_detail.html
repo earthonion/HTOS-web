@@ -32,7 +32,7 @@
         {% if entry.platform != 'ps5' %}
         <a href="{{ url_for('savedb.encrypt', entry_id=entry.id) }}" class="btn-small" style="background:var(--indigo); color:#fff; padding:0.4rem 1rem;">Encrypt to My Account</a>
         {% else %}
-        <button class="btn-small" style="padding:0.4rem 1rem;" onclick="document.getElementById('ps5-modal').style.display='flex'">Where's Encrypt?</button>
+        <a href="#" style="font-size:0.85rem; color:var(--text-2);" onclick="event.preventDefault();document.getElementById('ps5-modal').style.display='flex'">Where's Encrypt?</a>
         {% endif %}
         <a href="{{ url_for('savedb.download', entry_id=entry.id) }}" class="btn-small" style="padding:0.4rem 1rem;">Download</a>
         {% if entry.user_id == session.get('user_id') %}
