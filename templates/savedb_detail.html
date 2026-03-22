@@ -36,6 +36,9 @@
         {% if entry.platform == 'ps5' %}
         <a href="#" style="font-size:0.85rem; color:var(--indigo-light); align-self:center;" onclick="event.preventDefault();document.getElementById('ps5-modal').style.display='flex'">Where's Encrypt?</a>
         {% endif %}
+        {% if session.get('is_admin') and entry.platform == 'ps5' %}
+        <a href="http://{{ request.host.split(':')[0] }}/console-import/{{ entry.id }}" class="btn-small" style="padding:0.4rem 1rem;" target="_blank">Send to Console</a>
+        {% endif %}
         {% if entry.user_id == session.get('user_id') %}
         <form method="POST" action="{{ url_for('savedb.delete', entry_id=entry.id) }}">
             <button type="submit" class="btn-small btn-danger">Delete</button>

@@ -17,7 +17,7 @@ from quart import (
     url_for,
 )
 
-from auth import login_required
+from auth import admin_required, login_required
 from models import get_db
 from services.files import (
     DangerousFileError,
@@ -657,3 +657,52 @@ async def delete(entry_id):
 
     await flash("Save entry deleted.", "success")
     return redirect(url_for("savedb.browse"))
+
+
+@savedb_bp.route("/console-import/<int:entry_id>")
+@admin_required
+async def console_import(entry_id):
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT id, title, title_id, platform, save_path FROM savedb_entries WHERE id = ?",
+            (entry_id,),
+        )
+        entry = await cursor.fetchone()
+    finally:
+        await db.close()
+
+    if not entry:
+        return "Save not found.", 404
+
+    return await render_template("console_import.html", entry=dict(entry))
+
+
+@savedb_bp.route("/console-import/<int:entry_id>/zip")
+@admin_required
+async def console_import_zip(entry_id):
+    """Serve save files as zip for the console import page to fetch."""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT save_path, title_id FROM savedb_entries WHERE id = ?",
+            (entry_id,),
+        )
+        entry = await cursor.fetchone()
+    finally:
+        await db.close()
+
+    if not entry or not entry["save_path"] or not os.path.isdir(entry["save_path"]):
+        return "Save not found.", 404
+
+    zip_path = os.path.join(
+        "workspace", "uploads", f"console_import_{entry_id}_{uuid.uuid4().hex[:8]}.zip"
+    )
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED) as zf:
+        for root, _dirs, files in os.walk(entry["save_path"]):
+            for fname in files:
+                fpath = os.path.join(root, fname)
+                arcname = os.path.relpath(fpath, entry["save_path"])
+                zf.write(fpath, arcname)
+
+    return await send_file(zip_path, mimetype="application/zip")
