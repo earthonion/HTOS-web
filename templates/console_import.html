@@ -33,7 +33,11 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 <div class="panel">
     <label style="font-size:0.8rem; color:var(--text-2); text-transform:uppercase; letter-spacing:0.05em;">Console IP (garlic-savemgr on port 8082)</label>
-    <input type="text" id="console-ip" placeholder="192.168.1.xxx" value="">
+    <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem;">
+        <input type="text" id="console-ip" placeholder="192.168.1.xxx" value="" style="margin-bottom:0; flex:1;">
+        <button id="scan-btn" onclick="scanNetwork()" style="width:auto; flex:none; padding:0.6rem 1rem; background:var(--bg-1); border:1px solid var(--border);">Scan</button>
+    </div>
+    <div id="scan-status" style="font-size:0.8rem; color:var(--text-2); margin-bottom:0.75rem; display:none;"></div>
 
     <button id="start-btn" onclick="startImport()">Send to Console</button>
 
@@ -198,6 +202,52 @@ if (lastIP) document.getElementById('console-ip').value = lastIP;
 document.getElementById('console-ip').addEventListener('change', function() {
     localStorage.setItem('garlic_console_ip', this.value.trim());
 });
+
+async function scanNetwork() {
+    const scanBtn = document.getElementById('scan-btn');
+    const scanStatus = document.getElementById('scan-status');
+    const ipInput = document.getElementById('console-ip');
+    scanBtn.disabled = true;
+    scanStatus.style.display = 'block';
+    scanStatus.textContent = 'Scanning network for garlic-savemgr...';
+
+    const subnets = ['192.168.0', '192.168.1', '192.168.2', '192.168.10', '192.168.50', '192.168.100', '10.0.0', '10.0.1', '172.16.0'];
+    let found = null;
+    const BATCH = 30;
+
+    for (const subnet of subnets) {
+        if (found) break;
+        scanStatus.textContent = 'Scanning ' + subnet + '.x ...';
+
+        for (let start = 2; start <= 254 && !found; start += BATCH) {
+            const promises = [];
+            for (let i = start; i < Math.min(start + BATCH, 255); i++) {
+                const ip = subnet + '.' + i;
+                promises.push(
+                    fetch('http://' + ip + ':8082/api/status', {
+                        mode: 'cors',
+                        signal: AbortSignal.timeout(1500)
+                    })
+                    .then(r => r.ok ? ip : null)
+                    .catch(() => null)
+                );
+            }
+            const results = await Promise.all(promises);
+            found = results.find(r => r !== null);
+        }
+    }
+
+    if (found) {
+        ipInput.value = found;
+        localStorage.setItem('garlic_console_ip', found);
+        scanStatus.innerHTML = 'Found garlic-savemgr at <strong>' + found + '</strong>';
+        scanStatus.style.color = 'var(--green)';
+    } else {
+        scanStatus.textContent = 'No console found. Enter the IP manually.';
+        scanStatus.style.color = 'var(--red)';
+    }
+    scanBtn.disabled = false;
+}
 </script>
 </body>
 </html>
