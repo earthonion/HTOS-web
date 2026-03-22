@@ -678,14 +678,14 @@ async def console_import(entry_id):
     return await render_template("console_import.html", entry=dict(entry))
 
 
-@savedb_bp.route("/console-import/<int:entry_id>/zip")
+@savedb_bp.route("/console-import/<int:entry_id>/files")
 @admin_required
-async def console_import_zip(entry_id):
-    """Serve save files as zip for the console import page to fetch."""
+async def console_import_files(entry_id):
+    """List save files with relative paths and sizes."""
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT save_path, title_id FROM savedb_entries WHERE id = ?",
+            "SELECT save_path FROM savedb_entries WHERE id = ?",
             (entry_id,),
         )
         entry = await cursor.fetchone()
@@ -693,16 +693,42 @@ async def console_import_zip(entry_id):
         await db.close()
 
     if not entry or not entry["save_path"] or not os.path.isdir(entry["save_path"]):
-        return "Save not found.", 404
+        return jsonify({"error": "Save not found"}), 404
 
-    zip_path = os.path.join(
-        "workspace", "uploads", f"console_import_{entry_id}_{uuid.uuid4().hex[:8]}.zip"
-    )
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED) as zf:
-        for root, _dirs, files in os.walk(entry["save_path"]):
-            for fname in files:
-                fpath = os.path.join(root, fname)
-                arcname = os.path.relpath(fpath, entry["save_path"])
-                zf.write(fpath, arcname)
+    save_path = entry["save_path"]
+    files = []
+    for root, _dirs, fnames in os.walk(save_path):
+        for fname in fnames:
+            fpath = os.path.join(root, fname)
+            rel = os.path.relpath(fpath, save_path)
+            files.append({"name": rel, "size": os.path.getsize(fpath)})
 
-    return await send_file(zip_path, mimetype="application/zip")
+    return jsonify({"files": files})
+
+
+@savedb_bp.route("/console-import/<int:entry_id>/file")
+@admin_required
+async def console_import_file(entry_id):
+    """Serve a single file by relative path."""
+    name = request.args.get("name", "")
+    if not name:
+        return "Missing name", 400
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT save_path FROM savedb_entries WHERE id = ?",
+            (entry_id,),
+        )
+        entry = await cursor.fetchone()
+    finally:
+        await db.close()
+
+    if not entry or not entry["save_path"]:
+        return "Save not found", 404
+
+    fpath = _safe_join(entry["save_path"], name)
+    if not fpath or not os.path.isfile(fpath):
+        return "File not found", 404
+
+    return await send_file(fpath)
