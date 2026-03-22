@@ -8,10 +8,12 @@ Run weekly via cron:
   0 3 * * 0 cd /opt/htos && .venv/bin/python sync_titles.py
 """
 
+import asyncio
 import json
 import os
-import sqlite3
 import urllib.request
+
+import aiosqlite
 
 GITHUB_BASE = (
     "https://raw.githubusercontent.com/andshrew/PlayStation-Titles/master/Json"
@@ -23,8 +25,8 @@ FILES = {
 DB_PATH = os.getenv("TITLES_DB_PATH", "titles.db")
 
 
-def init_db(conn):
-    conn.execute("""
+async def init_db(conn: aiosqlite.Connection) -> None:
+    await conn.execute("""
         CREATE TABLE IF NOT EXISTS titles (
             title_id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -33,8 +35,8 @@ def init_db(conn):
             region TEXT
         )
     """)
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_titles_name ON titles(name)")
-    conn.commit()
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_titles_name ON titles(name)")
+    await conn.commit()
 
 
 def download_json(url):
@@ -44,45 +46,46 @@ def download_json(url):
         return json.loads(resp.read())
 
 
-def sync():
-    conn = sqlite3.connect(DB_PATH)
-    init_db(conn)
+async def sync():
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await init_db(conn)
 
-    total = 0
-    for platform, url in FILES.items():
-        data = download_json(url)
-        print(f"  {platform.upper()}: {len(data)} entries")
+        total = 0
+        for platform, url in FILES.items():
+            # Note: download_json is still synchronous, which is fine for a cron script.
+            data = download_json(url)
+            print(f"  {platform.upper()}: {len(data)} entries")
 
-        batch = []
-        for entry in data:
-            raw_id = entry.get("titleId", "")
-            # titleId is like "CUSA00001_00" — strip the suffix
-            title_id = raw_id.split("_")[0] if "_" in raw_id else raw_id
-            name = entry.get("name", "").strip()
-            if not title_id or not name:
-                continue
-            batch.append(
-                (
-                    title_id,
-                    name,
-                    platform,
-                    entry.get("contentId", ""),
-                    entry.get("region", ""),
+            batch = []
+            for entry in data:
+                raw_id = entry.get("titleId", "")
+                # titleId is like "CUSA00001_00" — strip the suffix
+                title_id = raw_id.partition("_")[0]
+                name = entry.get("name", "").strip()
+                if not title_id or not name:
+                    continue
+                batch.append(
+                    (
+                        title_id,
+                        name,
+                        platform,
+                        entry.get("contentId", ""),
+                        entry.get("region", ""),
+                    )
                 )
+
+            await conn.executemany(
+                "INSERT OR REPLACE INTO titles (title_id, name, platform, content_id, region) "
+                "VALUES (?, ?, ?, ?, ?)",
+                batch,
             )
+            await conn.commit()
+            total += len(batch)
 
-        conn.executemany(
-            "INSERT OR REPLACE INTO titles (title_id, name, platform, content_id, region) "
-            "VALUES (?, ?, ?, ?, ?)",
-            batch,
-        )
-        conn.commit()
-        total += len(batch)
+        await conn.execute("PRAGMA optimize")
 
-    conn.execute("PRAGMA optimize")
-    conn.close()
     print(f"  Done. {total} titles synced to {DB_PATH}")
 
 
 if __name__ == "__main__":
-    sync()
+    asyncio.run(sync())

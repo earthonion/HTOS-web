@@ -240,7 +240,7 @@ async def browse():
 @savedb_bp.route("/savedb/api/lookup_title/<title_id>")
 @login_required
 async def api_lookup_title(title_id):
-    name = lookup_title(title_id.strip().upper())
+    name = await lookup_title(title_id.strip().upper())
     return jsonify({"name": name})
 
 
@@ -319,7 +319,7 @@ async def contribute():
         platform = "ps5" if prefix == "PPSA" else "ps4"
 
         # Get game title: try titles DB first, fall back to SFO MAINTITLE/TITLE
-        title = lookup_title(title_id)
+        title = await lookup_title(title_id)
         if not title:
             title = fields.get("MAINTITLE") or fields.get("TITLE") or title_id
 

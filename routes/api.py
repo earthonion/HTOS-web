@@ -351,7 +351,7 @@ async def update_status(job_id):
                             sfo = _extract_title_from_zip(rp)
                             if sfo.get("TITLE_ID"):
                                 jp["title_id"] = sfo["TITLE_ID"]
-                                title = lookup_title(sfo["TITLE_ID"]) or ""
+                                title = await lookup_title(sfo["TITLE_ID"]) or ""
                                 if title:
                                     jp["game_title"] = title
                                 await db2.execute(

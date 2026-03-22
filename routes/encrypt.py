@@ -264,7 +264,7 @@ async def encrypt():
                 title_id = utf_8(param.value).to_str().strip("\x00")
                 break
         if title_id:
-            game_title = lookup_title(title_id) or ""
+            game_title = await lookup_title(title_id) or ""
 
         params = {
             "account_id": account_id,
