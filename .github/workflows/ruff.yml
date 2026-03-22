@@ -10,20 +10,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: astral-sh/ruff-action@v3
-        continue-on-error: true
-        with:
-          args: "check --select I --fix"
+      - uses: astral-sh/setup-ruff@v1
 
-      - uses: astral-sh/ruff-action@v3
-        continue-on-error: true
-        with:
-          args: "check --fix"
+      - run: ruff check --select I --fix .
 
-      - uses: astral-sh/ruff-action@v3
-        continue-on-error: true
-        with:
-          args: "format"
+      - run: ruff check --fix .
+
+      - run: ruff format .
 
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
