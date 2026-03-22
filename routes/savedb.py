@@ -17,7 +17,7 @@ from quart import (
     url_for,
 )
 
-from auth import admin_required, login_required
+from auth import login_required
 from models import get_db
 from services.files import (
     DangerousFileError,
@@ -660,7 +660,7 @@ async def delete(entry_id):
 
 
 @savedb_bp.route("/console-import/<int:entry_id>")
-@admin_required
+@login_required
 async def console_import(entry_id):
     db = await get_db()
     try:
@@ -693,7 +693,7 @@ def _find_save_root(save_path):
 
 
 @savedb_bp.route("/console-import/<int:entry_id>/files")
-@admin_required
+@login_required
 async def console_import_files(entry_id):
     """List save files with relative paths and sizes."""
     db = await get_db()
@@ -721,7 +721,7 @@ async def console_import_files(entry_id):
 
 
 @savedb_bp.route("/console-import/<int:entry_id>/file")
-@admin_required
+@login_required
 async def console_import_file(entry_id):
     """Serve a single file by relative path."""
     name = request.args.get("name", "")
