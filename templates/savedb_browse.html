@@ -42,7 +42,7 @@
             </form>
             <a href="{{ url_for('savedb.detail', entry_id=e.id) }}" class="btn-small">Details</a>
             {% if e.platform != 'ps5' %}<a href="{{ url_for('savedb.encrypt', entry_id=e.id) }}" class="btn-small" style="background:var(--indigo); color:#fff;">Encrypt</a>{% endif %}
-            <a href="{{ url_for('savedb.download', entry_id=e.id) }}" class="btn-small">Download</a>
+            <a href="{{ url_for('savedb.download', entry_id=e.id) }}" class="btn-small" {% if e.platform == 'ps5' %}style="background:var(--indigo); color:#fff;"{% endif %}>Download</a>
         </div>
     </div>
     {% endfor %}
