@@ -92,8 +92,7 @@ async function startImport() {
     } catch (e) {
         setStep(1, 'fail', 'Failed: ' + e.message);
         addLog('Connection failed: ' + e.message);
-        addLog('Make sure garlic-savemgr is running and on the same network.');
-        result.innerHTML = '<div class="status err">Could not connect to console.</div>';
+        result.innerHTML = '<div class="status err">Could not connect to console. Make sure <strong>garlic-savemgr</strong> is running on your PS5. Get it from <a href="https://github.com/earthonion/garlic-savemgr/releases" target="_blank" style="color:var(--indigo-light);">here</a>.</div>';
         btn.disabled = false;
         return;
     }
@@ -284,7 +283,8 @@ async function scanNetwork() {
         scanStatus.innerHTML = 'Found garlic-savemgr at <strong>' + found + '</strong>';
         scanStatus.style.color = 'var(--green)';
     } else {
-        scanStatus.textContent = 'No console found. Enter the IP manually.';
+        scanStatus.innerHTML = 'No console found. Make sure <strong>garlic-savemgr</strong> is running on your PS5. '
+            + 'Send the payload from <a href="https://github.com/earthonion/garlic-savemgr/releases" target="_blank" style="color:var(--indigo-light);">here</a>, then try again.';
         scanStatus.style.color = 'var(--red)';
     }
     scanBtn.disabled = false;
