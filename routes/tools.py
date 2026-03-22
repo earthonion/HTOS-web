@@ -22,7 +22,7 @@ async def title_lookup():
     q = request.args.get("q", "").strip()
     results = []
     if q and len(q) >= 2:
-        results = awaitsearch_titles(q, limit=50)
+        results = await search_titles(q, limit=50)
     return await render_template("tools_title_lookup.html", q=q, results=results)
 
 
