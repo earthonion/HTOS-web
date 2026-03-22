@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: astral-sh/setup-ruff@v1
+      - run: pip install ruff
 
       - run: ruff check --select I --fix .
 
