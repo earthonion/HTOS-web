@@ -2,9 +2,11 @@
 """Extract exported functions from PS5 SPRX libraries using NID lookup.
 Uses aerolib.csv for NID->symbol resolution and pyelftools for ELF parsing."""
 
+import asyncio
 import os
-import sqlite3
 import sys
+
+import aiosqlite
 
 DB_PATH = os.getenv("FUNCS_DB_PATH", "functions.db")
 
@@ -53,7 +55,7 @@ def extract_exports(filepath, nid_map):
     return funcs
 
 
-def build():
+async def build():
     libs_dir = sys.argv[1] if len(sys.argv) > 1 else None
     aerolib_path = sys.argv[2] if len(sys.argv) > 2 else None
 
@@ -65,43 +67,43 @@ def build():
     nid_map = load_nid_map(aerolib_path)
     print(f"  {len(nid_map)} NIDs loaded")
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("DROP TABLE IF EXISTS functions")
-    conn.execute("""
-        CREATE TABLE functions (
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            library TEXT NOT NULL,
-            type TEXT NOT NULL DEFAULT 'function'
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute("DROP TABLE IF EXISTS functions")
+        await conn.execute("""
+            CREATE TABLE functions (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                library TEXT NOT NULL,
+                type TEXT NOT NULL DEFAULT 'function'
+            )
+        """)
+        await conn.execute("CREATE INDEX idx_func_name ON functions(name)")
+        await conn.execute("CREATE INDEX idx_func_library ON functions(library)")
+
+        total = 0
+        files = sorted(
+            f for f in os.listdir(libs_dir) if f.endswith(".dec") or f.endswith(".sprx")
         )
-    """)
-    conn.execute("CREATE INDEX idx_func_name ON functions(name)")
-    conn.execute("CREATE INDEX idx_func_library ON functions(library)")
+        for fname in files:
+            filepath = os.path.join(libs_dir, fname)
+            lib_name = fname.replace(".dec", "")
 
-    total = 0
-    files = sorted(
-        f for f in os.listdir(libs_dir) if f.endswith(".dec") or f.endswith(".sprx")
-    )
-    for fname in files:
-        filepath = os.path.join(libs_dir, fname)
-        lib_name = fname.replace(".dec", "")
+            exports = extract_exports(filepath, nid_map)
+            if exports:
+                print(f"  {lib_name}: {len(exports)} exports")
+                for name, sym_type in exports:
+                    ftype = "function" if sym_type == "STT_FUNC" else "object"
+                    await conn.execute(
+                        "INSERT INTO functions (name, library, type) VALUES (?, ?, ?)",
+                        (name, lib_name, ftype),
+                    )
+                total += len(exports)
 
-        exports = extract_exports(filepath, nid_map)
-        if exports:
-            print(f"  {lib_name}: {len(exports)} exports")
-            for name, sym_type in exports:
-                ftype = "function" if sym_type == "STT_FUNC" else "object"
-                conn.execute(
-                    "INSERT INTO functions (name, library, type) VALUES (?, ?, ?)",
-                    (name, lib_name, ftype),
-                )
-            total += len(exports)
+        await conn.commit()
+        await conn.execute("PRAGMA optimize")
 
-    conn.commit()
-    conn.execute("PRAGMA optimize")
-    conn.close()
     print(f"  Done. {total} exports from {len(files)} libraries in {DB_PATH}")
 
 
 if __name__ == "__main__":
-    build()
+    asyncio.run(build())
