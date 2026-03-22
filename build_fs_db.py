@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Build filesystem search database from PS4/PS5 filesystem dump text files."""
 
+import asyncio
 import os
 import re
-import sqlite3
 import sys
+
+import aiosqlite
 
 DB_PATH = os.getenv("FS_DB_PATH", "filesystem.db")
 
@@ -37,7 +39,7 @@ def parse_fs_file(filepath, platform):
     return entries
 
 
-def build():
+async def build():
     ps5_file = sys.argv[1] if len(sys.argv) > 1 else None
     ps4_file = sys.argv[2] if len(sys.argv) > 2 else None
 
@@ -45,39 +47,39 @@ def build():
         print("Usage: build_fs_db.py <ps5_fs.txt> <ps4_fs.txt>")
         sys.exit(1)
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("DROP TABLE IF EXISTS filesystem")
-    conn.execute("""
-        CREATE TABLE filesystem (
-            id INTEGER PRIMARY KEY,
-            path TEXT NOT NULL,
-            filename TEXT NOT NULL,
-            ftype TEXT NOT NULL,
-            size INTEGER,
-            platform TEXT NOT NULL
-        )
-    """)
-    conn.execute("CREATE INDEX idx_fs_path ON filesystem(path)")
-    conn.execute("CREATE INDEX idx_fs_filename ON filesystem(filename)")
-    conn.execute("CREATE INDEX idx_fs_platform ON filesystem(platform)")
-
-    total = 0
-    for filepath, platform in [(ps5_file, "ps5"), (ps4_file, "ps4")]:
-        entries = parse_fs_file(filepath, platform)
-        print(f"  {platform.upper()}: {len(entries)} entries")
-        for path, ftype, size, plat in entries:
-            filename = os.path.basename(path) or path
-            conn.execute(
-                "INSERT INTO filesystem (path, filename, ftype, size, platform) VALUES (?, ?, ?, ?, ?)",
-                (path, filename, ftype, size, plat),
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute("DROP TABLE IF EXISTS filesystem")
+        await conn.execute("""
+            CREATE TABLE filesystem (
+                id INTEGER PRIMARY KEY,
+                path TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                ftype TEXT NOT NULL,
+                size INTEGER,
+                platform TEXT NOT NULL
             )
-        total += len(entries)
+        """)
+        await conn.execute("CREATE INDEX idx_fs_path ON filesystem(path)")
+        await conn.execute("CREATE INDEX idx_fs_filename ON filesystem(filename)")
+        await conn.execute("CREATE INDEX idx_fs_platform ON filesystem(platform)")
 
-    conn.commit()
-    conn.execute("PRAGMA optimize")
-    conn.close()
+        total = 0
+        for filepath, platform in [(ps5_file, "ps5"), (ps4_file, "ps4")]:
+            entries = parse_fs_file(filepath, platform)
+            print(f"  {platform.upper()}: {len(entries)} entries")
+            for path, ftype, size, plat in entries:
+                filename = os.path.basename(path) or path
+                await conn.execute(
+                    "INSERT INTO filesystem (path, filename, ftype, size, platform) VALUES (?, ?, ?, ?, ?)",
+                    (path, filename, ftype, size, plat),
+                )
+            total += len(entries)
+
+        await conn.commit()
+        await conn.execute("PRAGMA optimize")
+
     print(f"  Done. {total} entries in {DB_PATH}")
 
 
 if __name__ == "__main__":
-    build()
+    asyncio.run(build())

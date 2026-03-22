@@ -80,7 +80,7 @@ async def job_status(job_id):
             if tid:
                 job.params["title_id"] = tid
                 updates["title_id"] = tid
-                title = lookup_title(tid) or ""
+                title = await lookup_title(tid) or ""
                 if title:
                     job.params["game_title"] = title
                     updates["game_title"] = title
