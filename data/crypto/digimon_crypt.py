@@ -1,6 +1,7 @@
 from data.crypto.common import CustomCrypto as CC
 from utils.type_helpers import uint32
 
+
 class Crypt_Digimon:
     @staticmethod
     async def encrypt_file(filepath: str) -> None:

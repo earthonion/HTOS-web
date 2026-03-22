@@ -1,11 +1,13 @@
-import aiofiles 
 import os
+
+import aiofiles
 
 from data.crypto.common import CustomCrypto as CC
 from utils.type_helpers import uint32
 
-# notes: start 0x08 (0xC for the nathan drake collection & 0x10 for tlou part 2), last 4 bytes is size (4 bytes from 0x08 for tlou part 2), 
+# notes: start 0x08 (0xC for the nathan drake collection & 0x10 for tlou part 2), last 4 bytes is size (4 bytes from 0x08 for tlou part 2),
 # endian swap every 4 bytes before and after crypt for the nathan drake collection
+
 
 class Crypt_Ndog:
     SECRET_KEY = b"(SH[@2>r62%5+QKpy|g6"
@@ -15,9 +17,9 @@ class Crypt_Ndog:
     HEADER_UNCHARTED = b"Uncharted"
     HEADERS = frozenset([HEADER_TLOU, HEADER_UNCHARTED])
 
-    START_OFFSET = 0x08 # tlou, uncharted 4 & the lost legacy
-    START_OFFSET_TLOU2 = 0x10 # tlou part 2
-    START_OFFSET_COL = 0xC # the nathan drake collection
+    START_OFFSET = 0x08  # tlou, uncharted 4 & the lost legacy
+    START_OFFSET_TLOU2 = 0x10  # tlou part 2
+    START_OFFSET_COL = 0xC  # the nathan drake collection
 
     EXCLUDE = ["ICN-ID"]
 
@@ -57,8 +59,12 @@ class Crypt_Ndog:
             await self.checksum(crc, crc_bl_off, crc_bl_off + (crc_bl - 4))
             await self.write_checksum(crc, crc_off)
 
-            hmac_sha1 = self.create_ctx_hmac(Crypt_Ndog.HMAC_SHA1_KEY, self.hashlib.sha1)
-            await self.checksum(hmac_sha1, self.start_off, self.start_off + self.dsize - 0x14)
+            hmac_sha1 = self.create_ctx_hmac(
+                Crypt_Ndog.HMAC_SHA1_KEY, self.hashlib.sha1
+            )
+            await self.checksum(
+                hmac_sha1, self.start_off, self.start_off + self.dsize - 0x14
+            )
             await self.write_checksum(hmac_sha1, self.dsize - hash_sub)
 
     @staticmethod
@@ -67,7 +73,9 @@ class Crypt_Ndog:
             return
 
         async with Crypt_Ndog.Ndog(filepath, start_off) as cc:
-            blowfish = cc.create_ctx_blowfish(Crypt_Ndog.SECRET_KEY, cc.Blowfish.MODE_ECB)
+            blowfish = cc.create_ctx_blowfish(
+                Crypt_Ndog.SECRET_KEY, cc.Blowfish.MODE_ECB
+            )
             await cc.get_dsize()
             cc.set_ptr(cc.start_off)
 
@@ -85,14 +93,16 @@ class Crypt_Ndog:
             return
 
         async with Crypt_Ndog.Ndog(filepath, start_off) as cc:
-            blowfish = cc.create_ctx_blowfish(Crypt_Ndog.SECRET_KEY, cc.Blowfish.MODE_ECB)
+            blowfish = cc.create_ctx_blowfish(
+                Crypt_Ndog.SECRET_KEY, cc.Blowfish.MODE_ECB
+            )
             await cc.get_dsize()
             cc.set_ptr(cc.start_off)
 
             await cc.chks_fix()
             while await cc.read(stop_off=cc.start_off + cc.dsize):
                 if cc.start_off == Crypt_Ndog.START_OFFSET_COL:
-                    cc.ES32() 
+                    cc.ES32()
                 cc.encrypt(blowfish)
                 if cc.start_off == Crypt_Ndog.START_OFFSET_COL:
                     cc.ES32()
@@ -126,4 +136,3 @@ class Crypt_Ndog:
 
         if header in Crypt_Ndog.HEADERS or header1 in Crypt_Ndog.HEADERS:
             await Crypt_Ndog.encrypt_file(filepath, start_off)
-

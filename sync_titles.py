@@ -13,7 +13,9 @@ import os
 import sqlite3
 import urllib.request
 
-GITHUB_BASE = "https://raw.githubusercontent.com/andshrew/PlayStation-Titles/master/Json"
+GITHUB_BASE = (
+    "https://raw.githubusercontent.com/andshrew/PlayStation-Titles/master/Json"
+)
 FILES = {
     "ps4": f"{GITHUB_BASE}/PS4_Titles.json",
     "ps5": f"{GITHUB_BASE}/PS5_Titles.json",
@@ -59,13 +61,15 @@ def sync():
             name = entry.get("name", "").strip()
             if not title_id or not name:
                 continue
-            batch.append((
-                title_id,
-                name,
-                platform,
-                entry.get("contentId", ""),
-                entry.get("region", ""),
-            ))
+            batch.append(
+                (
+                    title_id,
+                    name,
+                    platform,
+                    entry.get("contentId", ""),
+                    entry.get("region", ""),
+                )
+            )
 
         conn.executemany(
             "INSERT OR REPLACE INTO titles (title_id, name, platform, content_id, region) "

@@ -1,6 +1,8 @@
 import aiofiles
+
 from data.crypto.common import CustomCrypto as CC
 from utils.type_helpers import uint8
+
 
 class Crypt_Xeno2:
     SAVE_HEADER_KEY = b"PR]-<Q9*WxHsV8rcW!JuH7k_ug:T5ApX"
@@ -11,7 +13,12 @@ class Crypt_Xeno2:
     @staticmethod
     async def decrypt_file(filepath: str) -> None:
         async with CC(filepath) as cc:
-            aes_header = cc.AES.new(Crypt_Xeno2.SAVE_HEADER_KEY, cc.AES.MODE_CTR, initial_value=Crypt_Xeno2.SAVE_HEADER_INITIAL_VALUE, nonce=bytes())
+            aes_header = cc.AES.new(
+                Crypt_Xeno2.SAVE_HEADER_KEY,
+                cc.AES.MODE_CTR,
+                initial_value=Crypt_Xeno2.SAVE_HEADER_INITIAL_VALUE,
+                nonce=bytes(),
+            )
             await cc.r_stream.seek(0x20)
             header = bytearray(await cc.r_stream.read(Crypt_Xeno2.SAVE_HEADER_SIZE))
             aes_header.decrypt(header, header)
@@ -19,9 +26,11 @@ class Crypt_Xeno2:
                 key_off = 0x4C
             else:
                 key_off = 0x1C
-            key = header[key_off:key_off + 0x20]
-            iv = header[(key_off + 0x20):(key_off + 0x20) + 0x10]
-            aes = cc.create_ctx_aes(key, cc.AES.MODE_CTR, initial_value=iv, nonce=bytes())
+            key = header[key_off : key_off + 0x20]
+            iv = header[(key_off + 0x20) : (key_off + 0x20) + 0x10]
+            aes = cc.create_ctx_aes(
+                key, cc.AES.MODE_CTR, initial_value=iv, nonce=bytes()
+            )
 
             await cc.w_stream.seek(0x20)
             await cc.w_stream.write(header)
@@ -33,7 +42,12 @@ class Crypt_Xeno2:
     @staticmethod
     async def encrypt_file(filepath: str) -> None:
         async with CC(filepath) as cc:
-            aes_header = cc.AES.new(Crypt_Xeno2.SAVE_HEADER_KEY, cc.AES.MODE_CTR, initial_value=Crypt_Xeno2.SAVE_HEADER_INITIAL_VALUE, nonce=bytes())
+            aes_header = cc.AES.new(
+                Crypt_Xeno2.SAVE_HEADER_KEY,
+                cc.AES.MODE_CTR,
+                initial_value=Crypt_Xeno2.SAVE_HEADER_INITIAL_VALUE,
+                nonce=bytes(),
+            )
             md5 = cc.create_ctx_md5()
 
             await cc.r_stream.seek(0x20)
@@ -51,9 +65,11 @@ class Crypt_Xeno2:
                 key_off = 0x4C
             else:
                 key_off = 0x1C
-            key = header[key_off:key_off + 0x20]
-            iv = header[(key_off + 0x20):(key_off + 0x20) + 0x10]
-            aes = cc.create_ctx_aes(key, cc.AES.MODE_CTR, initial_value=iv, nonce=bytes())
+            key = header[key_off : key_off + 0x20]
+            iv = header[(key_off + 0x20) : (key_off + 0x20) + 0x10]
+            aes = cc.create_ctx_aes(
+                key, cc.AES.MODE_CTR, initial_value=iv, nonce=bytes()
+            )
             cc.set_ptr(0x20 + Crypt_Xeno2.SAVE_HEADER_SIZE)
             while await cc.read():
                 cc.encrypt(aes)
@@ -134,4 +150,3 @@ class Crypt_Xeno2:
         for i in range(7):
             chks.value += header[0x15 + i]
         header[0x14] = chks.value
-

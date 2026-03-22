@@ -1,5 +1,6 @@
 from data.crypto.common import CustomCrypto as CC
 
+
 class Crypt_RGG:
     KEY = b"fuEw5rWN8MBS"
 
@@ -47,4 +48,3 @@ class Crypt_RGG:
             is_dec = await cc.fraction_byte()
         if is_dec:
             await Crypt_RGG.encrypt_file(filepath)
-

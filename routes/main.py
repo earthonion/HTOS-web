@@ -1,10 +1,11 @@
-from quart import Blueprint, render_template, session, redirect, url_for
+from quart import Blueprint, redirect, render_template, session, url_for
 
 from auth import login_required
 from models import get_db
 from services.jobs import get_user_jobs
 
 main_bp = Blueprint("main", __name__)
+
 
 @main_bp.route("/")
 async def index():
@@ -18,11 +19,16 @@ async def index():
             "AND last_used IS NOT NULL AND last_used > datetime('now', '-300 seconds')"
         )
         total_workers = (await cursor.fetchone())[0]
-        cursor = await db.execute("SELECT COALESCE(SUM(jobs_completed), 0) FROM worker_keys")
+        cursor = await db.execute(
+            "SELECT COALESCE(SUM(jobs_completed), 0) FROM worker_keys"
+        )
         total_jobs = (await cursor.fetchone())[0]
     finally:
         await db.close()
-    return await render_template("landing.html", total_workers=total_workers, total_jobs=total_jobs)
+    return await render_template(
+        "landing.html", total_workers=total_workers, total_jobs=total_jobs
+    )
+
 
 @main_bp.route("/dashboard")
 @login_required
@@ -39,20 +45,24 @@ async def dashboard():
 
     jobs = await get_user_jobs(user_id)
 
-    return await render_template("dashboard.html",
+    return await render_template(
+        "dashboard.html",
         profiles=profiles,
         jobs=jobs,
-        username=session.get("username", "")
+        username=session.get("username", ""),
     )
+
 
 @main_bp.route("/about")
 async def about():
     return await render_template("about.html")
 
+
 @main_bp.route("/profiles", methods=["POST"])
 @login_required
 async def create_profile():
-    from quart import request, flash
+    from quart import flash, request
+
     from utils.orbis import checkid
 
     form = await request.form
@@ -73,14 +83,14 @@ async def create_profile():
 
     # User enters account ID from USB folder (little-endian).
     # Swap to big-endian for storage. Worker will swap back before patching SFO.
-    account_id = "".join(reversed([account_id[i:i+2] for i in range(0, 16, 2)]))
+    account_id = "".join(reversed([account_id[i : i + 2] for i in range(0, 16, 2)]))
 
     user_id = session["user_id"]
     db = await get_db()
     try:
         await db.execute(
             "INSERT OR REPLACE INTO profiles (user_id, name, account_id) VALUES (?, ?, ?)",
-            (user_id, name, account_id)
+            (user_id, name, account_id),
         )
         await db.commit()
     finally:
@@ -98,15 +108,15 @@ async def swap_endian(profile_id):
     try:
         cursor = await db.execute(
             "SELECT account_id FROM profiles WHERE id = ? AND user_id = ?",
-            (profile_id, user_id)
+            (profile_id, user_id),
         )
         profile = await cursor.fetchone()
         if profile:
             aid = profile["account_id"]
-            swapped = "".join(reversed([aid[i:i+2] for i in range(0, len(aid), 2)]))
+            swapped = "".join(reversed([aid[i : i + 2] for i in range(0, len(aid), 2)]))
             await db.execute(
                 "UPDATE profiles SET account_id = ? WHERE id = ? AND user_id = ?",
-                (swapped, profile_id, user_id)
+                (swapped, profile_id, user_id),
             )
             await db.commit()
     finally:

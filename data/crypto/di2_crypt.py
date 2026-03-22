@@ -4,9 +4,11 @@ from data.crypto.common import CustomCrypto as CC
 from data.crypto.exceptions import CryptoError
 from utils.type_helpers import uint32
 
+
 class Crypt_DI2:
     class DI2(CC):
         ZSTD_MAGIC = uint32(0xFD2FB528, "little").as_bytes
+
         def __init__(self, filepath: str) -> None:
             super().__init__(filepath, in_place=False)
 

@@ -5,8 +5,15 @@ import aiofiles
 import aiofiles.os
 
 from utils.constants import (
-    UPLOAD_ENCRYPTED, UPLOAD_DECRYPTED, DOWNLOAD_DECRYPTED, PNG_PATH, KEYSTONE_PATH,
-    DOWNLOAD_ENCRYPTED, PARAM_PATH, RANDOMSTRING_LENGTH, logger
+    DOWNLOAD_DECRYPTED,
+    DOWNLOAD_ENCRYPTED,
+    KEYSTONE_PATH,
+    PARAM_PATH,
+    PNG_PATH,
+    RANDOMSTRING_LENGTH,
+    UPLOAD_DECRYPTED,
+    UPLOAD_ENCRYPTED,
+    logger,
 )
 from utils.extras import generate_random_string
 
@@ -22,7 +29,15 @@ def init_workspace() -> tuple[str, str, str, str, str, str, str]:
     newDOWNLOAD_DECRYPTED = os.path.join(DOWNLOAD_DECRYPTED, randomString)
     newKEYSTONE_PATH = os.path.join(KEYSTONE_PATH, randomString)
 
-    return newUPLOAD_ENCRYPTED, newUPLOAD_DECRYPTED, newDOWNLOAD_ENCRYPTED, newPNG_PATH, newPARAM_PATH, newDOWNLOAD_DECRYPTED, newKEYSTONE_PATH
+    return (
+        newUPLOAD_ENCRYPTED,
+        newUPLOAD_DECRYPTED,
+        newDOWNLOAD_ENCRYPTED,
+        newPNG_PATH,
+        newPARAM_PATH,
+        newDOWNLOAD_DECRYPTED,
+        newKEYSTONE_PATH,
+    )
 
 
 async def cleanup_simple(clean_list: list[str] | None) -> None:

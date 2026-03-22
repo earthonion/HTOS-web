@@ -1,6 +1,8 @@
 import aiofiles
+
 from data.crypto.common import CustomCrypto as CC
 from utils.type_helpers import uint32
+
 
 class Crypt_RE4R:
     SECRET_KEY = b"wa9Ui_tFKa_6E_D5gVChjM69xMKDX8QxEykYKhzb4cRNLknpCZUra"
@@ -14,7 +16,9 @@ class Crypt_RE4R:
 
         async with CC(filepath) as cc:
             blowfish_ecb = cc.Blowfish.new(key, cc.Blowfish.MODE_ECB)
-            blowfish_cbc = cc.create_ctx_blowfish(key, cc.Blowfish.MODE_CBC, iv=bytes([0] * 8))
+            blowfish_cbc = cc.create_ctx_blowfish(
+                key, cc.Blowfish.MODE_CBC, iv=bytes([0] * 8)
+            )
 
             await cc.r_stream.seek(0x10)
             header = bytearray(await cc.r_stream.read(0x10))
@@ -60,7 +64,9 @@ class Crypt_RE4R:
             else:
                 n = 0
 
-            blowfish_cbc = cc.create_ctx_blowfish(key, cc.Blowfish.MODE_CBC, iv=bytes([0] * 8))
+            blowfish_cbc = cc.create_ctx_blowfish(
+                key, cc.Blowfish.MODE_CBC, iv=bytes([0] * 8)
+            )
             mmh3 = cc.create_ctx_mmh3_u32(Crypt_RE4R.SEED)
             while await cc.read(stop_off=cc.size - n):
                 cc.ES32()

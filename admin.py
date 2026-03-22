@@ -7,8 +7,8 @@ import os
 import secrets
 import sys
 
-import bcrypt
 import aiosqlite
+import bcrypt
 
 from config import DATABASE_PATH
 
@@ -21,10 +21,13 @@ async def get_db():
 
 # ── Users ──
 
+
 async def list_users():
     db = await get_db()
     try:
-        cursor = await db.execute("SELECT id, username, created_at FROM users ORDER BY id")
+        cursor = await db.execute(
+            "SELECT id, username, created_at FROM users ORDER BY id"
+        )
         rows = await cursor.fetchall()
         if not rows:
             print("No users.")
@@ -42,8 +45,7 @@ async def change_password(username, new_password):
     db = await get_db()
     try:
         cursor = await db.execute(
-            "UPDATE users SET password_hash = ? WHERE username = ?",
-            (pw_hash, username)
+            "UPDATE users SET password_hash = ? WHERE username = ?", (pw_hash, username)
         )
         await db.commit()
         if cursor.rowcount == 0:
@@ -57,7 +59,9 @@ async def change_password(username, new_password):
 async def delete_user(username):
     db = await get_db()
     try:
-        cursor = await db.execute("SELECT id FROM users WHERE username = ?", (username,))
+        cursor = await db.execute(
+            "SELECT id FROM users WHERE username = ?", (username,)
+        )
         row = await cursor.fetchone()
         if not row:
             print(f"User '{username}' not found.")
@@ -74,6 +78,7 @@ async def delete_user(username):
 
 
 # ── Worker Keys ──
+
 
 async def list_keys(username=None):
     db = await get_db()
@@ -95,7 +100,9 @@ async def list_keys(username=None):
         if not rows:
             print("No worker keys.")
             return
-        print(f"{'ID':<6}{'User':<16}{'Name':<20}{'Active':<8}{'Status':<12}{'Created':<22}{'Last Used'}")
+        print(
+            f"{'ID':<6}{'User':<16}{'Name':<20}{'Active':<8}{'Status':<12}{'Created':<22}{'Last Used'}"
+        )
         print("-" * 100)
         for r in rows:
             active = "yes" if r["is_active"] else "no"
@@ -104,7 +111,9 @@ async def list_keys(username=None):
                 status = f"online/{r['last_platform'] or 'ps4'}"
             else:
                 status = "offline"
-            print(f"{r['id']:<6}{r['username']:<16}{r['name']:<20}{active:<8}{status:<12}{r['created_at']:<22}{last}")
+            print(
+                f"{r['id']:<6}{r['username']:<16}{r['name']:<20}{active:<8}{status:<12}{r['created_at']:<22}{last}"
+            )
     finally:
         await db.close()
 
@@ -127,14 +136,16 @@ async def revoke_key(key_id):
 async def revoke_all_keys(username):
     db = await get_db()
     try:
-        cursor = await db.execute("SELECT id FROM users WHERE username = ?", (username,))
+        cursor = await db.execute(
+            "SELECT id FROM users WHERE username = ?", (username,)
+        )
         row = await cursor.fetchone()
         if not row:
             print(f"User '{username}' not found.")
             return
         cursor = await db.execute(
             "UPDATE worker_keys SET is_active = 0 WHERE user_id = ? AND is_active = 1",
-            (row["id"],)
+            (row["id"],),
         )
         await db.commit()
         print(f"Revoked {cursor.rowcount} key(s) for '{username}'.")
@@ -157,10 +168,13 @@ async def delete_key(key_id):
 
 # ── Invites ──
 
+
 async def invite_status():
     db = await get_db()
     try:
-        cursor = await db.execute("SELECT value FROM settings WHERE key = 'invite_only'")
+        cursor = await db.execute(
+            "SELECT value FROM settings WHERE key = 'invite_only'"
+        )
         row = await cursor.fetchone()
         enabled = row and row["value"] == "1"
         print(f"Invite-only registration: {'ENABLED' if enabled else 'DISABLED'}")
@@ -174,7 +188,7 @@ async def invite_toggle(on: bool):
         await db.execute(
             "INSERT INTO settings (key, value) VALUES ('invite_only', ?) "
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            ("1" if on else "0",)
+            ("1" if on else "0",),
         )
         await db.commit()
         print(f"Invite-only registration {'ENABLED' if on else 'DISABLED'}.")
@@ -188,9 +202,7 @@ async def invite_create(count=1):
         codes = []
         for _ in range(count):
             code = secrets.token_hex(8)
-            await db.execute(
-                "INSERT INTO invite_codes (code) VALUES (?)", (code,)
-            )
+            await db.execute("INSERT INTO invite_codes (code) VALUES (?)", (code,))
             codes.append(code)
         await db.commit()
         print(f"Created {count} invite code(s):")
@@ -217,7 +229,9 @@ async def invite_list():
         for r in rows:
             status = f"used {r['used_at'][:10]}" if r["used_at"] else "available"
             used_by = r["used_by_name"] or ""
-            print(f"{r['id']:<6}{r['code']:<20}{status:<14}{r['created_at']:<22}{used_by}")
+            print(
+                f"{r['id']:<6}{r['code']:<20}{status:<14}{r['created_at']:<22}{used_by}"
+            )
     finally:
         await db.close()
 
@@ -237,6 +251,7 @@ async def invite_delete(code_id):
 
 # ── Jobs ──
 
+
 async def list_jobs(limit=20):
     db = await get_db()
     try:
@@ -246,17 +261,21 @@ async def list_jobs(limit=20):
             "FROM jobs j JOIN users u ON j.user_id = u.id "
             "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id "
             "ORDER BY j.created_at DESC LIMIT ?",
-            (limit,)
+            (limit,),
         )
         rows = await cursor.fetchall()
         if not rows:
             print("No jobs.")
             return
-        print(f"{'ID':<38}{'User':<16}{'Op':<12}{'Status':<10}{'Worker':<16}{'Created'}")
+        print(
+            f"{'ID':<38}{'User':<16}{'Op':<12}{'Status':<10}{'Worker':<16}{'Created'}"
+        )
         print("-" * 116)
         for r in rows:
             worker = r["worker_name"] or "-"
-            print(f"{r['id']:<38}{r['username']:<16}{r['operation']:<12}{r['status']:<10}{worker:<16}{r['created_at']}")
+            print(
+                f"{r['id']:<38}{r['username']:<16}{r['operation']:<12}{r['status']:<10}{worker:<16}{r['created_at']}"
+            )
             if r["error"]:
                 print(f"  error: {r['error']}")
     finally:
@@ -282,14 +301,18 @@ async def worker_stats():
         if not rows:
             print("No worker keys.")
             return
-        print(f"{'ID':<6}{'Name':<22}{'Plat':<6}{'Status':<10}{'Done':<6}{'Fail':<6}{'Total':<7}{'Rate':<8}{'Active'}")
+        print(
+            f"{'ID':<6}{'Name':<22}{'Plat':<6}{'Status':<10}{'Done':<6}{'Fail':<6}{'Total':<7}{'Rate':<8}{'Active'}"
+        )
         print("-" * 80)
         for r in rows:
             total = r["done"] + r["failed"]
             rate = f"{100 * r['done'] // total}%" if total > 0 else "-"
             active = "yes" if r["is_active"] else "REVOKED"
-            print(f"{r['id']:<6}{r['name']:<22}{r['last_platform']:<6}{r['status']:<10}"
-                  f"{r['done']:<6}{r['failed']:<6}{total:<7}{rate:<8}{active}")
+            print(
+                f"{r['id']:<6}{r['name']:<22}{r['last_platform']:<6}{r['status']:<10}"
+                f"{r['done']:<6}{r['failed']:<6}{total:<7}{rate:<8}{active}"
+            )
     finally:
         await db.close()
 
@@ -312,7 +335,7 @@ async def clear_jobs(status=None):
             f"done = job_stats.done + excluded.done, "
             f"failed = job_stats.failed + excluded.failed, "
             f"total = job_stats.total + excluded.total",
-            params
+            params,
         )
         if status:
             cursor = await db.execute("DELETE FROM jobs WHERE status = ?", (status,))
@@ -327,6 +350,7 @@ async def clear_jobs(status=None):
 
 # ── SaveDB ──
 
+
 async def savedb_list():
     db = await get_db()
     try:
@@ -339,18 +363,23 @@ async def savedb_list():
         if not rows:
             print("No savedb entries.")
             return
-        print(f"{'ID':<6}{'Title':<30}{'CUSA':<12}{'Plat':<6}{'Score':<7}{'Up':<4}{'Dn':<4}{'User'}")
+        print(
+            f"{'ID':<6}{'Title':<30}{'CUSA':<12}{'Plat':<6}{'Score':<7}{'Up':<4}{'Dn':<4}{'User'}"
+        )
         print("-" * 80)
         for r in rows:
-            score = r['upvotes'] - r['downvotes']
-            print(f"{r['id']:<6}{r['title'][:28]:<30}{r['title_id']:<12}{r['platform']:<6}"
-                  f"{score:<7}{r['upvotes']:<4}{r['downvotes']:<4}{r['username']}")
+            score = r["upvotes"] - r["downvotes"]
+            print(
+                f"{r['id']:<6}{r['title'][:28]:<30}{r['title_id']:<12}{r['platform']:<6}"
+                f"{score:<7}{r['upvotes']:<4}{r['downvotes']:<4}{r['username']}"
+            )
     finally:
         await db.close()
 
 
 async def savedb_delete(entry_id):
     import shutil
+
     db = await get_db()
     try:
         cursor = await db.execute(

@@ -1,13 +1,14 @@
 from data.crypto.common import CustomCrypto
 
+
 class Converter(CustomCrypto):
     # When converting we have to move PSIN or RSAV header to the start bytes
     # GTA V:
-        # PS4 is 0x114
-        # PC is 0x108
+    # PS4 is 0x114
+    # PC is 0x108
     # RDR 2:
-        # PS4 is 0x120
-        # PC is 0x110
+    # PS4 is 0x120
+    # PC is 0x110
     async def push_bytes(self, src_off: int, dst_off: int) -> None:
         assert not self.in_place
 
@@ -29,4 +30,3 @@ class Converter(CustomCrypto):
             if not chunk:
                 break
             await self.w_stream.write(chunk)
-

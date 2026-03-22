@@ -1,17 +1,22 @@
 import asyncio
 import time
 from dataclasses import dataclass, field
+
 from utils.conversions import hours_to_seconds
 from utils.exceptions import InstanceError
 
-INSTANCE_TIMEOUT = hours_to_seconds(1) # a single instance will be lazily freed up every hour for each user if possible
+INSTANCE_TIMEOUT = hours_to_seconds(
+    1
+)  # a single instance will be lazily freed up every hour for each user if possible
 MAXIMUM_INSTANCES_AT_ONCE = 32
 MAXIMUM_INSTANCES_PER_USER = 1
+
 
 @dataclass
 class Instance:
     active_instances: int = 0
     timestamp: float = field(default_factory=time.time)
+
 
 @dataclass
 class InstanceLock:
@@ -44,7 +49,9 @@ class InstanceLock:
             self._timeout_handler(disc_userid)
 
             if self.instances_len == self.maximum_instances:
-                raise InstanceError(f"There are no available slots! Maximum of {self.maximum_instances} reached. Please try again later.")
+                raise InstanceError(
+                    f"There are no available slots! Maximum of {self.maximum_instances} reached. Please try again later."
+                )
 
             instance = self.instances.get(disc_userid)
             if not instance:
@@ -52,7 +59,9 @@ class InstanceLock:
                 self.instances[disc_userid] = instance
 
             if instance.active_instances == self.maximum_instances_per_user:
-                raise InstanceError(f"You can only have {self.maximum_instances_per_user} active instance(s) at a time!")
+                raise InstanceError(
+                    f"You can only have {self.maximum_instances_per_user} active instance(s) at a time!"
+                )
 
             # every time a new slot is given, recalculate the timestamp
             instance.timestamp = time.time()
@@ -77,4 +86,7 @@ class InstanceLock:
             if disc_user_id in self.instances:
                 del self.instances[disc_user_id]
 
-INSTANCE_LOCK_global = InstanceLock(MAXIMUM_INSTANCES_AT_ONCE, MAXIMUM_INSTANCES_PER_USER)
+
+INSTANCE_LOCK_global = InstanceLock(
+    MAXIMUM_INSTANCES_AT_ONCE, MAXIMUM_INSTANCES_PER_USER
+)

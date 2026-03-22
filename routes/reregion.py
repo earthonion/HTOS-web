@@ -1,16 +1,18 @@
 import json
 import os
 import shutil
-from quart import Blueprint, render_template, request, session, redirect, url_for, flash
+
+from quart import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from auth import login_required
 from config import CHUNK_DIR
 from models import get_db
+from services.files import detect_platform_in_dir
 from services.jobs import create_job
-from services.files import detect_platform_in_dir, account_id_to_usb
 from services.workers import ps5_workers_online
 
 reregion_bp = Blueprint("reregion", __name__)
+
 
 @reregion_bp.route("/reregion", methods=["GET", "POST"])
 @login_required
@@ -41,15 +43,19 @@ async def reregion():
             await flash("Please upload save files to re-region.", "error")
             return await render_template("reregion.html", profiles=profiles)
 
-        if not sample_upload_ids_json and (not sample_files or not sample_files[0].filename):
-            await flash("Please upload a sample save pair from the target region.", "error")
+        if not sample_upload_ids_json and (
+            not sample_files or not sample_files[0].filename
+        ):
+            await flash(
+                "Please upload a sample save pair from the target region.", "error"
+            )
             return await render_template("reregion.html", profiles=profiles)
 
         db = await get_db()
         try:
             cursor = await db.execute(
                 "SELECT account_id FROM profiles WHERE id = ? AND user_id = ?",
-                (profile_id, user_id)
+                (profile_id, user_id),
             )
             profile = await cursor.fetchone()
         finally:
@@ -61,6 +67,7 @@ async def reregion():
 
         account_id = profile["account_id"]
         import uuid as _uuid
+
         temp_job_id = str(_uuid.uuid4())
 
         # Save both sets of files
@@ -107,12 +114,17 @@ async def reregion():
                 await flash("PS5 saves not currently supported!", "error")
                 return await render_template("reregion.html", profiles=profiles)
 
-        job = await create_job(user_id, "reregion", {
-            "account_id": account_id,
-            "saves_dir": saves_dir,
-            "sample_dir": sample_dir,
-            "platform": platform,
-        }, ready=True)
+        job = await create_job(
+            user_id,
+            "reregion",
+            {
+                "account_id": account_id,
+                "saves_dir": saves_dir,
+                "sample_dir": sample_dir,
+                "platform": platform,
+            },
+            ready=True,
+        )
         return redirect(url_for("jobs.job_status", job_id=job.job_id))
 
     return await render_template("reregion.html", profiles=profiles)

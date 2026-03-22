@@ -1,5 +1,7 @@
 import aiofiles
+
 from data.crypto.common import CustomCrypto as CC
+
 
 class Crypt_RCube:
     @staticmethod
@@ -61,4 +63,3 @@ class Crypt_RCube:
             if path.endswith(".dat"):
                 valid.append(path)
         return valid
-

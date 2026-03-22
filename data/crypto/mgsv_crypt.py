@@ -1,6 +1,8 @@
 import aiofiles
+
 from data.crypto.common import CustomCrypto as CC
 from utils.type_helpers import uint32
+
 
 class Crypt_MGSV:
     MGSV_TPP_PS4KEY_CUSA01140 = 0x4131F8BE
@@ -15,10 +17,9 @@ class Crypt_MGSV:
         "CUSA01140": {"key": MGSV_TPP_PS4KEY_CUSA01140, "name": "MGSVTPPSaveDataNA"},
         "CUSA01154": {"key": MGSV_TPP_PS4KEY_CUSA01154, "name": "MGSVTPPSaveDataEU"},
         "CUSA01099": {"key": MGSV_TPP_PS4KEY_CUSA01099, "name": "MGSVTPPSaveDataJP"},
-
         "CUSA00218": {"key": MGSV_GZ_PS4KEY_CUSA00218, "name": "MGSVGZSaveDataNA"},
         "CUSA00211": {"key": MGSV_GZ_PS4KEY_CUSA00211, "name": "MGSVGZSaveDataEU"},
-        "CUSA00225": {"key": MGSV_GZ_PS4KEY_CUSA00225, "name": "MGSVGZSaveDataJP"}
+        "CUSA00225": {"key": MGSV_GZ_PS4KEY_CUSA00225, "name": "MGSVGZSaveDataJP"},
     }
 
     HEADER_TPP = b"SV"
@@ -32,19 +33,19 @@ class Crypt_MGSV:
         def crypt(self) -> None:
             self._prepare_list_write()
             for i in range(len(self.chunk)):
-                self.key.value ^= (self.key.value << 13)
-                self.key.value ^= (self.key.value >> 7)
-                self.key.value ^= (self.key.value << 5)
+                self.key.value ^= self.key.value << 13
+                self.key.value ^= self.key.value >> 7
+                self.key.value ^= self.key.value << 5
 
                 self.chunk[i].value ^= self.key.value
 
     @staticmethod
-    def mix_key(length: int, title_id: str) -> int: 
+    def mix_key(length: int, title_id: str) -> int:
         key = uint32(Crypt_MGSV.KEYS[title_id]["key"])
         for _ in range(length):
-            key.value ^= (key.value << 13)
-            key.value ^= (key.value >> 7)
-            key.value ^= (key.value << 5)
+            key.value ^= key.value << 13
+            key.value ^= key.value >> 7
+            key.value ^= key.value << 5
         return key.value
 
     @staticmethod
@@ -113,4 +114,3 @@ class Crypt_MGSV:
                     await Crypt_MGSV.decrypt_file(filepath, title_id)
                     await Crypt_MGSV.encrypt_file(filepath, target_titleid)
                     break
-

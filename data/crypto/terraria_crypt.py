@@ -1,8 +1,10 @@
-import aiofiles
 import os
+
+import aiofiles
 
 from data.crypto.common import CustomCrypto as CC
 from utils.type_helpers import uint32
+
 
 class Crypt_Terraria:
     SECRET_KEY = "h3y_gUyZ".encode("utf-16-le")
@@ -19,7 +21,11 @@ class Crypt_Terraria:
         async with CC(filepath, in_place=ext == ".plr") as cc:
             match ext:
                 case ".plr":
-                    aes = cc.create_ctx_aes(Crypt_Terraria.SECRET_KEY, cc.AES.MODE_CBC, iv=Crypt_Terraria.SECRET_KEY)
+                    aes = cc.create_ctx_aes(
+                        Crypt_Terraria.SECRET_KEY,
+                        cc.AES.MODE_CBC,
+                        iv=Crypt_Terraria.SECRET_KEY,
+                    )
                     while await cc.read():
                         cc.decrypt(aes)
                         await cc.write()
@@ -39,7 +45,11 @@ class Crypt_Terraria:
         async with CC(filepath, in_place=ext == ".plr") as cc:
             match ext:
                 case ".plr":
-                    aes = cc.create_ctx_aes(Crypt_Terraria.SECRET_KEY, cc.AES.MODE_CBC, iv=Crypt_Terraria.SECRET_KEY)
+                    aes = cc.create_ctx_aes(
+                        Crypt_Terraria.SECRET_KEY,
+                        cc.AES.MODE_CBC,
+                        iv=Crypt_Terraria.SECRET_KEY,
+                    )
                     while await cc.read():
                         cc.encrypt(aes)
                         await cc.write()
@@ -56,10 +66,10 @@ class Crypt_Terraria:
         unfiltered_files = await CC.obtain_files(folderpath)
         filtered_files = Crypt_Terraria.files_check(unfiltered_files)
         for filepath in filtered_files:
-             async with aiofiles.open(filepath, "rb") as savegame:
+            async with aiofiles.open(filepath, "rb") as savegame:
                 await savegame.seek(0x04)
                 magic = await savegame.read(len(Crypt_Terraria.DEC_MAGIC))
-             if magic != Crypt_Terraria.DEC_MAGIC:
+            if magic != Crypt_Terraria.DEC_MAGIC:
                 await Crypt_Terraria.decrypt_file(filepath)
 
     @staticmethod
@@ -84,4 +94,3 @@ class Crypt_Terraria:
     @staticmethod
     def file_check(filepath: str) -> bool:
         return filepath.endswith(".plr") or filepath.endswith(".wld")
-

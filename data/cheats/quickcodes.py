@@ -1,8 +1,9 @@
 import re
+
+from data.cheats.exceptions import QuickCheatsError, QuickCodesError
 from data.crypto.common import CustomCrypto
 from data.crypto.exceptions import CryptoError
-from data.cheats.exceptions import QuickCheatsError, QuickCodesError
-from utils.type_helpers import uint8, uint16, uint32, uint64, int32, int64
+from utils.type_helpers import int32, int64, uint8, uint16, uint32, uint64
 
 # Example
 # 80010008 EA372703
@@ -11,8 +12,10 @@ from utils.type_helpers import uint8, uint16, uint32, uint64, int32, int64
 
 QC_RE = re.compile(r"^([0-9a-fA-F]){8} ([0-9a-fA-F]){8}$")
 
+
 class QuickCodes(CustomCrypto):
     """Functions to handle Save Wizard quick codes."""
+
     def __init__(self, filepath: str, codes: str) -> None:
         super().__init__(filepath)
         self.codes = codes
@@ -27,7 +30,9 @@ class QuickCodes(CustomCrypto):
             if not self.validate_code(line):
                 raise QuickCodesError(f"Invalid code: {line}!")
 
-    async def search_data(self, size: int, start: int, search: bytearray | bytes, length: int, count: int) -> int:
+    async def search_data(
+        self, size: int, start: int, search: bytearray | bytes, length: int, count: int
+    ) -> int:
         assert count >= 1
         s = search[:length]
 
@@ -44,7 +49,9 @@ class QuickCodes(CustomCrypto):
             return start_off - 1
         return -1
 
-    async def reverse_search_data(self, size: int, start: int, search: bytearray | bytes, length: int, count: int) -> int:
+    async def reverse_search_data(
+        self, size: int, start: int, search: bytearray | bytes, length: int, count: int
+    ) -> int:
         assert count >= 1
         s = search[:length]
 
@@ -86,7 +93,9 @@ class QuickCodes(CustomCrypto):
                         #   X= Address/Offset
                         #   Y= Value to write
                         #   T=Address/Offset type (0 = Normal / 8 = Offset From Pointer)
-                        bytes_ = uint8(1 << (ord(line[0]) - 0x30)).value # how many bytes to write
+                        bytes_ = uint8(
+                            1 << (ord(line[0]) - 0x30)
+                        ).value  # how many bytes to write
 
                         tmp6 = line[2:8]
                         off = int32(tmp6)
@@ -168,7 +177,7 @@ class QuickCodes(CustomCrypto):
 
                             case "5" | "D":
                                 wv16 = uint16(await self.r_stream.read(2), "little")
-                                wv16.value -= (val)
+                                wv16.value -= val
 
                                 await self.ext_write(off, wv16.as_bytes)
 
@@ -317,7 +326,7 @@ class QuickCodes(CustomCrypto):
                                 # 0X = Read "address" from file (X = 0:none, 1:add, 2:multiply)
                                 if x == "1":
                                     val.value += ptr.value
-                                write += (val.value + off)
+                                write += val.value + off
 
                                 if y == "1":
                                     pointer.value = val.value
@@ -333,13 +342,17 @@ class QuickCodes(CustomCrypto):
                                     case "1" | "9":
                                         # Data size = 16 bits
                                         # 0000VVVV
-                                        wv16 = uint16(await self.r_stream.read(2), "little")
+                                        wv16 = uint16(
+                                            await self.r_stream.read(2), "little"
+                                        )
                                         ptr.value = wv16.value
 
                                     case "2" | "A":
                                         # Data size = 32 bits
                                         # VVVVVVVV
-                                        wv32 = uint32(await self.r_stream.read(4), "little")
+                                        wv32 = uint32(
+                                            await self.r_stream.read(4), "little"
+                                        )
                                         ptr.value = wv32.value
 
                             case "1":
@@ -505,21 +518,29 @@ class QuickCodes(CustomCrypto):
                             tmp8 = line[:8]
                             val.value = tmp8
 
-                            find[i:i + 4] = val.as_bytes
+                            find[i : i + 4] = val.as_bytes
 
                             tmp8 = line[9:17]
                             val.value = tmp8
 
                             if i + 4 < length:
-                                find[(i + 4):(i + 4) + 4] = val.as_bytes
+                                find[(i + 4) : (i + 4) + 4] = val.as_bytes
 
-                        pointer.value = await self.search_data(self.size, pointer.value if t == "8" else 0, find, length, cnt)
+                        pointer.value = await self.search_data(
+                            self.size,
+                            pointer.value if t == "8" else 0,
+                            find,
+                            length,
+                            cnt,
+                        )
 
                         if pointer.value < 0:
                             while line_index < len(self.lines):
                                 line_index += 1
 
-                                while (line and ((line[0] not in ["8", "B", "C"]) or line[1] == "8")):
+                                while line and (
+                                    (line[0] not in ["8", "B", "C"]) or line[1] == "8"
+                                ):
                                     if line_index >= len(self.lines):
                                         break
 
@@ -613,13 +634,13 @@ class QuickCodes(CustomCrypto):
                             tmp8 = line[:8]
                             val = uint32(tmp8, "big")
 
-                            write[i:i + 4] = val.as_bytes
+                            write[i : i + 4] = val.as_bytes
 
                             tmp8 = line[9:17]
                             val.value = tmp8
 
                             if (i + 4) < size:
-                                write[(i + 4):(i + 4) + 4] = val.as_bytes
+                                write[(i + 4) : (i + 4) + 4] = val.as_bytes
 
                         await self.w_stream.seek(off)
                         await self.w_stream.write(write[:size])
@@ -641,7 +662,7 @@ class QuickCodes(CustomCrypto):
                         #   X = Bytes to Search, use Multiple Lines if Needed
                         t = line[1]
 
-                        tmp3 = line[2:4] 
+                        tmp3 = line[2:4]
                         cnt = int32(tmp3).value
 
                         tmp4 = line[4:8]
@@ -668,20 +689,28 @@ class QuickCodes(CustomCrypto):
                             tmp8 = line[:8]
                             val.value = tmp8
 
-                            find[i:i + 4] = val.as_bytes
+                            find[i : i + 4] = val.as_bytes
 
                             tmp8 = line[9:17]
                             val.value = tmp8
 
                             if (i + 4) < length:
-                                find[(i + 4):(i + 4) + 4] = val.as_bytes
+                                find[(i + 4) : (i + 4) + 4] = val.as_bytes
 
-                        pointer.value = await self.reverse_search_data(self.size, pointer.value if t == "8" else end_pointer.value, find, length, cnt)
+                        pointer.value = await self.reverse_search_data(
+                            self.size,
+                            pointer.value if t == "8" else end_pointer.value,
+                            find,
+                            length,
+                            cnt,
+                        )
                         if pointer.value < 0:
                             while line_index < len(self.lines):
                                 line_index += 1
 
-                                while (line and ((line[0] not in ["8", "B", "C"]) or line[1] == "8")):
+                                while line and (
+                                    (line[0] not in ["8", "B", "C"]) or line[1] == "8"
+                                ):
                                     if line_index >= len(self.lines):
                                         break
 
@@ -729,15 +758,21 @@ class QuickCodes(CustomCrypto):
                             cnt = 1
 
                         if t in ["4", "C"]:
-                            pointer.value = await self.search_data(addr + length, 0, find, length, cnt)
+                            pointer.value = await self.search_data(
+                                addr + length, 0, find, length, cnt
+                            )
                         else:
-                            pointer.value = await self.search_data(self.size, addr + length, find, length, cnt)
+                            pointer.value = await self.search_data(
+                                self.size, addr + length, find, length, cnt
+                            )
 
                         if pointer.value < 0:
                             while line_index < len(self.lines):
                                 line_index += 1
 
-                                while (line and ((line[0] not in ["8", "B", "C"]) or line[1] == "8")):
+                                while line and (
+                                    (line[0] not in ["8", "B", "C"]) or line[1] == "8"
+                                ):
                                     if line_index >= len(self.lines):
                                         break
 
@@ -792,23 +827,25 @@ class QuickCodes(CustomCrypto):
 
                             case "2":
                                 await self.r_stream.seek(off)
-                                src = uint16(await self.r_stream.read(2), "little").value
+                                src = uint16(
+                                    await self.r_stream.read(2), "little"
+                                ).value
 
                             case _:
                                 src = 0
 
                         match op:
                             case "0":
-                                off = (src == val)
+                                off = src == val
 
                             case "1":
-                                off = (src != val)
+                                off = src != val
 
                             case "2":
-                                off = (src > val)
+                                off = src > val
 
                             case "3":
-                                off = (src < val)
+                                off = src < val
 
                             case _:
                                 off = 1
