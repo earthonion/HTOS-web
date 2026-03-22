@@ -15,7 +15,7 @@ async def index():
     try:
         cursor = await db.execute(
             "SELECT COUNT(*) FROM worker_keys WHERE is_active = 1 "
-            "AND last_used IS NOT NULL AND last_used > datetime('now', '-90 seconds')"
+            "AND last_used IS NOT NULL AND last_used > datetime('now', '-300 seconds')"
         )
         total_workers = (await cursor.fetchone())[0]
         cursor = await db.execute("SELECT COALESCE(SUM(jobs_completed), 0) FROM worker_keys")

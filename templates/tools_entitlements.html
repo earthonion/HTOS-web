@@ -72,7 +72,7 @@
 {% endblock %}
 {% block content %}
 <h1>Entitlement Dumper</h1>
-<p>Drop your entitlement database to extract game titles, IDs, and download URLs. Everything runs in your browser — nothing is uploaded. FTP into your console and grab the file from the path below.</p>
+<p>Drop your entitlement database to extract game titles, IDs, and download URLs. Parsing runs in your browser. Entitlements with package URLs will be contributed to our shared database. FTP into your console and grab the file from the path below.</p>
 <div style="display:flex; gap:1rem; flex-wrap:wrap; margin:1rem 0;">
     <div style="background:var(--bg-1); border:1px solid var(--border); border-radius:var(--r); padding:0.75rem 1rem; flex:1; min-width:220px;">
         <div style="font-size:0.72rem; text-transform:uppercase; color:var(--text-3); margin-bottom:0.25rem;">PS4</div>
@@ -142,27 +142,47 @@ async function processFile(file) {
         const SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${f}` });
         const db = new SQL.Database(new Uint8Array(buf));
 
-        // Find entitlement table
+        // Find all entitlement tables
         const tables = db.exec("SELECT name FROM sqlite_master WHERE type='table'");
-        let targetTable = '';
+        let entTables = [];
         if (tables.length && tables[0].values) {
             for (const row of tables[0].values) {
                 if (row[0].toLowerCase().includes('entitlement')) {
-                    targetTable = row[0];
-                    break;
+                    entTables.push(row[0]);
                 }
             }
         }
 
-        if (!targetTable) {
-            statusEl.innerHTML = '<div class="status-msg error">No entitlement table found in this database.</div>';
+        // Build table info for diagnostics
+        let tableInfo = '';
+        if (tables.length && tables[0].values) {
+            tableInfo = '<table style="margin-top:0.75rem; font-size:0.82rem; border-collapse:collapse;">' +
+                '<tr><th style="text-align:left; padding:0.3rem 1rem 0.3rem 0;">Table</th><th style="text-align:right; padding:0.3rem 0;">Rows</th></tr>';
+            for (const row of tables[0].values) {
+                let count = 0;
+                try { const c = db.exec(`SELECT COUNT(*) FROM "${row[0]}"`); count = c[0].values[0][0]; } catch {}
+                tableInfo += '<tr><td style="padding:0.3rem 1rem 0.3rem 0; font-family:monospace; font-size:0.78rem;">' + row[0] + '</td><td style="text-align:right; padding:0.3rem 0;">' + count + '</td></tr>';
+            }
+            tableInfo += '</table>';
+        }
+
+        if (!entTables.length) {
+            statusEl.innerHTML = '<div class="status-msg error">No entitlement table found in this database.' + tableInfo + '</div>';
             return;
         }
 
-        // Query all JSON rows
-        const rows = db.exec(`SELECT json FROM "${targetTable}"`);
-        if (!rows.length || !rows[0].values.length) {
-            statusEl.innerHTML = '<div class="status-msg error">Entitlement table is empty.</div>';
+        // Query JSON from all entitlement tables
+        let allRows = [];
+        for (const tbl of entTables) {
+            try {
+                const rows = db.exec(`SELECT JSON FROM "${tbl}"`);
+                if (rows.length && rows[0].values.length) {
+                    allRows = allRows.concat(rows[0].values);
+                }
+            } catch {}
+        }
+        if (!allRows.length) {
+            statusEl.innerHTML = '<div class="status-msg error">Entitlement tables are empty.<br><span style="font-size:0.8rem; opacity:0.8;">To have entitlements, your console would have had to been connected to PSN at some point and not factory reset.</span>' + tableInfo + '</div>';
             return;
         }
 
@@ -170,7 +190,7 @@ async function processFile(file) {
         const isPs5 = file.name.toLowerCase().includes('4.db');
 
         let skipped = 0;
-        for (const row of rows[0].values) {
+        for (const row of allRows) {
             try {
                 const data = JSON.parse(row[0]);
                 const gameId = data.id || '';
@@ -197,8 +217,24 @@ async function processFile(file) {
                     try { pkgUrl = data.entitlement_attributes[0].reference_package_url || ''; } catch {}
                     if (!pkgUrl) try { pkgUrl = data.entitlementAttributes[0].referencePackageUrl || ''; } catch {}
                 }
+                // Extract CUSA/PPSA title_id from entitlement id
+                let titleId = '';
+                const tidMatch = gameId.match(/(CUSA\d{5}|PPSA\d{5})/);
+                if (tidMatch) titleId = tidMatch[1];
+                // Content type
+                let contentType = '';
+                try { contentType = (data.product_meta && data.product_meta.content_type) || ''; } catch {}
+                // Platform from entitlement_attributes
+                let plat = isPs5 ? 'ps5' : 'ps4';
+                try {
+                    const pa = isPs5
+                        ? (data.entitlementAttributes && data.entitlementAttributes[0] && data.entitlementAttributes[0].platformId)
+                        : (data.entitlement_attributes && data.entitlement_attributes[0] && data.entitlement_attributes[0].platform_id);
+                    if (pa) plat = pa;
+                } catch {}
+
                 if (gameId || title) {
-                    allEntries.push({ id: gameId, title: title, url: pkgUrl });
+                    allEntries.push({ id: gameId, title: title, url: pkgUrl, title_id: titleId, content_type: contentType, platform: plat });
                 } else {
                     skipped++;
                 }
@@ -213,6 +249,19 @@ async function processFile(file) {
             statusEl.innerHTML = '<div class="status-msg error">No valid entitlements found.</div>';
             return;
         }
+
+        // Submit to server in background (dedup handled server-side)
+        try {
+            const resp = await fetch('/tools/api/entitlements', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entries: allEntries.filter(e => e.url) })
+            });
+            const result = await resp.json();
+            if (result.ok && result.inserted > 0) {
+                statusEl.innerHTML = '<div class="status-msg info">' + result.inserted + ' new entitlement(s) added to database.</div>';
+            }
+        } catch {}
 
         statusEl.innerHTML = '';
         resultsEl.style.display = '';

@@ -110,7 +110,7 @@ def create_app():
                 cursor = await db.execute(
                     "SELECT last_platform, COUNT(*) as cnt FROM worker_keys "
                     "WHERE is_active = 1 AND last_used IS NOT NULL "
-                    "AND last_used > datetime('now', '-90 seconds') "
+                    "AND last_used > datetime('now', '-300 seconds') "
                     "AND (suspended_until IS NULL OR suspended_until <= datetime('now')) "
                     "GROUP BY last_platform"
                 )

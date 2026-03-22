@@ -10,6 +10,7 @@ from auth import login_required
 from models import get_db
 from services.jobs import get_or_create_job_logger
 from services.files import extract_account_id_from_zip
+from services.titles import lookup_title
 
 jobs_bp = Blueprint("jobs", __name__)
 
@@ -19,10 +20,16 @@ async def _load_job_from_db(job_id, user_id):
     # Always check DB for latest state (workers may run in separate processes)
     db = await get_db()
     try:
-        cursor = await db.execute(
-            "SELECT id, user_id, operation, status, result_path, error, params FROM jobs WHERE id = ? AND user_id = ?",
-            (job_id, user_id)
-        )
+        if user_id is None:
+            cursor = await db.execute(
+                "SELECT id, user_id, operation, status, result_path, error, params, logs FROM jobs WHERE id = ?",
+                (job_id,)
+            )
+        else:
+            cursor = await db.execute(
+                "SELECT id, user_id, operation, status, result_path, error, params, logs FROM jobs WHERE id = ? AND user_id = ?",
+                (job_id, user_id)
+            )
         row = await cursor.fetchone()
     finally:
         await db.close()
@@ -39,31 +46,54 @@ async def _load_job_from_db(job_id, user_id):
     job.error = row["error"]
     if row["params"]:
         job.params = json.loads(row["params"])
+    # Load persisted logs into in-memory logger if empty
+    if not job.logger.messages and row["logs"]:
+        for line in row["logs"].split("\n"):
+            try:
+                entry = json.loads(line)
+                job.logger.messages.append(entry)
+            except (json.JSONDecodeError, ValueError):
+                pass
     return job
 
 
 @jobs_bp.route("/jobs/<job_id>")
 @login_required
 async def job_status(job_id):
-    job = await _load_job_from_db(job_id, session["user_id"])
+    user_id = None if session.get("is_admin") else session["user_id"]
+    job = await _load_job_from_db(job_id, user_id)
     if not job:
         abort(404)
 
-    # Extract account ID from result zip if not already in params
-    if job.status == "done" and job.result_path and not job.params.get("sfo_account_id"):
-        if os.path.exists(job.result_path):
+    # Extract account ID and title from result zip if not already in params
+    if job.status == "done" and job.result_path and os.path.exists(job.result_path):
+        updates = {}
+        if not job.params.get("sfo_account_id"):
             platform = job.params.get("platform", "ps4")
             acct = extract_account_id_from_zip(job.result_path, platform)
             if acct:
                 job.params["sfo_account_id"] = acct
-                await job.update_params({"sfo_account_id": acct})
+                updates["sfo_account_id"] = acct
+        if not job.params.get("title_id"):
+            sfo = _extract_sfo_fields_from_zip(job.result_path)
+            tid = sfo.get("TITLE_ID", "")
+            if tid:
+                job.params["title_id"] = tid
+                updates["title_id"] = tid
+                title = lookup_title(tid) or ""
+                if title:
+                    job.params["game_title"] = title
+                    updates["game_title"] = title
+        if updates:
+            await job.update_params(updates)
 
     return await render_template("job_status.html", job=job)
 
 @jobs_bp.route("/jobs/<job_id>/stream")
 @login_required
 async def job_stream(job_id):
-    job = await _load_job_from_db(job_id, session["user_id"])
+    user_id = None if session.get("is_admin") else session["user_id"]
+    job = await _load_job_from_db(job_id, user_id)
     if not job:
         abort(404)
 

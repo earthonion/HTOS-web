@@ -10,7 +10,8 @@ from utils.constants import (
     SCE_SYS_NAME, PARAM_NAME,
 )
 from utils.orbis import validate_savedirname, sfo_ctx_create
-from services.files import _read_account_id_from_sfo, FileTooLargeError, DangerousFileError, check_dangerous_files, check_zip_safety, _check_file_sizes, _strip_sdimg_prefix, resolve_chunked_uploads, account_id_to_usb
+from services.files import _read_account_id_from_sfo, patch_sfo_account_id, patch_sfo_saveblocks, FileTooLargeError, DangerousFileError, check_dangerous_files, check_zip_safety, _check_file_sizes, _strip_sdimg_prefix, resolve_chunked_uploads, account_id_to_usb
+from services.titles import lookup_title
 from services.workers import ps5_workers_online
 
 encrypt_bp = Blueprint("encrypt", __name__)
@@ -201,6 +202,7 @@ async def encrypt():
         needed_blocks = (total_size * 105 // 100 + 32767) // 32768  # ceil + 5% overhead
         if needed_blocks > saveblocks:
             saveblocks = needed_blocks
+            patch_sfo_saveblocks(sfo_path, saveblocks)
 
         if not (SAVEBLOCKS_MIN <= saveblocks <= SAVEBLOCKS_MAX):
             await flash(f"Invalid save blocks: {saveblocks}", "error")
@@ -208,11 +210,23 @@ async def encrypt():
 
         platform = "ps5" if form.get("platform") == "ps5" else "ps4"
 
-        # Read account ID from param.sfo (PS4: 0x15C, PS5: 0x1B8)
+        # Read original account ID from param.sfo, then patch with user's
         sfo_account_id = _read_account_id_from_sfo(sfo_path, platform)
+        patch_sfo_account_id(sfo_path, account_id, platform)
         if platform == "ps5" and not await ps5_workers_online():
             await flash("PS5 saves not currently supported!", "error")
             return await render_template("encrypt.html", profiles=profiles)
+        # Extract TITLE_ID and look up game title
+        title_id = ""
+        game_title = ""
+        for param in sfo_ctx.params:
+            if param.key == "TITLE_ID":
+                from utils.type_helpers import utf_8
+                title_id = utf_8(param.value).to_str().strip('\x00')
+                break
+        if title_id:
+            game_title = lookup_title(title_id) or ""
+
         params = {
             "account_id": account_id,
             "savename": savename,
@@ -220,6 +234,10 @@ async def encrypt():
             "upload_dir": save_dir,
             "platform": platform,
         }
+        if title_id:
+            params["title_id"] = title_id
+        if game_title:
+            params["game_title"] = game_title
         if sfo_account_id:
             params["sfo_account_id"] = sfo_account_id
         job = await create_job(user_id, "encrypt", params, ready=True)

@@ -85,6 +85,18 @@ CREATE TABLE IF NOT EXISTS savedb_votes (
     UNIQUE(entry_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS entitlements (
+    id INTEGER PRIMARY KEY,
+    entitlement_id TEXT UNIQUE NOT NULL,
+    title TEXT DEFAULT '',
+    title_id TEXT DEFAULT '',
+    package_url TEXT DEFAULT '',
+    platform TEXT DEFAULT '',
+    content_type TEXT DEFAULT '',
+    contributed_by INTEGER REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 INSERT OR IGNORE INTO settings (key, value) VALUES ('invite_only', '0');
 """
 
@@ -94,6 +106,8 @@ MIGRATIONS = [
     "ALTER TABLE jobs ADD COLUMN worker_key_id INTEGER",
     "ALTER TABLE worker_keys ADD COLUMN suspended_until TIMESTAMP",
     "ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0",
+    "ALTER TABLE worker_keys ADD COLUMN online_since TIMESTAMP",
+    "ALTER TABLE jobs ADD COLUMN logs TEXT",
 ]
 
 async def init_db():

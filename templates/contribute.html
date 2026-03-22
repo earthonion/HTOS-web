@@ -71,7 +71,7 @@ function copyEl(id) {
     {% if keys %}
     <table>
         <thead>
-            <tr><th>Name</th><th>Status</th><th>Online</th><th>Jobs</th><th>Success Rate</th><th>Created</th><th>Last Used</th><th></th></tr>
+            <tr><th>Name</th><th>Status</th><th>Online</th><th>Uptime</th><th>Jobs</th><th>Success Rate</th><th>Created</th><th></th></tr>
         </thead>
         <tbody>
             {% for k in keys %}
@@ -93,6 +93,13 @@ function copyEl(id) {
                     <span style="color: var(--text-2);">offline</span>
                     {% endif %}
                 </td>
+                <td>
+                    {% if k.is_online and k.online_since %}
+                    <span class="uptime" data-since="{{ k.online_since }}">—</span>
+                    {% else %}
+                    <span style="color: var(--text-3);">—</span>
+                    {% endif %}
+                </td>
                 <td>{{ k.jobs_completed or 0 }}</td>
                 <td>
                     {% if k.stats_total > 0 %}
@@ -104,7 +111,6 @@ function copyEl(id) {
                     {% endif %}
                 </td>
                 <td>{{ k.created_at }}</td>
-                <td>{{ k.last_used or 'never' }}</td>
                 <td style="display: flex; flex-direction: column; gap: 0.25rem;">
                     {% if k.is_suspended %}
                     <form method="POST" action="{{ url_for('contribute.reactivate_key', key_id=k.id) }}">
@@ -125,4 +131,21 @@ function copyEl(id) {
     <p>No worker keys yet. Generate one to get started.</p>
     {% endif %}
 </section>
+<script>
+function updateUptimes() {
+    document.querySelectorAll('.uptime[data-since]').forEach(el => {
+        const since = new Date(el.dataset.since + 'Z');
+        const diff = Math.floor((Date.now() - since.getTime()) / 1000);
+        if (diff < 0) { el.textContent = '—'; return; }
+        const d = Math.floor(diff / 86400);
+        const h = Math.floor((diff % 86400) / 3600);
+        const m = Math.floor((diff % 3600) / 60);
+        if (d > 0) el.textContent = d + 'd ' + h + 'h ' + m + 'm';
+        else if (h > 0) el.textContent = h + 'h ' + m + 'm';
+        else el.textContent = m + 'm';
+    });
+}
+updateUptimes();
+setInterval(updateUptimes, 60000);
+</script>
 {% endblock %}

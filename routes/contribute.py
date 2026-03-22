@@ -64,8 +64,8 @@ async def contribute():
     try:
         cursor = await db.execute(
             "SELECT wk.id, wk.name, wk.is_active, wk.created_at, wk.last_used, wk.last_platform, "
-            "wk.jobs_completed, wk.suspended_until, "
-            "CASE WHEN wk.last_used IS NOT NULL AND wk.last_used > datetime('now', '-90 seconds') THEN 1 ELSE 0 END as is_online, "
+            "wk.jobs_completed, wk.suspended_until, wk.online_since, "
+            "CASE WHEN wk.last_used IS NOT NULL AND wk.last_used > datetime('now', '-300 seconds') THEN 1 ELSE 0 END as is_online, "
             "CASE WHEN wk.suspended_until IS NOT NULL AND wk.suspended_until > datetime('now') THEN 1 ELSE 0 END as is_suspended, "
             "COALESCE(ps.hist_done, 0) as stats_done, "
             "COALESCE(ps.hist_failed, 0) as stats_failed, "

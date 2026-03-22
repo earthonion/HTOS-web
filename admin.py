@@ -82,7 +82,7 @@ async def list_keys(username=None):
             "SELECT wk.id, u.username, wk.name, wk.is_active, wk.created_at, wk.last_used, "
             "wk.last_platform, "
             "CASE WHEN wk.is_active = 1 AND wk.last_used IS NOT NULL "
-            "AND wk.last_used > datetime('now', '-90 seconds') THEN 1 ELSE 0 END as is_online "
+            "AND wk.last_used > datetime('now', '-300 seconds') THEN 1 ELSE 0 END as is_online "
             "FROM worker_keys wk JOIN users u ON wk.user_id = u.id "
         )
         if username:
@@ -271,7 +271,7 @@ async def worker_stats():
             "COALESCE(SUM(CASE WHEN j.status = 'done' THEN 1 ELSE 0 END), 0) as done, "
             "COALESCE(SUM(CASE WHEN j.status = 'failed' THEN 1 ELSE 0 END), 0) as failed, "
             "COUNT(j.id) as tracked, "
-            "CASE WHEN wk.last_used IS NOT NULL AND wk.last_used > datetime('now', '-90 seconds') "
+            "CASE WHEN wk.last_used IS NOT NULL AND wk.last_used > datetime('now', '-300 seconds') "
             "THEN 'ONLINE' ELSE 'offline' END as status "
             "FROM worker_keys wk "
             "LEFT JOIN jobs j ON j.worker_key_id = wk.id "
