@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import struct
 import zipfile
 from config import UPLOAD_DIR, RESULT_DIR, MAX_SAVE_FILE_SIZE, CHUNK_DIR
 
@@ -17,7 +18,7 @@ BLOCKED_EXTENSIONS = {
 # Max total decompressed size for zips (2GB)
 MAX_ZIP_DECOMPRESSED = 2 * 1024 * 1024 * 1024
 # Max compression ratio (zip bomb detection)
-MAX_ZIP_RATIO = 100
+MAX_ZIP_RATIO = 1000
 
 
 class DangerousFileError(Exception):
@@ -342,6 +343,53 @@ def _read_account_id_from_sfo(sfo_path: str, platform: str = "ps4") -> str | Non
     except (OSError, IOError):
         pass
     return None
+
+
+def patch_sfo_saveblocks(sfo_path: str, saveblocks: int) -> bool:
+    """Write SAVEDATA_BLOCKS value into param.sfo.
+    Finds the field by parsing the SFO index (not a fixed offset)."""
+    try:
+        with open(sfo_path, "r+b") as fh:
+            data = fh.read()
+            if len(data) < 20 or data[:4] != b'\x00PSF':
+                return False
+            key_off = struct.unpack_from('<I', data, 8)[0]
+            data_off = struct.unpack_from('<I', data, 12)[0]
+            count = struct.unpack_from('<I', data, 16)[0]
+            for i in range(count):
+                base = 20 + i * 16
+                if base + 16 > len(data):
+                    return False
+                k_off = struct.unpack_from('<H', data, base)[0]
+                d_off = struct.unpack_from('<I', data, base + 12)[0]
+                end = data.index(b'\x00', key_off + k_off)
+                key = data[key_off + k_off:end].decode()
+                if key == "SAVEDATA_BLOCKS":
+                    fh.seek(data_off + d_off)
+                    fh.write(struct.pack('<Q', saveblocks))
+                    return True
+        return False
+    except (OSError, ValueError, UnicodeDecodeError):
+        return False
+
+
+def patch_sfo_account_id(sfo_path: str, account_id: str, platform: str = "ps4") -> bool:
+    """Write account_id (big-endian hex) into param.sfo at the correct offset.
+    PS4: 8 bytes at 0x15C, PS5: 8 bytes at 0x1B8.
+    The account_id is stored in DB as big-endian hex. The worker writes raw
+    bytes via parseHexInt → uint64 → pwrite, which produces little-endian on
+    the PS4's x86 CPU. We replicate that here: convert the BE hex string to
+    an integer and write as 8 bytes little-endian."""
+    offset = 0x1B8 if platform == "ps5" else 0x15C
+    try:
+        value = int(account_id, 16)
+        raw = value.to_bytes(8, byteorder="little")
+        with open(sfo_path, "r+b") as fh:
+            fh.seek(offset)
+            fh.write(raw)
+        return True
+    except (OSError, ValueError):
+        return False
 
 
 def create_result_zip(source_dir: str, job_id: str) -> str:

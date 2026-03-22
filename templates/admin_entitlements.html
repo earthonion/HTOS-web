@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Entitlements DB — Admin{% endblock %}
+{% block content %}
+<h1>Entitlements Database <span style="font-size: 0.85rem; font-weight: 400; color: var(--text-2);">{{ total }} total</span></h1>
+
+<div style="display:flex; gap:0.75rem; margin-bottom:1rem; flex-wrap:wrap;">
+    <a href="{{ url_for('tools.admin_entitlements_csv') }}" class="btn-small">Download All CSV</a>
+    <a href="{{ url_for('tools.admin_entitlements_csv', platform='ps4') }}" class="btn-small">Download PS4 CSV</a>
+    <a href="{{ url_for('tools.admin_entitlements_csv', platform='ps5') }}" class="btn-small">Download PS5 CSV</a>
+</div>
+
+<style>
+.ent-search { flex-direction:row !important; gap:0.5rem; margin-bottom:1.5rem; align-items:center; }
+.ent-search input[type="text"] { flex:1; min-width:0; }
+.ent-search select { width:140px !important; flex:none !important; }
+.ent-search button { width:auto !important; flex:none !important; white-space:nowrap; }
+</style>
+<form method="GET" class="ent-search">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search by title, title ID, or entitlement ID...">
+    <select name="platform">
+        <option value="">All Platforms</option>
+        <option value="ps4" {% if platform == 'ps4' %}selected{% endif %}>PS4</option>
+        <option value="ps5" {% if platform == 'ps5' %}selected{% endif %}>PS5</option>
+    </select>
+    <button type="submit">Search</button>
+</form>
+
+{% if entries %}
+<div style="overflow-x: auto;">
+<table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+    <thead>
+        <tr>
+            <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Entitlement ID</th>
+            <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Title</th>
+            <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Title ID</th>
+            <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Platform</th>
+            <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Type</th>
+            <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Package URL</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for e in entries %}
+        <tr>
+            <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-family:monospace; font-size:0.78rem; white-space:nowrap;">{{ e.entitlement_id }}</td>
+            <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border);">{{ e.title or '-' }}</td>
+            <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-family:monospace;">{{ e.title_id or '-' }}</td>
+            <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border);">{{ e.platform | upper }}</td>
+            <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.78rem;">{{ e.content_type or '-' }}</td>
+            <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border);">{% if e.package_url %}<span style="display:flex; gap:0.4rem;"><button class="btn-small show-url-btn" data-url="{{ e.package_url }}">Show</button><button class="btn-small copy-url-btn" data-url="{{ e.package_url }}">Copy</button></span>{% else %}<span style="color:var(--text-3);">-</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<div style="display:flex; gap:1rem; margin-top:1rem; justify-content:center;">
+    {% if page > 1 %}
+    <a href="?q={{ q }}&platform={{ platform }}&page={{ page - 1 }}">&larr; Previous</a>
+    {% endif %}
+    <span style="color:var(--text-2); font-size:0.85rem;">Page {{ page }}</span>
+    {% if has_next %}
+    <a href="?q={{ q }}&platform={{ platform }}&page={{ page + 1 }}">Next &rarr;</a>
+    {% endif %}
+</div>
+{% elif q %}
+<p style="color: var(--text-2);">No entitlements found for "{{ q }}".</p>
+{% else %}
+<p style="color: var(--text-2);">No entitlements in the database yet. Users can contribute by using the Entitlement Dumper tool.</p>
+{% endif %}
+
+<div style="margin-top:1.5rem;">
+    <a href="{{ url_for('admin_web.dashboard') }}">&larr; Back to Admin</a>
+</div>
+
+<div id="url-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1000; align-items:center; justify-content:center;">
+    <div style="background:var(--bg-0); border:1px solid var(--border); border-radius:var(--r); padding:1.5rem; max-width:600px; width:90%; word-break:break-all;">
+        <p style="font-family:monospace; font-size:0.82rem; margin-bottom:1rem;" id="url-modal-text"></p>
+        <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+            <button class="btn-small" id="url-modal-copy">Copy</button>
+            <button class="btn-small" id="url-modal-close" style="background:var(--bg-1);">Cancel</button>
+        </div>
+    </div>
+</div>
+<script>
+var modal = document.getElementById('url-modal');
+var modalText = document.getElementById('url-modal-text');
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('show-url-btn')) {
+        modalText.textContent = e.target.dataset.url;
+        modal.style.display = 'flex';
+    } else if (e.target.classList.contains('copy-url-btn')) {
+        navigator.clipboard.writeText(e.target.dataset.url).then(function() {
+            e.target.textContent = 'Copied';
+            setTimeout(function() { e.target.textContent = 'Copy'; }, 1500);
+        });
+    }
+});
+document.getElementById('url-modal-copy').addEventListener('click', function() {
+    navigator.clipboard.writeText(modalText.textContent).then(function() {
+        modal.style.display = 'none';
+    });
+});
+document.getElementById('url-modal-close').addEventListener('click', function() {
+    modal.style.display = 'none';
+});
+modal.addEventListener('click', function(e) {
+    if (e.target === modal) modal.style.display = 'none';
+});
+</script>
+{% endblock %}

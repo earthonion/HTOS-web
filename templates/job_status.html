@@ -2,6 +2,13 @@
 {% block title %}Job Status{% endblock %}
 {% block content %}
 <h1>Job: {{ job.operation }} <span class="status-{{ job.status }}" id="status-badge">{{ job.status }}</span></h1>
+{% if job.params and job.params.get('game_title') %}
+<p style="margin-bottom: 1rem; color: var(--text-2);">{{ job.params.game_title }}{% if job.params.get('title_id') %} <code style="font-size: 0.8rem;">{{ job.params.title_id }}</code>{% endif %}</p>
+{% elif job.params and job.params.get('title_id') %}
+<p style="margin-bottom: 1rem; color: var(--text-2);"><code>{{ job.params.title_id }}</code></p>
+{% elif job.params and job.params.get('savename') %}
+<p style="margin-bottom: 1rem; color: var(--text-2);">{{ job.params.savename }}</p>
+{% endif %}
 
 {% if job.status == "waiting_input" and job.operation == "encrypt" %}
 <section class="panel">
@@ -31,7 +38,7 @@
     {% if job.params %}
     {% if job.operation == 'encrypt' and job.params.get('sfo_account_id') and job.params.get('account_id') %}
     <p style="margin-bottom: 0.5rem;">Previous Account ID: <code>{{ job.params.sfo_account_id }}</code></p>
-    <p style="margin-bottom: 0.75rem;">New Account ID: <code>{{ job.params.account_id }}</code></p>
+    <p style="margin-bottom: 0.75rem;">New Account ID: <code>{{ job.params.account_id | to_usb_id }}</code></p>
     {% elif job.params.get('sfo_account_id') %}
     <p style="margin-bottom: 0.75rem;">Account ID: <code>{{ job.params.sfo_account_id }}</code></p>
     {% endif %}

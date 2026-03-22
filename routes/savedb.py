@@ -11,7 +11,7 @@ from quart import jsonify
 from auth import login_required
 from models import get_db
 from services.jobs import create_job
-from services.files import check_dangerous_files, check_zip_safety, DangerousFileError, _safe_join, account_id_to_usb
+from services.files import check_dangerous_files, check_zip_safety, DangerousFileError, _safe_join, account_id_to_usb, patch_sfo_account_id, patch_sfo_saveblocks
 from services.titles import lookup_title
 
 savedb_bp = Blueprint("savedb", __name__)
@@ -490,6 +490,12 @@ async def encrypt(entry_id):
         needed_blocks = (total_size * 105 // 100 + 32767) // 32768  # ceil + 5% overhead
         if saveblocks is None or needed_blocks > saveblocks:
             saveblocks = needed_blocks
+            if sfo_path:
+                patch_sfo_saveblocks(sfo_path, saveblocks)
+
+        # Patch account_id into param.sfo before sending to worker
+        if sfo_path:
+            patch_sfo_account_id(sfo_path, profile["account_id"], platform)
 
         params = {
             "account_id": profile["account_id"],
@@ -500,6 +506,10 @@ async def encrypt(entry_id):
             params["savename"] = savename
         if saveblocks:
             params["saveblocks"] = saveblocks
+        if entry.get("title_id"):
+            params["title_id"] = entry["title_id"]
+        if entry.get("title"):
+            params["game_title"] = entry["title"]
 
         job = await create_job(user_id, "encrypt", params, ready=True)
 
@@ -528,7 +538,7 @@ async def download(entry_id):
     # Build zip on disk (preserve directory structure)
     zip_name = f"{entry['title_id']}_{entry['title']}.zip".replace(" ", "_")
     zip_path = os.path.join("workspace", "uploads", f"savedb_dl_{entry_id}_{uuid.uuid4().hex[:8]}.zip")
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED) as zf:
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
         for root, dirs, files in os.walk(entry["save_path"]):
             for fname in files:
                 fpath = os.path.join(root, fname)

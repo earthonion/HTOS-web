@@ -8,6 +8,9 @@ tr.new-row { animation: flashRow 1.5s ease-out; }
 {% endblock %}
 {% block content %}
 <h1>Admin Dashboard <span id="refresh-countdown" style="font-size: 0.85rem; font-weight: 400; color: var(--text-2);"></span></h1>
+<div style="margin-bottom: 1rem;">
+    <a href="{{ url_for('tools.admin_entitlements') }}" class="btn-small">Entitlements DB</a>
+</div>
 
 <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
     <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
@@ -64,7 +67,7 @@ tr.new-row { animation: flashRow 1.5s ease-out; }
     <table>
         <thead>
             <tr>
-                <th>ID</th><th>Name</th><th>Plat</th><th>Status</th>
+                <th>ID</th><th>Name</th><th>Plat</th><th>Status</th><th>Uptime</th>
                 <th>Done</th><th>Fail</th><th>Total</th><th>Rate</th><th>Active</th>
             </tr>
         </thead>
@@ -80,6 +83,13 @@ tr.new-row { animation: flashRow 1.5s ease-out; }
                     <span class="status-done">ONLINE</span>
                     {% else %}
                     <span style="color: var(--text-2);">offline</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if w.is_online and w.online_since %}
+                    <span class="uptime" data-since="{{ w.online_since }}">—</span>
+                    {% else %}
+                    <span style="color: var(--text-3);">—</span>
                     {% endif %}
                 </td>
                 <td>{{ w.done }}</td>
@@ -113,7 +123,7 @@ tr.new-row { animation: flashRow 1.5s ease-out; }
     <div style="overflow-x: auto;">
     <table id="jobs-table">
         <thead>
-            <tr><th>ID</th><th>User</th><th>Op</th><th>Status</th><th>Error</th><th>Worker</th><th>Created</th></tr>
+            <tr><th>ID</th><th>User</th><th>Op</th><th>Title</th><th>Status</th><th>Error</th><th>Worker</th><th>Created</th><th></th></tr>
         </thead>
         <tbody>
             {% for j in jobs %}
@@ -121,12 +131,14 @@ tr.new-row { animation: flashRow 1.5s ease-out; }
                 <td style="font-size: 0.75rem;">{{ j.id[:8] }}</td>
                 <td>{{ j.username }}</td>
                 <td>{{ j.operation }}</td>
+                <td style="font-size: 0.8rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ j.game_title }} {{ j.title_id }}">{% if j.game_title %}{{ j.game_title }}{% elif j.title_id %}<code>{{ j.title_id }}</code>{% else %}-{% endif %}</td>
                 <td>
                     <span class="status-{{ j.status }}">{{ j.status }}</span>
                 </td>
                 <td style="font-size: 0.75rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ j.error or '' }}">{{ j.error or '-' }}</td>
                 <td>{{ j.worker_name or '-' }}</td>
                 <td>{{ j.created_at }}</td>
+                <td><a href="{{ url_for('jobs.job_status', job_id=j.id) }}" class="btn-small">View</a></td>
             </tr>
             {% endfor %}
         </tbody>
@@ -144,14 +156,19 @@ tr.new-row { animation: flashRow 1.5s ease-out; }
         const tr = document.createElement('tr');
         tr.className = 'new-row';
         tr.dataset.jobId = j.id;
+        var titleCell = '-';
+        if (j.game_title) titleCell = j.game_title;
+        else if (j.title_id) titleCell = '<code>' + j.title_id + '</code>';
         tr.innerHTML =
             '<td style="font-size:0.75rem;">' + j.id.substring(0,8) + '</td>' +
             '<td>' + (j.username || '-') + '</td>' +
             '<td>' + j.operation + '</td>' +
+            '<td style="font-size:0.8rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (j.game_title || '') + ' ' + (j.title_id || '') + '">' + titleCell + '</td>' +
             '<td><span class="status-' + j.status + '">' + j.status + '</span></td>' +
             '<td style="font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (j.error || '') + '">' + (j.error || '-') + '</td>' +
             '<td>' + (j.worker_name || '-') + '</td>' +
-            '<td>' + j.created_at + '</td>';
+            '<td>' + j.created_at + '</td>' +
+            '<td><a href="/jobs/' + j.id + '" class="btn-small">View</a></td>';
         return tr;
     }
 
@@ -211,13 +228,28 @@ tr.new-row { animation: flashRow 1.5s ease-out; }
             data.updates.forEach(function(u) {
                 var row = tbody.querySelector('[data-job-id="' + u.id + '"]');
                 if (!row) return;
-                row.children[3].innerHTML = '<span class="status-' + u.status + '">' + u.status + '</span>';
-                row.children[4].textContent = u.error || '-';
-                row.children[4].title = u.error || '';
-                if (u.worker_name) row.children[5].textContent = u.worker_name;
+                row.children[4].innerHTML = '<span class="status-' + u.status + '">' + u.status + '</span>';
+                row.children[5].textContent = u.error || '-';
+                row.children[5].title = u.error || '';
+                if (u.worker_name) row.children[6].textContent = u.worker_name;
             });
         }
     };
 })();
+function updateUptimes() {
+    document.querySelectorAll('.uptime[data-since]').forEach(function(el) {
+        var since = new Date(el.dataset.since + 'Z');
+        var diff = Math.floor((Date.now() - since.getTime()) / 1000);
+        if (diff < 0) { el.textContent = '—'; return; }
+        var d = Math.floor(diff / 86400);
+        var h = Math.floor((diff % 86400) / 3600);
+        var m = Math.floor((diff % 3600) / 60);
+        if (d > 0) el.textContent = d + 'd ' + h + 'h ' + m + 'm';
+        else if (h > 0) el.textContent = h + 'h ' + m + 'm';
+        else el.textContent = m + 'm';
+    });
+}
+updateUptimes();
+setInterval(updateUptimes, 60000);
 </script>
 {% endblock %}

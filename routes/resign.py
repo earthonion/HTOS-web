@@ -80,11 +80,22 @@ async def resign():
                 await flash("PS5 saves not currently supported!", "error")
                 return await render_template("resign.html", profiles=profiles)
 
-        job = await create_job(user_id, "resign", {
+        # Extract save name from uploaded filenames for display
+        import os
+        savename = ""
+        for f in os.listdir(upload_dir):
+            if f.endswith(".bin") and not f.startswith("."):
+                savename = os.path.splitext(f)[0]
+                break
+
+        params = {
             "account_id": account_id,
             "upload_dir": upload_dir,
             "platform": platform,
-        }, ready=True)
+        }
+        if savename:
+            params["savename"] = savename
+        job = await create_job(user_id, "resign", params, ready=True)
         return redirect(url_for("jobs.job_status", job_id=job.job_id))
 
     return await render_template("resign.html", profiles=profiles)

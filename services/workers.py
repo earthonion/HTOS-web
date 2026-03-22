@@ -8,7 +8,7 @@ async def ps5_workers_online():
         try:
             cursor = await db.execute(
                 "SELECT value FROM settings WHERE key = 'last_ps5_worker' "
-                "AND value > datetime('now', '-90 seconds')"
+                "AND value > datetime('now', '-300 seconds')"
             )
             row = await cursor.fetchone()
             return row is not None

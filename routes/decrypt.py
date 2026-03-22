@@ -47,7 +47,16 @@ async def decrypt():
             except InvalidSaveFilesError as e:
                 await flash(str(e), "error")
                 return await render_template("decrypt.html")
+        # Extract save name from uploaded filenames for display
+        import os
+        savename = ""
+        for f in os.listdir(upload_dir):
+            if f.endswith(".bin") and not f.startswith("."):
+                savename = os.path.splitext(f)[0]
+                break
         params = {"upload_dir": upload_dir, "platform": platform}
+        if savename:
+            params["savename"] = savename
         acct = extract_account_id(upload_dir, platform)
         if acct:
             params["sfo_account_id"] = acct

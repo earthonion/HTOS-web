@@ -17,13 +17,13 @@ async def dashboard():
         # Worker stats (combine current jobs + persisted stats)
         cursor = await db.execute(
             "SELECT wk.id, wk.name, wk.last_platform, wk.is_active, wk.jobs_completed, "
-            "wk.suspended_until, "
+            "wk.suspended_until, wk.online_since, "
             "COALESCE(SUM(CASE WHEN j.status = 'done' THEN 1 ELSE 0 END), 0) "
             "  + COALESCE(ps.hist_done, 0) as done, "
             "COALESCE(SUM(CASE WHEN j.status = 'failed' THEN 1 ELSE 0 END), 0) "
             "  + COALESCE(ps.hist_failed, 0) as failed, "
             "COUNT(j.id) + COALESCE(ps.hist_total, 0) as tracked, "
-            "CASE WHEN wk.last_used IS NOT NULL AND wk.last_used > datetime('now', '-90 seconds') "
+            "CASE WHEN wk.last_used IS NOT NULL AND wk.last_used > datetime('now', '-300 seconds') "
             "THEN 1 ELSE 0 END as is_online "
             "FROM worker_keys wk "
             "LEFT JOIN jobs j ON j.worker_key_id = wk.id "
@@ -39,12 +39,22 @@ async def dashboard():
         # Recent jobs
         cursor = await db.execute(
             "SELECT j.id, u.username, j.operation, j.status, j.created_at, j.error, "
-            "wk.name as worker_name "
+            "j.params, wk.name as worker_name "
             "FROM jobs j JOIN users u ON j.user_id = u.id "
             "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id "
             "ORDER BY j.created_at DESC LIMIT 30"
         )
         jobs = [dict(r) for r in await cursor.fetchall()]
+        for j in jobs:
+            if j["params"]:
+                p = json.loads(j["params"])
+                j["game_title"] = p.get("game_title", "")
+                j["title_id"] = p.get("title_id", "")
+                if not j["game_title"] and not j["title_id"]:
+                    j["game_title"] = p.get("savename", "")
+            else:
+                j["game_title"] = ""
+                j["title_id"] = ""
 
         # Queue count
         cursor = await db.execute("SELECT COUNT(*) FROM jobs WHERE status = 'queued'")
@@ -125,7 +135,7 @@ async def stats_json():
 
         cursor = await db.execute(
             "SELECT COUNT(*) FROM worker_keys wk "
-            "WHERE wk.last_used IS NOT NULL AND wk.last_used > datetime('now', '-90 seconds') "
+            "WHERE wk.last_used IS NOT NULL AND wk.last_used > datetime('now', '-300 seconds') "
             "AND wk.is_active = 1 AND (wk.suspended_until IS NULL OR wk.suspended_until <= datetime('now'))"
         )
         workers_online = (await cursor.fetchone())[0]
@@ -182,7 +192,7 @@ async def feed():
                     # New jobs since last check
                     cursor = await db.execute(
                         "SELECT j.id, u.username, j.operation, j.status, j.created_at, j.error, "
-                        "wk.name as worker_name "
+                        "j.params, wk.name as worker_name "
                         "FROM jobs j JOIN users u ON j.user_id = u.id "
                         "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id "
                         "WHERE j.created_at > ? "
@@ -190,6 +200,17 @@ async def feed():
                         (last_seen,)
                     )
                     new_jobs = [dict(r) for r in await cursor.fetchall()]
+                    for nj in new_jobs:
+                        if nj.get("params"):
+                            p = json.loads(nj["params"])
+                            nj["game_title"] = p.get("game_title", "")
+                            nj["title_id"] = p.get("title_id", "")
+                            if not nj["game_title"] and not nj["title_id"]:
+                                nj["game_title"] = p.get("savename", "")
+                        else:
+                            nj["game_title"] = ""
+                            nj["title_id"] = ""
+                        del nj["params"]
 
                     # Also check for status updates on recent jobs
                     cursor = await db.execute(

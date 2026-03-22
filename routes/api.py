@@ -11,8 +11,38 @@ from quart import Blueprint, request, abort, send_file, Response
 from config import WORKER_KEY, CHUNK_DIR
 from models import get_db
 from services.jobs import push_log, get_or_create_job_logger
+from services.titles import lookup_title
 
 api_bp = Blueprint("api", __name__, url_prefix="/api/worker")
+
+
+def _extract_title_from_zip(zip_path):
+    """Read TITLE_ID from param.sfo inside a result zip."""
+    import struct
+    result = {}
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            for name in zf.namelist():
+                if name.lower().endswith("param.sfo"):
+                    data = zf.read(name)
+                    if len(data) > 20 and data[:4] == b'\x00PSF':
+                        key_off = struct.unpack_from('<I', data, 8)[0]
+                        data_off = struct.unpack_from('<I', data, 12)[0]
+                        count = struct.unpack_from('<I', data, 16)[0]
+                        for i in range(count):
+                            base = 20 + i * 16
+                            k_off = struct.unpack_from('<H', data, base)[0]
+                            fmt = struct.unpack_from('<H', data, base + 2)[0]
+                            d_len = struct.unpack_from('<I', data, base + 4)[0]
+                            d_off = struct.unpack_from('<I', data, base + 12)[0]
+                            end = data.index(b'\x00', key_off + k_off)
+                            key = data[key_off + k_off:end].decode()
+                            if key == "TITLE_ID" and fmt == 0x0204:
+                                result[key] = data[data_off + d_off:data_off + d_off + d_len].rstrip(b'\x00').decode()
+                    break
+    except Exception:
+        pass
+    return result
 
 
 def _validate_result_zip(path):
@@ -132,6 +162,12 @@ async def next_job():
                         (worker_key,)
                     )
 
+            # Set online_since if worker was offline (last_used > 300s ago or NULL)
+            await db.execute(
+                "UPDATE worker_keys SET online_since = datetime('now') "
+                "WHERE key = ? AND (last_used IS NULL OR last_used < datetime('now', '-300 seconds'))",
+                (worker_key,)
+            )
             await db.execute(
                 "UPDATE worker_keys SET last_platform = ? WHERE key = ?",
                 (worker_platform, worker_key)
@@ -293,6 +329,36 @@ async def update_status(job_id):
     finally:
         await db.close()
 
+    # Extract title from result zip on completion (for decrypt jobs etc.)
+    if status == "done":
+        try:
+            db2 = await get_db()
+            try:
+                cursor = await db2.execute(
+                    "SELECT result_path, params FROM jobs WHERE id = ?", (job_id,)
+                )
+                jrow = await cursor.fetchone()
+                if jrow and jrow["result_path"] and jrow["params"]:
+                    jp = json.loads(jrow["params"])
+                    if not jp.get("title_id"):
+                        rp = jrow["result_path"]
+                        if os.path.exists(rp):
+                            sfo = _extract_title_from_zip(rp)
+                            if sfo.get("TITLE_ID"):
+                                jp["title_id"] = sfo["TITLE_ID"]
+                                title = lookup_title(sfo["TITLE_ID"]) or ""
+                                if title:
+                                    jp["game_title"] = title
+                                await db2.execute(
+                                    "UPDATE jobs SET params = ? WHERE id = ?",
+                                    (json.dumps(jp), job_id)
+                                )
+                                await db2.commit()
+            finally:
+                await db2.close()
+        except Exception:
+            pass
+
     # Also broadcast status change via SSE
     job = get_or_create_job_logger(job_id)
     if job:
@@ -310,7 +376,7 @@ async def update_status(job_id):
 @api_bp.route("/jobs/<job_id>/log", methods=["POST"])
 @require_worker_key
 async def post_log(job_id):
-    """Push a log line to the job's SSE stream."""
+    """Push a log line to the job's SSE stream and persist to DB."""
     data = await request.get_json()
     if not data or "msg" not in data:
         abort(400)
@@ -318,6 +384,18 @@ async def post_log(job_id):
     level = data.get("level", "INFO")
     msg = data["msg"]
     push_log(job_id, level, msg)
+
+    # Persist log entry to DB
+    entry = json.dumps({"level": level, "msg": msg})
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE jobs SET logs = CASE WHEN logs IS NULL THEN ? ELSE logs || '\n' || ? END WHERE id = ?",
+            (entry, entry, job_id)
+        )
+        await db.commit()
+    finally:
+        await db.close()
 
     return {"ok": True}
 
