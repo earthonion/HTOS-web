@@ -31,6 +31,8 @@
     <div style="margin-top:1rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
         {% if entry.platform != 'ps5' %}
         <a href="{{ url_for('savedb.encrypt', entry_id=entry.id) }}" class="btn-small" style="background:var(--indigo); color:#fff; padding:0.4rem 1rem;">Encrypt to My Account</a>
+        {% else %}
+        <button class="btn-small" style="padding:0.4rem 1rem;" onclick="document.getElementById('ps5-modal').style.display='flex'">Where's Encrypt?</button>
         {% endif %}
         <a href="{{ url_for('savedb.download', entry_id=entry.id) }}" class="btn-small" style="padding:0.4rem 1rem;">Download</a>
         {% if entry.user_id == session.get('user_id') %}
@@ -67,4 +69,14 @@
     font-weight: 600;
 }
 </style>
+
+<div id="ps5-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1000; align-items:center; justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:var(--bg-0); border:1px solid var(--border); border-radius:var(--r); padding:1.5rem; max-width:450px; width:90%;">
+        <h3 style="margin-top:0;">PS5 Saves</h3>
+        <p>PS5 saves don't need to be encrypted. Download the decrypted save and import it directly using <strong>garlic-savemgr</strong> on your console.</p>
+        <div style="display:flex; justify-content:flex-end; margin-top:1rem;">
+            <button class="btn-small" onclick="document.getElementById('ps5-modal').style.display='none'">Got it</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
