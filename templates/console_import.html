@@ -203,38 +203,74 @@ document.getElementById('console-ip').addEventListener('change', function() {
     localStorage.setItem('garlic_console_ip', this.value.trim());
 });
 
+function getLocalIP() {
+    return new Promise(resolve => {
+        try {
+            const pc = new RTCPeerConnection({ iceServers: [] });
+            pc.createDataChannel('');
+            pc.onicecandidate = e => {
+                if (!e || !e.candidate) return;
+                const m = e.candidate.candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
+                if (m && !m[1].startsWith('0.')) {
+                    pc.close();
+                    resolve(m[1]);
+                }
+            };
+            pc.createOffer().then(o => pc.setLocalDescription(o));
+            setTimeout(() => { pc.close(); resolve(null); }, 3000);
+        } catch (e) { resolve(null); }
+    });
+}
+
+async function scanSubnet(subnet, statusEl) {
+    const BATCH = 50;
+    for (let start = 2; start <= 254; start += BATCH) {
+        statusEl.textContent = 'Scanning ' + subnet + '.' + start + '-' + Math.min(start + BATCH - 1, 254) + ' ...';
+        const promises = [];
+        for (let i = start; i < Math.min(start + BATCH, 255); i++) {
+            const ip = subnet + '.' + i;
+            promises.push(
+                fetch('http://' + ip + ':8082/api/status', {
+                    mode: 'cors',
+                    signal: AbortSignal.timeout(1500)
+                })
+                .then(r => r.ok ? ip : null)
+                .catch(() => null)
+            );
+        }
+        const results = await Promise.all(promises);
+        const found = results.find(r => r !== null);
+        if (found) return found;
+    }
+    return null;
+}
+
 async function scanNetwork() {
     const scanBtn = document.getElementById('scan-btn');
     const scanStatus = document.getElementById('scan-status');
     const ipInput = document.getElementById('console-ip');
     scanBtn.disabled = true;
     scanStatus.style.display = 'block';
-    scanStatus.textContent = 'Scanning network for garlic-savemgr...';
+    scanStatus.style.color = 'var(--text-2)';
+    scanStatus.textContent = 'Detecting local network...';
 
-    const subnets = ['192.168.0', '192.168.1', '192.168.2', '192.168.10', '192.168.50', '192.168.100', '10.0.0', '10.0.1', '172.16.0'];
+    // Try WebRTC to get local IP
+    const localIP = await getLocalIP();
+    let subnets = [];
+    if (localIP) {
+        const parts = localIP.split('.');
+        const mySubnet = parts[0] + '.' + parts[1] + '.' + parts[2];
+        subnets = [mySubnet];
+        scanStatus.textContent = 'Detected network: ' + mySubnet + '.x — scanning...';
+    } else {
+        subnets = ['192.168.0', '192.168.1', '192.168.2', '192.168.10', '192.168.50', '192.168.100', '10.0.0', '10.0.1'];
+        scanStatus.textContent = 'Could not detect subnet, scanning common ranges...';
+    }
+
     let found = null;
-    const BATCH = 30;
-
     for (const subnet of subnets) {
+        found = await scanSubnet(subnet, scanStatus);
         if (found) break;
-        scanStatus.textContent = 'Scanning ' + subnet + '.x ...';
-
-        for (let start = 2; start <= 254 && !found; start += BATCH) {
-            const promises = [];
-            for (let i = start; i < Math.min(start + BATCH, 255); i++) {
-                const ip = subnet + '.' + i;
-                promises.push(
-                    fetch('http://' + ip + ':8082/api/status', {
-                        mode: 'cors',
-                        signal: AbortSignal.timeout(1500)
-                    })
-                    .then(r => r.ok ? ip : null)
-                    .catch(() => null)
-                );
-            }
-            const results = await Promise.all(promises);
-            found = results.find(r => r !== null);
-        }
     }
 
     if (found) {
