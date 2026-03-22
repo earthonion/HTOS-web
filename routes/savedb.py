@@ -678,6 +678,20 @@ async def console_import(entry_id):
     return await render_template("console_import.html", entry=dict(entry))
 
 
+def _find_save_root(save_path):
+    """Find the actual save root containing sce_sys/param.sfo."""
+    if os.path.isfile(os.path.join(save_path, "sce_sys", "param.sfo")):
+        return save_path
+    # Check one level deeper
+    for name in os.listdir(save_path):
+        sub = os.path.join(save_path, name)
+        if os.path.isdir(sub) and os.path.isfile(
+            os.path.join(sub, "sce_sys", "param.sfo")
+        ):
+            return sub
+    return save_path
+
+
 @savedb_bp.route("/console-import/<int:entry_id>/files")
 @admin_required
 async def console_import_files(entry_id):
@@ -695,12 +709,12 @@ async def console_import_files(entry_id):
     if not entry or not entry["save_path"] or not os.path.isdir(entry["save_path"]):
         return jsonify({"error": "Save not found"}), 404
 
-    save_path = entry["save_path"]
+    save_root = _find_save_root(entry["save_path"])
     files = []
-    for root, _dirs, fnames in os.walk(save_path):
+    for root, _dirs, fnames in os.walk(save_root):
         for fname in fnames:
             fpath = os.path.join(root, fname)
-            rel = os.path.relpath(fpath, save_path)
+            rel = os.path.relpath(fpath, save_root)
             files.append({"name": rel, "size": os.path.getsize(fpath)})
 
     return jsonify({"files": files})
@@ -727,7 +741,8 @@ async def console_import_file(entry_id):
     if not entry or not entry["save_path"]:
         return "Save not found", 404
 
-    fpath = _safe_join(entry["save_path"], name)
+    save_root = _find_save_root(entry["save_path"])
+    fpath = _safe_join(save_root, name)
     if not fpath or not os.path.isfile(fpath):
         return "File not found", 404
 
