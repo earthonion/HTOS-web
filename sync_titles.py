@@ -24,6 +24,37 @@ FILES = {
 }
 DB_PATH = os.getenv("TITLES_DB_PATH", "titles.db")
 
+REGION_MAP = {
+    # US
+    "US": "US",
+    "UP": "US",
+    "UM": "US",
+    "UT": "US",
+    "UB": "US",
+    "UA": "US",
+    # EU
+    "EU": "EU",
+    "EP": "EU",
+    "EM": "EU",
+    "ET": "EU",
+    "EB": "EU",
+    # AS
+    "AS": "AS",
+    "HA": "AS",
+    "HT": "AS",
+    "HP": "AS",
+    "HB": "AS",
+    # JP
+    "JP": "JP",
+    "JA": "JP",
+    "JB": "JP",
+    # KR
+    "KR": "KR",
+    "KP": "KR",
+    # Internal/Unknown
+    "IP": "Internal",
+}
+
 
 async def init_db(conn: aiosqlite.Connection) -> None:
     await conn.execute("""
@@ -62,15 +93,25 @@ async def sync():
                 # titleId is like "CUSA00001_00" — strip the suffix
                 title_id = raw_id.partition("_")[0]
                 name = entry.get("name", "").strip()
-                if not title_id or not name:
+                content_id = entry.get("contentId", "")
+                raw_region = entry.get("region", "")
+
+                if not title_id or not name or not content_id or not raw_region:
                     continue
+
+                region = (
+                    REGION_MAP.get(raw_region.strip().upper(), raw_region)
+                    if raw_region
+                    else ""
+                )
+
                 batch.append(
                     (
                         title_id,
                         name,
                         platform,
-                        entry.get("contentId", ""),
-                        entry.get("region", ""),
+                        content_id,
+                        region,
                     )
                 )
 
