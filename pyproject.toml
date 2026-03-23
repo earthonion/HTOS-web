@@ -21,4 +21,5 @@ dependencies = [
     "python-dateutil>=2.9.0.post0",
     "pyzstd>=0.18.0",
     "zstandard>=0.25.0",
+    "httpx>=0.28.1",
 ]
