@@ -71,11 +71,16 @@ class ChunkedUploader {
  */
 function setupChunkedForm(form, fieldMap) {
   form.addEventListener('submit', async function (e) {
-    // Check if any file needs chunking
+    // Check if any file needs chunking (large files or directory uploads)
     let needsChunking = false;
     for (const inputName of Object.keys(fieldMap)) {
       const input = form.querySelector(`input[name="${inputName}"]`);
       if (!input || !input.files) continue;
+      // Always chunk directory uploads (webkitdirectory) to avoid WAF blocking paths
+      if (input.hasAttribute('webkitdirectory') && input.files.length > 0) {
+        needsChunking = true;
+        break;
+      }
       for (const file of input.files) {
         if (file.size > CHUNK_SIZE) {
           needsChunking = true;
