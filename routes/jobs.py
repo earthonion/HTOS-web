@@ -279,7 +279,12 @@ def _zip_needs_sanitizing(zip_path):
 
 def _restructure_ps4_zip(src_zip, dst_zip, account_id, title_id):
     """Repack zip with PS4 USB structure: PS4/SAVEDATA/<account_id>/<title_id>/"""
-    prefix = f"PS4/SAVEDATA/{account_id}/{title_id}/"
+    # account_id is stored big-endian, USB folder needs little-endian
+    if len(account_id) == 16:
+        usb_id = "".join(reversed([account_id[i : i + 2] for i in range(0, 16, 2)]))
+    else:
+        usb_id = account_id
+    prefix = f"PS4/SAVEDATA/{usb_id}/{title_id}/"
     with (
         zipfile.ZipFile(src_zip, "r") as zin,
         zipfile.ZipFile(dst_zip, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zout,
