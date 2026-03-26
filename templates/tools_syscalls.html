@@ -118,7 +118,8 @@
 <table class="results-table">
     <thead>
         <tr>
-            <th style="width:80px;">Number</th>
+            <th style="width:60px;">Dec</th>
+            <th style="width:60px;">Hex</th>
             <th>Name</th>
             <th style="width:100px;"></th>
         </tr>
@@ -128,6 +129,7 @@
         {% set man_url = r.name | syscall_man_url %}
         <tr>
             <td class="syscall-num">{{ r.num }}</td>
+            <td class="syscall-num">0x{{ '%X' % r.num }}</td>
             <td class="syscall-name">{{ r.name }}</td>
             <td>{% if man_url %}<a href="{{ man_url }}" target="_blank" class="btn-man">Man Page</a>{% endif %}</td>
         </tr>
@@ -161,12 +163,12 @@ input.addEventListener('input', () => {
                 return;
             }
             let html = q ? `<div class="result-count">${data.results.length} result${data.results.length !== 1 ? 's' : ''} for "${esc(q)}"</div>` : '';
-            html += '<table class="results-table"><thead><tr><th style="width:80px;">Number</th><th>Name</th><th style="width:100px;"></th></tr></thead><tbody>';
+            html += '<table class="results-table"><thead><tr><th style="width:60px;">Dec</th><th style="width:60px;">Hex</th><th>Name</th><th style="width:100px;"></th></tr></thead><tbody>';
             for (const r of data.results) {
                 const btn = r.man_url
                     ? `<a href="${esc(r.man_url)}" target="_blank" class="btn-man">Man Page</a>`
                     : '';
-                html += `<tr><td class="syscall-num">${r.num}</td><td class="syscall-name">${esc(r.name)}</td><td>${btn}</td></tr>`;
+                html += `<tr><td class="syscall-num">${r.num}</td><td class="syscall-num">0x${r.num.toString(16).toUpperCase()}</td><td class="syscall-name">${esc(r.name)}</td><td>${btn}</td></tr>`;
             }
             html += '</tbody></table>';
             container.innerHTML = html;
