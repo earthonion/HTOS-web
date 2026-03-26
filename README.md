@@ -28,9 +28,7 @@ All PS4/PS5 operations communicate with a jailbroken console via the garlic-work
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install quart aiofiles aioftp aiosqlite bcrypt python-dotenv \
-    anycrc crc32c lz4 mmh3 orjson pillow pyaes pycryptodome \
-    python-dateutil pyzstd zstandard
+pip install -r requirements.txt
 ```
 
 2. **Configure `.env`:**
