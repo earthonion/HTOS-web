@@ -10,8 +10,8 @@ Run periodically via cron:
 
 import asyncio
 import os
-import sqlite3
 
+import aiosqlite
 import httpx
 
 DB_PATH = os.getenv("DATABASE_PATH", "htos_web.db")
@@ -20,57 +20,57 @@ TIMEOUT = 10
 
 
 async def verify_batch():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
 
-    # Get unchecked entries
-    rows = conn.execute(
-        "SELECT id, package_url FROM entitlements "
-        "WHERE verified IS NULL AND length(package_url) > 5 "
-        "ORDER BY id LIMIT ?",
-        (BATCH_SIZE,),
-    ).fetchall()
+        # Get unchecked entries
+        cursor = await conn.execute(
+            "SELECT id, package_url FROM entitlements "
+            "WHERE verified IS NULL AND length(package_url) > 5 "
+            "ORDER BY id LIMIT ?",
+            (BATCH_SIZE,),
+        )
+        rows = await cursor.fetchall()
 
-    if not rows:
-        print("No unchecked entries remaining.")
-        conn.close()
-        return
+        if not rows:
+            print("No unchecked entries remaining.")
+            return
 
-    print(f"Checking {len(rows)} entries...")
+        print(f"Checking {len(rows)} entries...")
 
-    valid_ids = []
-    invalid_ids = []
+        valid_ids = []
+        invalid_ids = []
 
-    async with httpx.AsyncClient(verify=False, timeout=TIMEOUT) as client:
-        for row in rows:
-            eid = row["id"]
-            url = row["package_url"]
-            try:
-                resp = await client.head(url)
-                if resp.status_code == 200:
-                    valid_ids.append(eid)
-                else:
-                    print(f"  INVALID ({resp.status_code}): id={eid} {url[:80]}")
+        async with httpx.AsyncClient(verify=False, timeout=TIMEOUT) as client:
+            for row in rows:
+                eid = row["id"]
+                url = row["package_url"]
+                try:
+                    resp = await client.head(url)
+                    if resp.status_code == 200:
+                        valid_ids.append(eid)
+                    else:
+                        print(f"  INVALID ({resp.status_code}): id={eid} {url[:80]}")
+                        invalid_ids.append(eid)
+                except Exception as exc:
+                    print(f"  ERROR: id={eid} {exc}")
                     invalid_ids.append(eid)
-            except Exception as exc:
-                print(f"  ERROR: id={eid} {exc}")
-                invalid_ids.append(eid)
 
-            # Small delay between requests
-            await asyncio.sleep(0.2)
+                # Small delay between requests
+                await asyncio.sleep(0.2)
 
-    if valid_ids:
-        conn.executemany(
-            "UPDATE entitlements SET verified = 1 WHERE id = ?",
-            [(i,) for i in valid_ids],
-        )
-    if invalid_ids:
-        conn.executemany(
-            "DELETE FROM entitlements WHERE id = ?",
-            [(i,) for i in invalid_ids],
-        )
-    conn.commit()
-    conn.close()
+        if valid_ids:
+            await conn.executemany(
+                "UPDATE entitlements SET verified = 1 WHERE id = ?",
+                [(i,) for i in valid_ids],
+            )
+        if invalid_ids:
+            await conn.executemany(
+                "DELETE FROM entitlements WHERE id = ?",
+                [(i,) for i in invalid_ids],
+            )
+
+        await conn.commit()
 
     print(f"Done. {len(valid_ids)} valid, {len(invalid_ids)} removed.")
 
