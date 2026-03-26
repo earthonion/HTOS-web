@@ -159,7 +159,9 @@ async def job_download(job_id):
 
     # Extract SFO fields from result zip for filename and PS4 structure
     sfo = _extract_sfo_fields_from_zip(job.result_path)
-    title_id = (job.params.get("title_id", "") if job.params else "") or sfo.get("TITLE_ID", "")
+    title_id = (job.params.get("title_id", "") if job.params else "") or sfo.get(
+        "TITLE_ID", ""
+    )
 
     # Build download filename: <Title>_<TITLE_ID>_dec/enc.zip
     op_suffix = {"decrypt": "dec", "encrypt": "enc"}.get(job.operation, job.operation)
@@ -167,7 +169,7 @@ async def job_download(job_id):
     if title_id:
         game_title = await lookup_title(title_id) or ""
     if game_title and title_id:
-        safe_title = re.sub(r'[^\w\s\-]', '', game_title).strip().replace(' ', '_')
+        safe_title = re.sub(r"[^\w\s\-]", "", game_title).strip().replace(" ", "_")
         filename = f"{safe_title}_{title_id}_{op_suffix}.zip"
     elif title_id:
         filename = f"{title_id}_{op_suffix}.zip"
