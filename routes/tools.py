@@ -97,24 +97,32 @@ async def api_function_search():
 @tools_bp.route("/tools/syscalls")
 async def syscall_lookup():
     q = request.args.get("q", "").strip()
-    results = _search_syscalls(q) if q else _all_syscalls()
+    platform = request.args.get("platform", "ps4")
+    if platform not in ("ps4", "ps5"):
+        platform = "ps4"
+    all_sc = _all_syscalls(platform)
+    results = _search_syscalls(q, platform) if q else all_sc
     return await render_template(
-        "tools_syscalls.html", q=q, results=results, total=len(_all_syscalls())
+        "tools_syscalls.html", q=q, results=results, total=len(all_sc), platform=platform
     )
 
 
 @tools_bp.route("/tools/api/syscall-search")
 async def api_syscall_search():
     q = request.args.get("q", "").strip()
+    platform = request.args.get("platform", "ps4")
+    if platform not in ("ps4", "ps5"):
+        platform = "ps4"
     if not q:
-        return jsonify({"results": _all_syscalls()})
-    return jsonify({"results": _search_syscalls(q)})
+        return jsonify({"results": _all_syscalls(platform)})
+    return jsonify({"results": _search_syscalls(q, platform)})
 
 
-def _load_syscalls():
+def _load_syscalls(platform):
     import os
 
-    path = os.path.join(os.path.dirname(__file__), "..", "data", "ps4_syscalls.txt")
+    filename = "ps5_syscalls.txt" if platform == "ps5" else "ps4_syscalls.txt"
+    path = os.path.join(os.path.dirname(__file__), "..", "data", filename)
     syscalls = []
     with open(path) as f:
         for line in f:
@@ -126,20 +134,19 @@ def _load_syscalls():
     return syscalls
 
 
-_syscalls_cache = None
+_syscalls_cache = {}
 
 
-def _all_syscalls():
-    global _syscalls_cache
-    if _syscalls_cache is None:
-        _syscalls_cache = _load_syscalls()
-    return _syscalls_cache
+def _all_syscalls(platform="ps4"):
+    if platform not in _syscalls_cache:
+        _syscalls_cache[platform] = _load_syscalls(platform)
+    return _syscalls_cache[platform]
 
 
-def _search_syscalls(q):
+def _search_syscalls(q, platform="ps4"):
     q_lower = q.lower()
     results = []
-    for s in _all_syscalls():
+    for s in _all_syscalls(platform):
         if q_lower in s["name"].lower() or q_lower == str(s["num"]):
             results.append(s)
     return results

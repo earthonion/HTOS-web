@@ -7,7 +7,7 @@
     max-width: 500px;
     margin-bottom: 1.5rem;
 }
-.search-box input {
+.search-box input[type="text"] {
     width: 100%;
     padding-right: 2.5rem;
 }
@@ -18,6 +18,26 @@
     transform: translateY(-50%);
     color: var(--text-3);
     pointer-events: none;
+}
+.platform-toggle {
+    display: inline-flex;
+    gap: 0;
+    margin-bottom: 1rem;
+    border-radius: var(--r, 8px);
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+.platform-toggle a {
+    padding: 0.4rem 1rem;
+    font-size: 0.82rem;
+    text-decoration: none;
+    color: var(--text-2);
+    background: var(--bg-1);
+    font-weight: 500;
+}
+.platform-toggle a.active {
+    background: var(--indigo);
+    color: #fff;
 }
 .results-table {
     width: 100%;
@@ -60,10 +80,16 @@
 {% endblock %}
 {% block content %}
 <h1>Syscall Reference <span style="font-size:0.85rem; font-weight:400; color:var(--text-2);">{{ total }} syscalls</span></h1>
-<p>PS4 (Orbis OS) system call table — search by name or number.</p>
+<p>PlayStation system call table — search by name or number.</p>
+
+<div class="platform-toggle">
+    <a href="{{ url_for('tools.syscall_lookup', q=q, platform='ps4') }}" class="{% if platform == 'ps4' %}active{% endif %}">PS4</a>
+    <a href="{{ url_for('tools.syscall_lookup', q=q, platform='ps5') }}" class="{% if platform == 'ps5' %}active{% endif %}">PS5</a>
+</div>
 
 <div class="search-box">
     <form method="GET" action="{{ url_for('tools.syscall_lookup') }}">
+        <input type="hidden" name="platform" value="{{ platform }}">
         <input type="text" name="q" id="search-input" value="{{ q }}" placeholder="Search syscall name or number (e.g. mmap, 477)" autofocus autocomplete="off">
         <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     </form>
@@ -101,6 +127,7 @@
 </div>
 
 <script>
+const platform = '{{ platform }}';
 let debounceTimer;
 const input = document.getElementById('search-input');
 const container = document.getElementById('results-container');
@@ -110,7 +137,7 @@ input.addEventListener('input', () => {
     const q = input.value.trim();
     debounceTimer = setTimeout(async () => {
         try {
-            const resp = await fetch('/tools/api/syscall-search?q=' + encodeURIComponent(q));
+            const resp = await fetch('/tools/api/syscall-search?platform=' + platform + '&q=' + encodeURIComponent(q));
             const data = await resp.json();
             if (!data.results.length) {
                 container.innerHTML = '<p style="color:var(--text-3);">No results found.</p>';
