@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Syscall Reference — Tools{% endblock %}
+{% block extra_head %}
+<style>
+.search-box {
+    position: relative;
+    max-width: 500px;
+    margin-bottom: 1.5rem;
+}
+.search-box input {
+    width: 100%;
+    padding-right: 2.5rem;
+}
+.search-box .search-icon {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-3);
+    pointer-events: none;
+}
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+.results-table th {
+    text-align: left;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    color: var(--text-3);
+    letter-spacing: 0.06em;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+.results-table td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-1);
+}
+.results-table tr:hover td {
+    background: var(--bg-1);
+}
+.syscall-num {
+    font-family: 'Fira Code', monospace;
+    font-weight: 600;
+    color: var(--cyan, #0ff);
+    white-space: nowrap;
+}
+.syscall-name {
+    font-family: 'Fira Code', monospace;
+    word-break: break-all;
+}
+.result-count {
+    font-size: 0.78rem;
+    color: var(--text-3);
+    margin-bottom: 0.75rem;
+}
+</style>
+{% endblock %}
+{% block content %}
+<h1>Syscall Reference <span style="font-size:0.85rem; font-weight:400; color:var(--text-2);">{{ total }} syscalls</span></h1>
+<p>PS4 (Orbis OS) system call table — search by name or number.</p>
+
+<div class="search-box">
+    <form method="GET" action="{{ url_for('tools.syscall_lookup') }}">
+        <input type="text" name="q" id="search-input" value="{{ q }}" placeholder="Search syscall name or number (e.g. mmap, 477)" autofocus autocomplete="off">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </form>
+</div>
+
+<div id="results-container">
+{% if q %}
+<div class="result-count">{{ results|length }} result{{ 's' if results|length != 1 }} for "{{ q }}"</div>
+{% endif %}
+
+{% if results %}
+<table class="results-table">
+    <thead>
+        <tr>
+            <th style="width:80px;">Number</th>
+            <th>Name</th>
+        </tr>
+    </thead>
+    <tbody id="results-body">
+        {% for r in results %}
+        <tr>
+            <td class="syscall-num">{{ r.num }}</td>
+            <td class="syscall-name">{{ r.name }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% elif q %}
+<p style="color:var(--text-3);">No results found.</p>
+{% endif %}
+</div>
+
+<div style="margin-top:1.5rem;">
+    <a href="{{ url_for('tools.tools_index') }}">&larr; Back to Tools</a>
+</div>
+
+<script>
+let debounceTimer;
+const input = document.getElementById('search-input');
+const container = document.getElementById('results-container');
+
+input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const q = input.value.trim();
+    debounceTimer = setTimeout(async () => {
+        try {
+            const resp = await fetch('/tools/api/syscall-search?q=' + encodeURIComponent(q));
+            const data = await resp.json();
+            if (!data.results.length) {
+                container.innerHTML = '<p style="color:var(--text-3);">No results found.</p>';
+                return;
+            }
+            let html = q ? `<div class="result-count">${data.results.length} result${data.results.length !== 1 ? 's' : ''} for "${esc(q)}"</div>` : '';
+            html += '<table class="results-table"><thead><tr><th style="width:80px;">Number</th><th>Name</th></tr></thead><tbody>';
+            for (const r of data.results) {
+                html += `<tr><td class="syscall-num">${r.num}</td><td class="syscall-name">${esc(r.name)}</td></tr>`;
+            }
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        } catch {}
+    }, 300);
+});
+
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+</script>
+{% endblock %}

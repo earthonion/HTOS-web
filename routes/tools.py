@@ -94,6 +94,57 @@ async def api_function_search():
     return jsonify({"results": results})
 
 
+@tools_bp.route("/tools/syscalls")
+async def syscall_lookup():
+    q = request.args.get("q", "").strip()
+    results = _search_syscalls(q) if q else _all_syscalls()
+    return await render_template(
+        "tools_syscalls.html", q=q, results=results, total=len(_all_syscalls())
+    )
+
+
+@tools_bp.route("/tools/api/syscall-search")
+async def api_syscall_search():
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify({"results": _all_syscalls()})
+    return jsonify({"results": _search_syscalls(q)})
+
+
+def _load_syscalls():
+    import os
+
+    path = os.path.join(os.path.dirname(__file__), "..", "data", "ps4_syscalls.txt")
+    syscalls = []
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or "=" not in line:
+                continue
+            num, name = line.split("=", 1)
+            syscalls.append({"num": int(num.strip()), "name": name.strip().strip('"')})
+    return syscalls
+
+
+_syscalls_cache = None
+
+
+def _all_syscalls():
+    global _syscalls_cache
+    if _syscalls_cache is None:
+        _syscalls_cache = _load_syscalls()
+    return _syscalls_cache
+
+
+def _search_syscalls(q):
+    q_lower = q.lower()
+    results = []
+    for s in _all_syscalls():
+        if q_lower in s["name"].lower() or q_lower == str(s["num"]):
+            results.append(s)
+    return results
+
+
 @tools_bp.route("/tools/api/entitlements", methods=["POST"])
 @login_required
 async def api_submit_entitlements():
