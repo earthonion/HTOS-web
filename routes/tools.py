@@ -171,29 +171,96 @@ _SONY_PREFIXES = (
     "begin_app_mount", "end_app_mount", "suspend_system", "free_stack",
     "test_debug_rwmem", "mtypeprotect", "netcontrol", "netabort", "netgetsockinfo",
     "socketex", "socketclose", "netgetiflist", "kqueueex",
+    "aio_create", "aio_get_data", "aio_init", "aio_multi_cancel", "aio_multi_delete",
+    "aio_multi_poll", "aio_multi_wait", "aio_submit", "aio_submit_cmd",
+    "dl_notify_event", "eport_close", "eport_create", "eport_delete", "eport_open",
+    "eport_trigger", "sblock_create", "sblock_delete", "sblock_enter", "sblock_exit",
+    "sblock_xenter", "sblock_xexit", "thr_get_ucontext", "thr_resume_ucontext",
+    "thr_set_ucontext", "thr_suspend_ucontext", "getpath_fromaddr", "getpath_fromfd",
+    "signasleep", "nasleep",
 )
+
+# Syscall names with no FreeBSD man page (verified against man.freebsd.org)
+_NO_MAN_PAGE = {
+    "acl_aclcheck_fd", "acl_aclcheck_file", "acl_aclcheck_link",
+    "acl_delete_fd", "acl_delete_file", "acl_delete_link",
+    "acl_get_fd", "acl_get_file", "acl_get_link",
+    "acl_set_fd", "acl_set_file", "acl_set_link",
+    "afs3_syscall", "asyncdaemon",
+    "cap_get_fd", "cap_get_file", "cap_get_proc", "cap_new",
+    "cap_rights_get", "cap_set_fd", "cap_set_file", "cap_set_proc",
+    "clock_getcpuclockid2", "execv", "extattrctl",
+    "getdescriptor", "getdomainname", "getdopt", "gethostid", "gethostname",
+    "getkerninfo", "getpagesize", "gssd_syscall",
+    "kmq_open", "kmq_setattr", "kmq_tify", "kmq_timedreceive", "kmq_timedsend",
+    "kmq_unlink", "kmq_notify",
+    "kse_create", "kse_exit", "kse_release", "kse_switchin",
+    "kse_thr_interrupt", "kse_wakeup",
+    "ksem_close", "ksem_destroy", "ksem_getvalue", "ksem_init", "ksem_open",
+    "ksem_post", "ksem_timedwait", "ksem_trywait", "ksem_unlink", "ksem_wait",
+    "ktimer_create", "ktimer_delete", "ktimer_getoverrun",
+    "ktimer_gettime", "ktimer_settime",
+    "lfs_bmapv", "lfs_markv", "lfs_segclean", "lfs_segwait",
+    "mac_execve", "mac_get_fd", "mac_get_file", "mac_get_link",
+    "mac_get_pid", "mac_get_proc", "mac_set_fd", "mac_set_file",
+    "mac_set_link", "mac_set_proc", "mac_syscall",
+    "msgsys", "netbsd_lchown", "netbsd_msync", "newreboot", "nfsclnt",
+    "nfstat", "nlm_syscall", "nlstat", "nnpfs_syscall", "nstat",
+    "numa_getaffinity", "numa_setaffinity",
+    "openbsd_poll", "ovadvise", "pdwait4", "quota", "resuba",
+    "sem_lock", "sem_wakeup", "semconfig", "semsys", "sfork",
+    "setdescriptor", "setdomainname", "setdopt", "sethostid", "sethostname",
+    "setugid", "shmsys", "sstk",
+    "thr_create", "thr_sleep", "thr_wakeup", "thr_get_name",
+    "vhangup", "vlimit", "vread", "vtimes", "vtrace", "vwrite",
+    "xfstat", "xlstat", "xstat",
+}
+
+# Remap syscall names to their correct FreeBSD man page query + section
+_MAN_REMAP = {
+    "exit": ("_exit", 2),
+    "obreak": ("brk", 2),
+    "mkd": ("mkdir", 2),
+    "mkdat": ("mkdirat", 2),
+    "umtx_op": ("_umtx_op", 2),
+    "getcontext": ("getcontext", 3),
+    "setcontext": ("setcontext", 3),
+    "swapcontext": ("swapcontext", 3),
+    "uname": ("uname", 3),
+    "yield": ("yield", 3),
+    "sysctl": ("sysctl", 3),
+    "getcwd": ("getcwd", 3),
+}
 
 
 def syscall_man_url(name):
-    """Return FreeBSD man page URL for a syscall name, or None if Sony-specific."""
-    # Strip sys_ prefix
+    """Return FreeBSD man page URL for a syscall name, or None if no page exists."""
     clean = name
     if clean.startswith("sys_"):
         clean = clean[4:]
 
+    # Strip leading underscores for lookup
+    bare = clean.lstrip("_")
+
     # Skip obviously non-linkable entries
-    if clean.startswith(("nosys", "number", "obsolete", "obs_", "compat", "lkmnosys")):
+    if bare.startswith(("nosys", "number", "obsolete", "obs_", "compat", "lkmnosys")):
         return None
 
     # Skip Sony-specific syscalls
     for prefix in _SONY_PREFIXES:
-        if clean.startswith(prefix):
+        if bare.startswith(prefix):
             return None
 
-    # Strip leading underscores for the query
-    query = clean.lstrip("_")
+    # Skip verified broken names
+    if bare in _NO_MAN_PAGE:
+        return None
 
-    return f"https://man.freebsd.org/cgi/man.cgi?query={query}&sektion=2"
+    # Check for known remappings
+    if bare in _MAN_REMAP:
+        query, sektion = _MAN_REMAP[bare]
+        return f"https://man.freebsd.org/cgi/man.cgi?query={query}&sektion={sektion}"
+
+    return f"https://man.freebsd.org/cgi/man.cgi?query={bare}&sektion=2"
 
 
 @tools_bp.route("/tools/api/entitlements", methods=["POST"])
