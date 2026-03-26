@@ -159,37 +159,36 @@ async def job_download(job_id):
 
     # Extract SFO fields from result zip for filename and PS4 structure
     sfo = _extract_sfo_fields_from_zip(job.result_path)
-    save_name = ""
-    if job.params:
-        save_name = job.params.get("savename", "")
-    if not save_name:
-        save_name = sfo.get("SAVEDATA_DIRECTORY", "")
+    title_id = (job.params.get("title_id", "") if job.params else "") or sfo.get("TITLE_ID", "")
+
+    # Build download filename: <Title>_<TITLE_ID>_dec/enc.zip
+    op_suffix = {"decrypt": "dec", "encrypt": "enc"}.get(job.operation, job.operation)
+    game_title = ""
+    if title_id:
+        game_title = await lookup_title(title_id) or ""
+    if game_title and title_id:
+        safe_title = re.sub(r'[^\w\s\-]', '', game_title).strip().replace(' ', '_')
+        filename = f"{safe_title}_{title_id}_{op_suffix}.zip"
+    elif title_id:
+        filename = f"{title_id}_{op_suffix}.zip"
+    else:
+        filename = f"{job.operation}_{job_id[:8]}.zip"
 
     # For PS4 encrypt/resign, restructure zip as PS4/SAVEDATA/<account_id>/<title_id>/
     platform = job.params.get("platform", "ps4") if job.params else "ps4"
     if platform == "ps4" and job.operation in ("encrypt", "resign") and job.params:
         account_id = job.params.get("account_id", "")
-        title_id = job.params.get("title_id", "") or sfo.get("TITLE_ID", "")
         if account_id and title_id:
             structured_path = job.result_path.replace(".zip", "_ps4.zip")
             try:
                 _restructure_ps4_zip(
                     job.result_path, structured_path, account_id, title_id
                 )
-                if save_name:
-                    filename = f"{job.operation}_{save_name}_{job_id[:8]}.zip"
-                else:
-                    filename = f"{job.operation}_{job_id[:8]}.zip"
                 return await send_file(
                     structured_path, as_attachment=True, attachment_filename=filename
                 )
             except Exception:
                 pass  # Fall through to serve original zip
-
-    if save_name:
-        filename = f"{job.operation}_{save_name}_{job_id[:8]}.zip"
-    else:
-        filename = f"{job.operation}_{job_id[:8]}.zip"
 
     # Sanitize filenames inside zip for Windows compatibility
     serve_path = job.result_path
