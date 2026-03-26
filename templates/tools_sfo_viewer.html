@@ -222,7 +222,7 @@ async function extractSfoFromZip(file) {
         const name = new TextDecoder().decode(nameBytes);
         const dataStart = off + 30 + nameLen + extraLen;
         if (name.toLowerCase().endsWith('param.sfo') && compMethod === 0) {
-            return new Uint8Array(buf, dataStart, uncompSize).buffer;
+            return buf.slice(dataStart, dataStart + uncompSize);
         }
         off = dataStart + compSize;
     }
