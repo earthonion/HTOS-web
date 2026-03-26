@@ -67,6 +67,16 @@
     color: var(--text-3);
     margin-bottom: 0.75rem;
 }
+.type-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--yellow, #fbbf24);
+    white-space: nowrap;
+}
 .btn-sample {
     display: inline-block;
     font-size: 0.72rem;
@@ -106,6 +116,7 @@
             <th>Title ID</th>
             <th>Game</th>
             <th>Region</th>
+            <th>Type</th>
             <th>Platform</th>
             <th style="width:100px;"></th>
         </tr>
@@ -116,6 +127,7 @@
             <td class="title-id">{{ r.title_id }}</td>
             <td>{{ r.title }}</td>
             <td style="font-size:0.8rem; color:var(--text-2);">{{ r.region or '' }}</td>
+            <td><span class="type-badge">{{ r.save_type or '' }}</span></td>
             <td><span class="platform-badge {{ r.platform }}">{{ r.platform }}</span></td>
             <td><a href="{{ url_for('tools.sample_save_download', sample_id=r.id) }}" class="btn-sample">Sample Save</a></td>
         </tr>
@@ -154,10 +166,10 @@ input.addEventListener('input', () => {
                 return;
             }
             let html = `<div class="result-count">${data.results.length}${data.results.length >= 20 ? '+' : ''} results</div>`;
-            html += '<table class="results-table"><thead><tr><th>Title ID</th><th>Game</th><th>Region</th><th>Platform</th><th style="width:100px;"></th></tr></thead><tbody>';
+            html += '<table class="results-table"><thead><tr><th>Title ID</th><th>Game</th><th>Region</th><th>Type</th><th>Platform</th><th style="width:100px;"></th></tr></thead><tbody>';
             for (const r of data.results) {
                 const plat = r.platform || 'ps4';
-                html += `<tr><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.title)}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="platform-badge ${plat}">${plat}</span></td><td><a href="/tools/sample-saves/${r.id}/download" class="btn-sample">Sample Save</a></td></tr>`;
+                html += `<tr><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.title)}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="type-badge">${esc(r.save_type || '')}</span></td><td><span class="platform-badge ${plat}">${plat}</span></td><td><a href="/tools/sample-saves/${r.id}/download" class="btn-sample">Sample Save</a></td></tr>`;
             }
             html += '</tbody></table>';
             container.innerHTML = html;
