@@ -113,9 +113,9 @@ async def api_syscall_search():
     platform = request.args.get("platform", "ps4")
     if platform not in ("ps4", "ps5"):
         platform = "ps4"
-    if not q:
-        return jsonify({"results": _all_syscalls(platform)})
-    return jsonify({"results": _search_syscalls(q, platform)})
+    results = _search_syscalls(q, platform) if q else _all_syscalls(platform)
+    enriched = [{**r, "man_url": syscall_man_url(r["name"])} for r in results]
+    return jsonify({"results": enriched})
 
 
 def _load_syscalls(platform):
@@ -150,6 +150,50 @@ def _search_syscalls(q, platform="ps4"):
         if q_lower in s["name"].lower() or q_lower == str(s["num"]):
             results.append(s)
     return results
+
+
+# Sony-specific prefixes that won't have FreeBSD man pages
+_SONY_PREFIXES = (
+    "regmgr_", "jitshm_", "dl_get_", "evf_", "osem_", "namedobj_", "budget_",
+    "opmc_", "mdbg_", "dynlib_", "dmem_", "blockpool_", "ipmimgr_", "physhm_",
+    "app_state_", "app_save", "app_restore", "saved_app_", "apr_", "fsc2h_",
+    "streamwrite", "acinfo_", "ampr_", "workspace_", "sandbox_path", "randomized_path",
+    "rdup", "workaround", "is_development_mode", "get_self_auth_info", "get_authinfo",
+    "mname", "is_in_sandbox", "set_vm_container", "debug_init", "suspend_process",
+    "resume_process", "prepare_to_suspend", "prepare_to_resume", "process_terminate",
+    "get_paging_stats", "get_proc_type", "get_resident", "set_gpo", "get_gpo",
+    "get_vm_map_timestamp", "get_cpu_usage", "mmap_dmem", "resume_internal_hdd",
+    "set_timezone_info", "set_phys_fmem_limit", "utc_to_localtime", "localtime_to_utc",
+    "set_uevt", "get_map_statistics", "set_chicken_switches", "get_kernel_mem",
+    "get_sdk_compiled", "get_ppr_sdk", "notify_app_event", "ioreq", "openintr",
+    "get_bio_usage", "get_page_table_stats", "reserve_2mb_page", "cpumode_yield",
+    "virtual_query", "batch_map", "query_memory_protection", "get_phys_page_size",
+    "begin_app_mount", "end_app_mount", "suspend_system", "free_stack",
+    "test_debug_rwmem", "mtypeprotect", "netcontrol", "netabort", "netgetsockinfo",
+    "socketex", "socketclose", "netgetiflist", "kqueueex",
+)
+
+
+def syscall_man_url(name):
+    """Return FreeBSD man page URL for a syscall name, or None if Sony-specific."""
+    # Strip sys_ prefix
+    clean = name
+    if clean.startswith("sys_"):
+        clean = clean[4:]
+
+    # Skip obviously non-linkable entries
+    if clean.startswith(("nosys", "number", "obsolete", "obs_", "compat", "lkmnosys")):
+        return None
+
+    # Skip Sony-specific syscalls
+    for prefix in _SONY_PREFIXES:
+        if clean.startswith(prefix):
+            return None
+
+    # Strip leading underscores for the query
+    query = clean.lstrip("_")
+
+    return f"https://man.freebsd.org/cgi/man.cgi?query={query}&sektion=2"
 
 
 @tools_bp.route("/tools/api/entitlements", methods=["POST"])

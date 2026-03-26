@@ -127,6 +127,12 @@ def create_app():
             return "".join(reversed([account_id[i : i + 2] for i in range(0, 16, 2)]))
         return account_id
 
+    @app.template_filter("syscall_man_url")
+    def _syscall_man_url_filter(name):
+        from routes.tools import syscall_man_url
+
+        return syscall_man_url(name)
+
     @app.context_processor
     async def inject_worker_count():
         from models import get_db
