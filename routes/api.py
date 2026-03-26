@@ -340,7 +340,8 @@ async def update_status(job_id):
             db2 = await get_db()
             try:
                 cursor = await db2.execute(
-                    "SELECT operation, result_path, params FROM jobs WHERE id = ?", (job_id,)
+                    "SELECT operation, result_path, params FROM jobs WHERE id = ?",
+                    (job_id,),
                 )
                 jrow = await cursor.fetchone()
                 if jrow and jrow["result_path"] and jrow["params"]:
@@ -363,6 +364,7 @@ async def update_status(job_id):
                     tid = jp.get("title_id", "")
                     if tid and jrow["operation"] == "decrypt" and os.path.exists(rp):
                         from services.samples import maybe_store_sample_from_zip
+
                         platform = jp.get("platform", "ps4")
                         await maybe_store_sample_from_zip(tid, rp, platform)
             finally:

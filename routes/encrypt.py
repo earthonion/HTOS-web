@@ -269,6 +269,7 @@ async def encrypt():
         # Auto-capture sample save if we don't have one for this title
         if title_id:
             from services.samples import maybe_store_sample_from_dir
+
             await maybe_store_sample_from_dir(title_id, save_dir, platform)
 
         params = {
