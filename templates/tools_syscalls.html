@@ -76,6 +76,20 @@
     color: var(--text-3);
     margin-bottom: 0.75rem;
 }
+.btn-man {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    text-decoration: none;
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--indigo-light, #818cf8);
+    white-space: nowrap;
+}
+.btn-man:hover {
+    background: rgba(99, 102, 241, 0.3);
+}
 </style>
 {% endblock %}
 {% block content %}
@@ -106,6 +120,7 @@
         <tr>
             <th style="width:80px;">Number</th>
             <th>Name</th>
+            <th style="width:100px;"></th>
         </tr>
     </thead>
     <tbody id="results-body">
@@ -113,7 +128,8 @@
         {% set man_url = r.name | syscall_man_url %}
         <tr>
             <td class="syscall-num">{{ r.num }}</td>
-            <td class="syscall-name">{% if man_url %}<a href="{{ man_url }}" target="_blank" style="color:var(--text-1); text-decoration:none; border-bottom:1px dashed var(--text-3);">{{ r.name }}</a>{% else %}{{ r.name }}{% endif %}</td>
+            <td class="syscall-name">{{ r.name }}</td>
+            <td>{% if man_url %}<a href="{{ man_url }}" target="_blank" class="btn-man">Man Page</a>{% endif %}</td>
         </tr>
         {% endfor %}
     </tbody>
@@ -145,12 +161,12 @@ input.addEventListener('input', () => {
                 return;
             }
             let html = q ? `<div class="result-count">${data.results.length} result${data.results.length !== 1 ? 's' : ''} for "${esc(q)}"</div>` : '';
-            html += '<table class="results-table"><thead><tr><th style="width:80px;">Number</th><th>Name</th></tr></thead><tbody>';
+            html += '<table class="results-table"><thead><tr><th style="width:80px;">Number</th><th>Name</th><th style="width:100px;"></th></tr></thead><tbody>';
             for (const r of data.results) {
-                const name = r.man_url
-                    ? `<a href="${esc(r.man_url)}" target="_blank" style="color:var(--text-1); text-decoration:none; border-bottom:1px dashed var(--text-3);">${esc(r.name)}</a>`
-                    : esc(r.name);
-                html += `<tr><td class="syscall-num">${r.num}</td><td class="syscall-name">${name}</td></tr>`;
+                const btn = r.man_url
+                    ? `<a href="${esc(r.man_url)}" target="_blank" class="btn-man">Man Page</a>`
+                    : '';
+                html += `<tr><td class="syscall-num">${r.num}</td><td class="syscall-name">${esc(r.name)}</td><td>${btn}</td></tr>`;
             }
             html += '</tbody></table>';
             container.innerHTML = html;
