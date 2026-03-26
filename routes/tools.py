@@ -7,6 +7,11 @@ from quart import Blueprint, Response, jsonify, render_template, request, sessio
 from auth import login_required
 from models import get_db
 
+
+from services.filesystem import search_filesystem
+from services.functions import search_functions
+from services.titles import search_titles
+
 VALID_URL_HOSTS = {
     "gs2.ww.prod.dl.playstation.net",
     "sgst.prod.dl.playstation.net",
@@ -14,9 +19,6 @@ VALID_URL_HOSTS = {
     "ares.dl.playstation.net",
     "gs2-ww-prod.psn.akadns.net",
 }
-from services.filesystem import search_filesystem
-from services.functions import search_functions
-from services.titles import search_titles
 
 tools_bp = Blueprint("tools", __name__)
 
