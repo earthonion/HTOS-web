@@ -91,16 +91,18 @@
         <tr>
             <th>Title ID</th>
             <th>Game</th>
+            <th>Region</th>
             <th>Platform</th>
-            <th>Region</th> </tr>
+        </tr>
     </thead>
     <tbody id="results-body">
         {% for r in results %}
         <tr>
             <td class="title-id">{{ r.title_id }}</td>
             <td>{{ r.name }}</td>
+            <td style="font-size:0.8rem; color:var(--text-2);">{{ r.region or '' }}</td>
             <td><span class="platform-badge {{ r.platform }}">{{ r.platform }}</span></td>
-            <td>{{ r.region or 'N/A' }}</td> </tr>
+        </tr>
         {% endfor %}
     </tbody>
 </table>
@@ -134,11 +136,10 @@ input.addEventListener('input', () => {
                 return;
             }
             let html = `<div class="result-count">${data.results.length}${data.results.length >= 20 ? '+' : ''} results</div>`;
-            html += '<table class="results-table"><thead><tr><th>Title ID</th><th>Game</th><th>Platform</th><th>Region</th></tr></thead><tbody>';
+            html += '<table class="results-table"><thead><tr><th>Title ID</th><th>Game</th><th>Region</th><th>Platform</th></tr></thead><tbody>';
             for (const r of data.results) {
                 const plat = r.platform || 'ps4';
-                const region = r.region || 'N/A'; // N/A if region is null
-                html += `<tr><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.name)}</td><td><span class="platform-badge ${plat}">${plat}</span></td><td>${esc(region)}</td></tr>`;
+                html += `<tr><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.name)}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="platform-badge ${plat}">${plat}</span></td></tr>`;
             }
             html += '</tbody></table>';
             container.innerHTML = html;
