@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS sample_saves (
     title TEXT DEFAULT '',
     platform TEXT DEFAULT 'ps4',
     region TEXT DEFAULT '',
+    save_type TEXT DEFAULT '',
     save_path TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -120,6 +121,7 @@ MIGRATIONS = [
     "ALTER TABLE worker_keys ADD COLUMN online_since TIMESTAMP",
     "ALTER TABLE jobs ADD COLUMN logs TEXT",
     "ALTER TABLE entitlements ADD COLUMN verified BOOLEAN DEFAULT NULL",
+    "ALTER TABLE sample_saves ADD COLUMN save_type TEXT DEFAULT ''",
 ]
 
 

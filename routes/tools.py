@@ -135,13 +135,13 @@ async def sample_saves():
         if q and len(q) >= 2:
             like = f"%{q}%"
             cursor = await db.execute(
-                "SELECT id, title_id, title, platform, region, created_at FROM sample_saves "
+                "SELECT id, title_id, title, platform, region, save_type, created_at FROM sample_saves "
                 "WHERE title_id LIKE ? OR title LIKE ? ORDER BY title LIMIT 50",
                 (like, like),
             )
         else:
             cursor = await db.execute(
-                "SELECT id, title_id, title, platform, region, created_at FROM sample_saves "
+                "SELECT id, title_id, title, platform, region, save_type, created_at FROM sample_saves "
                 "ORDER BY created_at DESC LIMIT 50"
             )
         results = [dict(r) for r in await cursor.fetchall()]
@@ -160,13 +160,13 @@ async def api_sample_saves_search():
         if q and len(q) >= 2:
             like = f"%{q}%"
             cursor = await db.execute(
-                "SELECT id, title_id, title, platform, region FROM sample_saves "
+                "SELECT id, title_id, title, platform, region, save_type FROM sample_saves "
                 "WHERE title_id LIKE ? OR title LIKE ? ORDER BY title LIMIT 20",
                 (like, like),
             )
         else:
             cursor = await db.execute(
-                "SELECT id, title_id, title, platform, region FROM sample_saves "
+                "SELECT id, title_id, title, platform, region, save_type FROM sample_saves "
                 "ORDER BY created_at DESC LIMIT 20"
             )
         results = [dict(r) for r in await cursor.fetchall()]
@@ -178,9 +178,9 @@ async def api_sample_saves_search():
 @tools_bp.route("/tools/sample-saves/<int:sample_id>/download")
 @login_required
 async def sample_save_download(sample_id):
-    import zipfile as _zipfile
+    import re
 
-    from quart import send_file
+    from quart import abort, send_file
 
     db = await get_db()
     try:
@@ -192,36 +192,16 @@ async def sample_save_download(sample_id):
     finally:
         await db.close()
 
-    if not row or not os.path.isdir(row["save_path"]):
-        from quart import abort
-
+    if not row or not os.path.isfile(row["save_path"]):
         abort(404)
 
-    import uuid as _uuid
-
-    zip_path = os.path.join(
-        "workspace", "uploads", f"sample_{sample_id}_{_uuid.uuid4().hex[:8]}.zip"
-    )
-    with _zipfile.ZipFile(zip_path, "w", _zipfile.ZIP_DEFLATED) as zf:
-        for root, _dirs, files in os.walk(row["save_path"]):
-            for f in files:
-                full = os.path.join(root, f)
-                arcname = os.path.relpath(full, row["save_path"])
-                zf.write(full, arcname)
-
-    import re
-
-    safe_title = (
-        re.sub(r"[^\w\s\-]", "", row["title"]).strip().replace(" ", "_")
-        if row["title"]
-        else ""
-    )
+    safe_title = re.sub(r'[^\w\s\-]', '', row["title"]).strip().replace(' ', '_') if row["title"] else ""
     if safe_title:
         filename = f"{safe_title}_{row['title_id']}_sample.zip"
     else:
         filename = f"{row['title_id']}_sample.zip"
 
-    return await send_file(zip_path, as_attachment=True, attachment_filename=filename)
+    return await send_file(row["save_path"], as_attachment=True, attachment_filename=filename)
 
 
 def _load_syscalls(platform):
