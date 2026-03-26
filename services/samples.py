@@ -1,7 +1,6 @@
 """Auto-capture sample saves for the sample save database."""
 
 import os
-import shutil
 import zipfile
 
 from models import get_db
@@ -79,6 +78,7 @@ async def maybe_store_sample_from_zip(title_id: str, result_zip: str, platform: 
 
         # Extract to temp dir, zero account ID, detect type, recompress with LZMA
         import tempfile
+
         with tempfile.TemporaryDirectory() as tmp:
             with zipfile.ZipFile(result_zip, "r") as zf:
                 zf.extractall(tmp)
@@ -154,11 +154,21 @@ def detect_save_type(save_dir: str) -> str:
 
     # Priority order: more specific types win
     priority = [
-        "Unity", "Unreal", "Ren'Py", "Godot",
-        "Lua", "Lua (KLEI)",
-        "JSON", "XML", "SQLite", "Protobuf", "MessagePack",
-        "PS2 VMC", "Trophy",
-        "Text", "Binary",
+        "Unity",
+        "Unreal",
+        "Ren'Py",
+        "Godot",
+        "Lua",
+        "Lua (KLEI)",
+        "JSON",
+        "XML",
+        "SQLite",
+        "Protobuf",
+        "MessagePack",
+        "PS2 VMC",
+        "Trophy",
+        "Text",
+        "Binary",
     ]
     for p in priority:
         if p in counts:
@@ -257,25 +267,37 @@ def _identify_file(path: str, fname: str) -> str | None:
         if stripped[:1] in ("{", "["):
             try:
                 import json
+
                 json.loads(header.decode("utf-8", errors="replace"))
                 return "JSON"
             except Exception:
                 # Might be truncated but still JSON-like
                 if stripped[:1] == "{" and ":" in stripped[:200]:
                     return "JSON"
-                if stripped[:1] == "[" and ("{" in stripped[:200] or "," in stripped[:50]):
+                if stripped[:1] == "[" and (
+                    "{" in stripped[:200] or "," in stripped[:50]
+                ):
                     return "JSON"
 
         # XML
-        if stripped.startswith("<?xml") or stripped.startswith("<!") or (
-            stripped.startswith("<") and ">" in stripped[:200]
+        if (
+            stripped.startswith("<?xml")
+            or stripped.startswith("<!")
+            or (stripped.startswith("<") and ">" in stripped[:200])
         ):
             return "XML"
 
         # Lua source
-        if any(kw in stripped[:500] for kw in (
-            "function ", "local ", "return {", "end\n", "require(",
-        )):
+        if any(
+            kw in stripped[:500]
+            for kw in (
+                "function ",
+                "local ",
+                "return {",
+                "end\n",
+                "require(",
+            )
+        ):
             return "Lua"
 
         # INI/config
@@ -299,6 +321,7 @@ def _identify_file(path: str, fname: str) -> str | None:
 def _is_high_entropy(data: bytes) -> bool:
     """Return True if data has high Shannon entropy (likely encrypted/compressed)."""
     import math
+
     if len(data) < 64:
         return False
     counts = [0] * 256

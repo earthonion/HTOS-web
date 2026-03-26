@@ -195,13 +195,19 @@ async def sample_save_download(sample_id):
     if not row or not os.path.isfile(row["save_path"]):
         abort(404)
 
-    safe_title = re.sub(r'[^\w\s\-]', '', row["title"]).strip().replace(' ', '_') if row["title"] else ""
+    safe_title = (
+        re.sub(r"[^\w\s\-]", "", row["title"]).strip().replace(" ", "_")
+        if row["title"]
+        else ""
+    )
     if safe_title:
         filename = f"{safe_title}_{row['title_id']}_sample.zip"
     else:
         filename = f"{row['title_id']}_sample.zip"
 
-    return await send_file(row["save_path"], as_attachment=True, attachment_filename=filename)
+    return await send_file(
+        row["save_path"], as_attachment=True, attachment_filename=filename
+    )
 
 
 def _load_syscalls(platform):
