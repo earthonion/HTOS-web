@@ -110,9 +110,10 @@
     </thead>
     <tbody id="results-body">
         {% for r in results %}
+        {% set man_url = r.name | syscall_man_url %}
         <tr>
             <td class="syscall-num">{{ r.num }}</td>
-            <td class="syscall-name">{{ r.name }}</td>
+            <td class="syscall-name">{% if man_url %}<a href="{{ man_url }}" target="_blank" style="color:var(--text-1); text-decoration:none; border-bottom:1px dashed var(--text-3);">{{ r.name }}</a>{% else %}{{ r.name }}{% endif %}</td>
         </tr>
         {% endfor %}
     </tbody>
@@ -146,7 +147,10 @@ input.addEventListener('input', () => {
             let html = q ? `<div class="result-count">${data.results.length} result${data.results.length !== 1 ? 's' : ''} for "${esc(q)}"</div>` : '';
             html += '<table class="results-table"><thead><tr><th style="width:80px;">Number</th><th>Name</th></tr></thead><tbody>';
             for (const r of data.results) {
-                html += `<tr><td class="syscall-num">${r.num}</td><td class="syscall-name">${esc(r.name)}</td></tr>`;
+                const name = r.man_url
+                    ? `<a href="${esc(r.man_url)}" target="_blank" style="color:var(--text-1); text-decoration:none; border-bottom:1px dashed var(--text-3);">${esc(r.name)}</a>`
+                    : esc(r.name);
+                html += `<tr><td class="syscall-num">${r.num}</td><td class="syscall-name">${name}</td></tr>`;
             }
             html += '</tbody></table>';
             container.innerHTML = html;
