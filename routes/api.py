@@ -340,25 +340,31 @@ async def update_status(job_id):
             db2 = await get_db()
             try:
                 cursor = await db2.execute(
-                    "SELECT result_path, params FROM jobs WHERE id = ?", (job_id,)
+                    "SELECT operation, result_path, params FROM jobs WHERE id = ?", (job_id,)
                 )
                 jrow = await cursor.fetchone()
                 if jrow and jrow["result_path"] and jrow["params"]:
                     jp = json.loads(jrow["params"])
-                    if not jp.get("title_id"):
-                        rp = jrow["result_path"]
-                        if os.path.exists(rp):
-                            sfo = _extract_title_from_zip(rp)
-                            if sfo.get("TITLE_ID"):
-                                jp["title_id"] = sfo["TITLE_ID"]
-                                title = await lookup_title(sfo["TITLE_ID"]) or ""
-                                if title:
-                                    jp["game_title"] = title
-                                await db2.execute(
-                                    "UPDATE jobs SET params = ? WHERE id = ?",
-                                    (json.dumps(jp), job_id),
-                                )
-                                await db2.commit()
+                    rp = jrow["result_path"]
+                    if not jp.get("title_id") and os.path.exists(rp):
+                        sfo = _extract_title_from_zip(rp)
+                        if sfo.get("TITLE_ID"):
+                            jp["title_id"] = sfo["TITLE_ID"]
+                            title = await lookup_title(sfo["TITLE_ID"]) or ""
+                            if title:
+                                jp["game_title"] = title
+                            await db2.execute(
+                                "UPDATE jobs SET params = ? WHERE id = ?",
+                                (json.dumps(jp), job_id),
+                            )
+                            await db2.commit()
+
+                    # Auto-capture sample save from decrypt results
+                    tid = jp.get("title_id", "")
+                    if tid and jrow["operation"] == "decrypt" and os.path.exists(rp):
+                        from services.samples import maybe_store_sample_from_zip
+                        platform = jp.get("platform", "ps4")
+                        await maybe_store_sample_from_zip(tid, rp, platform)
             finally:
                 await db2.close()
         except Exception:

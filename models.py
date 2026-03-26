@@ -98,6 +98,16 @@ CREATE TABLE IF NOT EXISTS entitlements (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS sample_saves (
+    id INTEGER PRIMARY KEY,
+    title_id TEXT UNIQUE NOT NULL,
+    title TEXT DEFAULT '',
+    platform TEXT DEFAULT 'ps4',
+    region TEXT DEFAULT '',
+    save_path TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 INSERT OR IGNORE INTO settings (key, value) VALUES ('invite_only', '0');
 """
 

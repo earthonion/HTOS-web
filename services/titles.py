@@ -23,6 +23,23 @@ async def lookup_title(title_id: str) -> str | None:
         return None
 
 
+async def lookup_title_info(title_id: str) -> dict | None:
+    """Return {name, platform, region} for a title ID, or None."""
+    if not os.path.exists(DB_PATH):
+        return None
+    try:
+        async with aiosqlite.connect(DB_PATH) as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute(
+                "SELECT name, platform, region FROM titles WHERE title_id = ? LIMIT 1",
+                (title_id.upper(),),
+            ) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+    except Exception:
+        return None
+
+
 async def search_titles(query: str, limit: int = 10) -> list[dict]:
     """Search titles by name or title_id. Returns list of {title_id, name, platform}."""
     if not os.path.exists(DB_PATH):

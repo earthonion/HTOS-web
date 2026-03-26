@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}Sample Saves — Tools{% endblock %}
+{% block extra_head %}
+<style>
+.search-box {
+    position: relative;
+    max-width: 500px;
+    margin-bottom: 1.5rem;
+}
+.search-box input {
+    width: 100%;
+    padding-right: 2.5rem;
+}
+.search-box .search-icon {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-3);
+    pointer-events: none;
+}
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+.results-table th {
+    text-align: left;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    color: var(--text-3);
+    letter-spacing: 0.06em;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+.results-table td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-1);
+}
+.results-table tr:hover td {
+    background: var(--bg-1);
+}
+.results-table .title-id {
+    font-family: monospace;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.results-table .platform-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+}
+.platform-badge.ps4 {
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--indigo-light);
+}
+.platform-badge.ps5 {
+    background: rgba(6, 182, 212, 0.15);
+    color: var(--cyan);
+}
+.result-count {
+    font-size: 0.78rem;
+    color: var(--text-3);
+    margin-bottom: 0.75rem;
+}
+.btn-sample {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    text-decoration: none;
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--green, #4ade80);
+    white-space: nowrap;
+}
+.btn-sample:hover {
+    background: rgba(34, 197, 94, 0.3);
+}
+</style>
+{% endblock %}
+{% block content %}
+<h1>Sample Saves <span style="font-size:0.85rem; font-weight:400; color:var(--text-2);">{{ total }} saves</span></h1>
+<p>Decrypted sample saves auto-collected from community usage. Search by game name or title ID.</p>
+
+<div class="search-box">
+    <form method="GET" action="{{ url_for('tools.sample_saves') }}">
+        <input type="text" name="q" id="search-input" value="{{ q }}" placeholder="Search by title or ID (e.g. GTA V, CUSA00419)" autofocus autocomplete="off">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </form>
+</div>
+
+<div id="results-container">
+{% if q %}
+<div class="result-count">{{ results|length }}{% if results|length == 50 %}+{% endif %} results for "{{ q }}"</div>
+{% endif %}
+
+{% if results %}
+<table class="results-table">
+    <thead>
+        <tr>
+            <th>Title ID</th>
+            <th>Game</th>
+            <th>Region</th>
+            <th>Platform</th>
+            <th style="width:100px;"></th>
+        </tr>
+    </thead>
+    <tbody id="results-body">
+        {% for r in results %}
+        <tr>
+            <td class="title-id">{{ r.title_id }}</td>
+            <td>{{ r.title }}</td>
+            <td style="font-size:0.8rem; color:var(--text-2);">{{ r.region or '' }}</td>
+            <td><span class="platform-badge {{ r.platform }}">{{ r.platform }}</span></td>
+            <td><a href="{{ url_for('tools.sample_save_download', sample_id=r.id) }}" class="btn-sample">Sample Save</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% elif q %}
+<p style="color:var(--text-3);">No results found.</p>
+{% else %}
+<p style="color:var(--text-3);">No sample saves yet. Samples are auto-collected as users encrypt and decrypt saves.</p>
+{% endif %}
+</div>
+
+<div style="margin-top:1.5rem;">
+    <a href="{{ url_for('tools.tools_index') }}">&larr; Back to Tools</a>
+</div>
+
+<script>
+let debounceTimer;
+const input = document.getElementById('search-input');
+const container = document.getElementById('results-container');
+
+input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const q = input.value.trim();
+    if (q.length < 2) {
+        container.innerHTML = '';
+        return;
+    }
+    debounceTimer = setTimeout(async () => {
+        try {
+            const resp = await fetch('/tools/api/sample-saves-search?q=' + encodeURIComponent(q));
+            const data = await resp.json();
+            if (!data.results.length) {
+                container.innerHTML = '<p style="color:var(--text-3);">No results found.</p>';
+                return;
+            }
+            let html = `<div class="result-count">${data.results.length}${data.results.length >= 20 ? '+' : ''} results</div>`;
+            html += '<table class="results-table"><thead><tr><th>Title ID</th><th>Game</th><th>Region</th><th>Platform</th><th style="width:100px;"></th></tr></thead><tbody>';
+            for (const r of data.results) {
+                const plat = r.platform || 'ps4';
+                html += `<tr><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.title)}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="platform-badge ${plat}">${plat}</span></td><td><a href="/tools/sample-saves/${r.id}/download" class="btn-sample">Sample Save</a></td></tr>`;
+            }
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        } catch {}
+    }, 300);
+});
+
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+</script>
+{% endblock %}

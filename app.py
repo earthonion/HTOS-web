@@ -176,6 +176,7 @@ def create_app():
             "workspace/processing",
             "workspace/chunks",
             "workspace/savedb",
+            "workspace/savedb_samples",
         ]:
             os.makedirs(d, exist_ok=True)
 

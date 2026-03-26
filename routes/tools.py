@@ -1,5 +1,6 @@
 import csv
 import io
+import os
 
 import httpx
 from quart import Blueprint, Response, jsonify, render_template, request, session
@@ -120,6 +121,96 @@ async def api_syscall_search():
     results = _search_syscalls(q, platform) if q else _all_syscalls(platform)
     enriched = [{**r, "man_url": syscall_man_url(r["name"])} for r in results]
     return jsonify({"results": enriched})
+
+
+@tools_bp.route("/tools/sample-saves")
+async def sample_saves():
+    q = request.args.get("q", "").strip()
+    results = []
+    total = 0
+    db = await get_db()
+    try:
+        cursor = await db.execute("SELECT COUNT(*) FROM sample_saves")
+        total = (await cursor.fetchone())[0]
+        if q and len(q) >= 2:
+            like = f"%{q}%"
+            cursor = await db.execute(
+                "SELECT id, title_id, title, platform, region, created_at FROM sample_saves "
+                "WHERE title_id LIKE ? OR title LIKE ? ORDER BY title LIMIT 50",
+                (like, like),
+            )
+        else:
+            cursor = await db.execute(
+                "SELECT id, title_id, title, platform, region, created_at FROM sample_saves "
+                "ORDER BY created_at DESC LIMIT 50"
+            )
+        results = [dict(r) for r in await cursor.fetchall()]
+    finally:
+        await db.close()
+    return await render_template("tools_sample_saves.html", q=q, results=results, total=total)
+
+
+@tools_bp.route("/tools/api/sample-saves-search")
+async def api_sample_saves_search():
+    q = request.args.get("q", "").strip()
+    db = await get_db()
+    try:
+        if q and len(q) >= 2:
+            like = f"%{q}%"
+            cursor = await db.execute(
+                "SELECT id, title_id, title, platform, region FROM sample_saves "
+                "WHERE title_id LIKE ? OR title LIKE ? ORDER BY title LIMIT 20",
+                (like, like),
+            )
+        else:
+            cursor = await db.execute(
+                "SELECT id, title_id, title, platform, region FROM sample_saves "
+                "ORDER BY created_at DESC LIMIT 20"
+            )
+        results = [dict(r) for r in await cursor.fetchall()]
+    finally:
+        await db.close()
+    return jsonify({"results": results})
+
+
+@tools_bp.route("/tools/sample-saves/<int:sample_id>/download")
+@login_required
+async def sample_save_download(sample_id):
+    import zipfile as _zipfile
+
+    from quart import send_file
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT title_id, title, save_path FROM sample_saves WHERE id = ?",
+            (sample_id,),
+        )
+        row = await cursor.fetchone()
+    finally:
+        await db.close()
+
+    if not row or not os.path.isdir(row["save_path"]):
+        from quart import abort
+        abort(404)
+
+    import uuid as _uuid
+    zip_path = os.path.join("workspace", "uploads", f"sample_{sample_id}_{_uuid.uuid4().hex[:8]}.zip")
+    with _zipfile.ZipFile(zip_path, "w", _zipfile.ZIP_DEFLATED) as zf:
+        for root, _dirs, files in os.walk(row["save_path"]):
+            for f in files:
+                full = os.path.join(root, f)
+                arcname = os.path.relpath(full, row["save_path"])
+                zf.write(full, arcname)
+
+    import re
+    safe_title = re.sub(r'[^\w\s\-]', '', row["title"]).strip().replace(' ', '_') if row["title"] else ""
+    if safe_title:
+        filename = f"{safe_title}_{row['title_id']}_sample.zip"
+    else:
+        filename = f"{row['title_id']}_sample.zip"
+
+    return await send_file(zip_path, as_attachment=True, attachment_filename=filename)
 
 
 def _load_syscalls(platform):
