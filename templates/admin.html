@@ -8,8 +8,16 @@ tr.new-row { animation: flashRow 1.5s ease-out; }
 {% endblock %}
 {% block content %}
 <h1>Admin Dashboard <span id="refresh-countdown" style="font-size: 0.85rem; font-weight: 400; color: var(--text-2);"></span></h1>
-<div style="margin-bottom: 1rem;">
+<div style="margin-bottom: 1rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
     <a href="{{ url_for('tools.browse_entitlements') }}" class="btn-small">Entitlements DB</a>
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <input type="text" id="reset-username" placeholder="Username" style="width: 140px; font-size: 0.82rem; padding: 0.3rem 0.5rem;">
+        <button class="btn-small" onclick="generateResetLink()">Reset Password</button>
+    </div>
+    <div id="reset-result" style="font-size: 0.8rem; display: none;">
+        <input type="text" id="reset-url" readonly style="width: 360px; font-size: 0.75rem; font-family: 'Fira Code', monospace; padding: 0.3rem 0.5rem; cursor: pointer;" onclick="this.select();document.execCommand('copy');">
+        <span style="color: var(--green); font-size: 0.75rem; margin-left: 0.3rem;">click to copy</span>
+    </div>
 </div>
 
 <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
@@ -251,5 +259,25 @@ function updateUptimes() {
 }
 updateUptimes();
 setInterval(updateUptimes, 60000);
+
+function generateResetLink() {
+    var username = document.getElementById('reset-username').value.trim();
+    if (!username) return;
+    fetch('/admin/reset-user', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username: username})
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        var result = document.getElementById('reset-result');
+        var urlInput = document.getElementById('reset-url');
+        if (d.ok) {
+            urlInput.value = location.origin + d.url;
+            result.style.display = '';
+        } else {
+            urlInput.value = 'Error: ' + d.error;
+            result.style.display = '';
+        }
+    }).catch(function() {});
+}
 </script>
 {% endblock %}
