@@ -175,6 +175,33 @@ async def api_sample_saves_search():
     return jsonify({"results": results})
 
 
+@tools_bp.route("/tools/sample-saves/<int:sample_id>/icon")
+async def sample_save_icon(sample_id):
+    from quart import abort, send_file
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT title_id, save_dir_name FROM sample_saves WHERE id = ?",
+            (sample_id,),
+        )
+        row = await cursor.fetchone()
+    finally:
+        await db.close()
+
+    if not row:
+        abort(404)
+
+    save_dir_name = row["save_dir_name"] or ""
+    icon_name = f"{row['title_id']}_{save_dir_name}.png" if save_dir_name else f"{row['title_id']}.png"
+    icon_path = os.path.join("workspace", "savedb_samples", "icons", icon_name)
+
+    if not os.path.isfile(icon_path):
+        abort(404)
+
+    return await send_file(icon_path, mimetype="image/png")
+
+
 @tools_bp.route("/tools/sample-saves/<int:sample_id>/download")
 @login_required
 async def sample_save_download(sample_id):

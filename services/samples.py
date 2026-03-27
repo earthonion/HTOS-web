@@ -9,6 +9,7 @@ from models import get_db
 from services.titles import lookup_title_info
 
 SAMPLES_DIR = os.path.join("workspace", "savedb_samples")
+ICONS_DIR = os.path.join(SAMPLES_DIR, "icons")
 
 
 async def maybe_store_sample_from_dir(title_id: str, save_dir: str, platform: str):
@@ -37,6 +38,9 @@ async def maybe_store_sample_from_dir(title_id: str, save_dir: str, platform: st
 
         # Detect save type before compressing
         save_type = detect_save_type(save_dir)
+
+        # Extract icon before compression
+        _extract_icon(save_dir, title_id, save_dir_name)
 
         # Copy to temp dir, zero account ID there, then compress
         import tempfile
@@ -103,6 +107,7 @@ async def maybe_store_sample_from_zip(title_id: str, result_zip: str, platform: 
             if os.path.exists(zip_path):
                 return
 
+            _extract_icon(tmp, title_id, save_dir_name)
             _zero_account_id(tmp, platform)
             save_type = detect_save_type(tmp)
 
@@ -176,6 +181,22 @@ def _parse_sfo_key(path: str, key: str) -> str | None:
                 val = f.read(data_len)
                 return val.rstrip(b"\x00").decode("utf-8", errors="replace")
     return None
+
+
+def _extract_icon(save_dir: str, title_id: str, save_dir_name: str):
+    """Copy sce_sys/icon0.png to the icons directory if it exists."""
+    for root, _, files in os.walk(save_dir):
+        for f in files:
+            if f.lower() == "icon0.png" and "sce_sys" in root.split(os.sep):
+                src = os.path.join(root, f)
+                os.makedirs(ICONS_DIR, exist_ok=True)
+                icon_name = f"{title_id}_{save_dir_name}.png" if save_dir_name else f"{title_id}.png"
+                dst = os.path.join(ICONS_DIR, icon_name)
+                try:
+                    shutil.copy2(src, dst)
+                except Exception:
+                    pass
+                return
 
 
 def _zero_account_id(save_dir: str, platform: str):

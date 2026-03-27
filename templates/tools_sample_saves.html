@@ -91,6 +91,25 @@
 .btn-sample:hover {
     background: rgba(34, 197, 94, 0.3);
 }
+.save-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    object-fit: cover;
+    vertical-align: middle;
+}
+.save-icon-placeholder {
+    display: inline-block;
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    background: var(--bg-1);
+    vertical-align: middle;
+}
+.results-table td.icon-cell {
+    width: 50px;
+    padding: 0.3rem 0.5rem;
+}
 </style>
 {% endblock %}
 {% block content %}
@@ -113,6 +132,7 @@
 <table class="results-table">
     <thead>
         <tr>
+            <th></th>
             <th>Title ID</th>
             <th>Game</th>
             <th>Save Dir</th>
@@ -125,6 +145,7 @@
     <tbody id="results-body">
         {% for r in results %}
         <tr>
+            <td class="icon-cell"><img class="save-icon" src="{{ url_for('tools.sample_save_icon', sample_id=r.id) }}" onerror="this.outerHTML='<span class=\'save-icon-placeholder\'></span>'" loading="lazy"></td>
             <td class="title-id">{{ r.title_id }}</td>
             <td>{{ r.title }}</td>
             <td style="font-size:0.8rem; font-family:monospace; color:var(--text-2);">{{ r.save_dir_name or '' }}</td>
@@ -168,10 +189,10 @@ input.addEventListener('input', () => {
                 return;
             }
             let html = `<div class="result-count">${data.results.length}${data.results.length >= 20 ? '+' : ''} results</div>`;
-            html += '<table class="results-table"><thead><tr><th>Title ID</th><th>Game</th><th>Save Dir</th><th>Region</th><th>Type</th><th>Platform</th><th style="width:100px;"></th></tr></thead><tbody>';
+            html += '<table class="results-table"><thead><tr><th></th><th>Title ID</th><th>Game</th><th>Save Dir</th><th>Region</th><th>Type</th><th>Platform</th><th style="width:100px;"></th></tr></thead><tbody>';
             for (const r of data.results) {
                 const plat = r.platform || 'ps4';
-                html += `<tr><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.title)}</td><td style="font-size:0.8rem; font-family:monospace; color:var(--text-2);">${esc(r.save_dir_name || '')}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="type-badge">${esc(r.save_type || '')}</span></td><td><span class="platform-badge ${plat}">${plat}</span></td><td><a href="/tools/sample-saves/${r.id}/download" class="btn-sample">Sample Save</a></td></tr>`;
+                html += `<tr><td class="icon-cell"><img class="save-icon" src="/tools/sample-saves/${r.id}/icon" onerror="this.outerHTML='<span class=\\'save-icon-placeholder\\'></span>'" loading="lazy"></td><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.title)}</td><td style="font-size:0.8rem; font-family:monospace; color:var(--text-2);">${esc(r.save_dir_name || '')}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="type-badge">${esc(r.save_type || '')}</span></td><td><span class="platform-badge ${plat}">${plat}</span></td><td><a href="/tools/sample-saves/${r.id}/download" class="btn-sample">Sample Save</a></td></tr>`;
             }
             html += '</tbody></table>';
             container.innerHTML = html;
