@@ -224,6 +224,101 @@ body::before {
     white-space: nowrap;
 }
 
+/* Chevron for collapsible menus */
+.nav-chevron {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 4px solid currentColor;
+    margin-left: 0.3rem;
+    vertical-align: middle;
+    transition: transform 0.2s ease;
+}
+
+/* Sidebar collapsible sub-menu */
+.nav-submenu {
+    display: flex;
+    flex-direction: column;
+}
+
+.nav-submenu-toggle {
+    display: flex;
+    align-items: center;
+}
+
+.nav-submenu-items {
+    display: none;
+    flex-direction: column;
+    padding-left: 0.75rem;
+    border-left: 1px solid var(--border);
+    margin-left: 0.85rem;
+    margin-top: 0.1rem;
+    gap: 0;
+}
+
+.nav-submenu-items a {
+    font-size: 0.75rem !important;
+    padding: 0.35rem 0.65rem !important;
+    color: var(--text-3);
+}
+
+.nav-submenu.open .nav-submenu-items {
+    display: flex;
+}
+
+.nav-submenu.open .nav-chevron {
+    transform: rotate(180deg);
+}
+
+/* Topbar dropdown (signed-out) */
+.topbar-dropdown {
+    position: relative;
+}
+
+.topbar-dropdown-toggle {
+    cursor: pointer;
+    user-select: none;
+}
+
+.topbar-dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.5rem;
+    min-width: 180px;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    padding: 0.35rem 0;
+    z-index: 200;
+    flex-direction: column;
+}
+
+.topbar-dropdown-menu a {
+    display: block;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.82rem;
+    color: var(--text-2);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.topbar-dropdown-menu a:hover {
+    color: var(--text-1);
+    background: var(--indigo-glow);
+}
+
+.topbar-dropdown.open .topbar-dropdown-menu {
+    display: flex;
+}
+
+.topbar-dropdown.open .nav-chevron {
+    transform: rotate(180deg);
+}
+
 .nav-workers {
     font-size: 0.72rem;
     font-weight: 600;
