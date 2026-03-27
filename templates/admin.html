@@ -8,16 +8,8 @@ tr.new-row { animation: flashRow 1.5s ease-out; }
 {% endblock %}
 {% block content %}
 <h1>Admin Dashboard <span id="refresh-countdown" style="font-size: 0.85rem; font-weight: 400; color: var(--text-2);"></span></h1>
-<div style="margin-bottom: 1rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+<div style="margin-bottom: 1rem;">
     <a href="{{ url_for('tools.browse_entitlements') }}" class="btn-small">Entitlements DB</a>
-    <div style="display: flex; align-items: center; gap: 0.5rem;">
-        <input type="text" id="reset-username" placeholder="Username" style="width: 140px; font-size: 0.82rem; padding: 0.3rem 0.5rem;">
-        <button class="btn-small" onclick="generateResetLink()">Reset Password</button>
-    </div>
-    <div id="reset-result" style="font-size: 0.8rem; display: none;">
-        <input type="text" id="reset-url" readonly style="width: 360px; font-size: 0.75rem; font-family: 'Fira Code', monospace; padding: 0.3rem 0.5rem; cursor: pointer;" onclick="copyResetUrl(this)">
-        <span id="reset-copy-hint" style="color: var(--green); font-size: 0.75rem; margin-left: 0.3rem;">click to copy</span>
-    </div>
 </div>
 
 <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
@@ -151,6 +143,18 @@ tr.new-row { animation: flashRow 1.5s ease-out; }
             {% endfor %}
         </tbody>
     </table>
+    </div>
+</section>
+
+<section class="panel">
+    <h2>Password Reset</h2>
+    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+        <input type="text" id="reset-username" placeholder="Username" style="width: 160px; font-size: 0.82rem; padding: 0.3rem 0.5rem;">
+        <button class="btn-small" onclick="generateResetLink()">Generate Reset Link</button>
+    </div>
+    <div id="reset-result" style="margin-top: 0.75rem; display: none;">
+        <input type="text" id="reset-url" readonly style="width: 100%; max-width: 500px; font-size: 0.75rem; font-family: 'Fira Code', monospace; padding: 0.3rem 0.5rem; cursor: pointer;" onclick="copyResetUrl(this)">
+        <span id="reset-copy-hint" style="color: var(--green); font-size: 0.75rem; margin-left: 0.3rem;">click to copy</span>
     </div>
 </section>
 
