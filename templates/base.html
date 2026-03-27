@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=11">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=12">
     {% block extra_head %}{% endblock %}
     {% if not session.get('is_admin') and not no_ads and adsense_client %}
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
@@ -44,7 +44,18 @@
 
                 {% endif %}
                 <a href="{{ url_for('savedb.browse') }}">Save DB <span style="font-size:0.6rem; color:var(--amber); vertical-align:super;">BETA</span></a>
-                <a href="{{ url_for('tools.tools_index') }}">Tools</a>
+                <div class="nav-submenu">
+                    <a href="#" class="nav-submenu-toggle" onclick="event.preventDefault();this.parentElement.classList.toggle('open')">Tools <span class="nav-chevron"></span></a>
+                    <div class="nav-submenu-items">
+                        <a href="{{ url_for('tools.title_lookup') }}">Title ID Lookup</a>
+                        <a href="{{ url_for('tools.fs_browser') }}">Filesystem Browser</a>
+                        <a href="{{ url_for('tools.sfo_viewer') }}">param.sfo Viewer</a>
+                        <a href="{{ url_for('tools.function_lookup') }}">Function Lookup</a>
+                        <a href="{{ url_for('tools.entitlements') }}">Entitlement Dumper</a>
+                        <a href="{{ url_for('tools.syscall_lookup') }}">Syscall Reference</a>
+                        <a href="{{ url_for('tools.sample_saves') }}">Sample Saves</a>
+                    </div>
+                </div>
                 <a href="{{ url_for('contribute.contribute') }}">Contribute</a>
                 <a href="{{ url_for('main.about') }}">About</a>
                 {% if session.get('is_admin') %}
@@ -66,7 +77,18 @@
     {% else %}
     <nav class="topbar">
         <div class="nav-brand"><img src="{{ url_for('static', filename='favicon.svg') }}" alt="" style="height:1.4em;vertical-align:middle;margin-right:0.3em;">garlicsaves</div>
-        <a href="{{ url_for('tools.tools_index') }}" style="font-size:0.85rem; color:var(--text-2); text-decoration:none; margin-left:auto;">Tools</a>
+        <div class="topbar-dropdown" style="margin-left:auto;">
+            <a href="#" class="topbar-dropdown-toggle" onclick="event.preventDefault();this.parentElement.classList.toggle('open')" style="font-size:0.85rem; color:var(--text-2); text-decoration:none;">Tools <span class="nav-chevron"></span></a>
+            <div class="topbar-dropdown-menu">
+                <a href="{{ url_for('tools.title_lookup') }}">Title ID Lookup</a>
+                <a href="{{ url_for('tools.fs_browser') }}">Filesystem Browser</a>
+                <a href="{{ url_for('tools.sfo_viewer') }}">param.sfo Viewer</a>
+                <a href="{{ url_for('tools.function_lookup') }}">Function Lookup</a>
+                <a href="{{ url_for('tools.entitlements') }}">Entitlement Dumper</a>
+                <a href="{{ url_for('tools.syscall_lookup') }}">Syscall Reference</a>
+                <a href="{{ url_for('tools.sample_saves') }}">Sample Saves</a>
+            </div>
+        </div>
         <a href="{{ url_for('main.about') }}" style="font-size:0.85rem; color:var(--text-2); text-decoration:none; margin-left:1rem;">About</a>
     </nav>
     {% endif %}
@@ -108,6 +130,13 @@
             navCollapse.classList.toggle('open');
         });
     }
+
+    // Close topbar dropdown on click outside
+    document.addEventListener('click', e => {
+        document.querySelectorAll('.topbar-dropdown.open').forEach(dd => {
+            if (!dd.contains(e.target)) dd.classList.remove('open');
+        });
+    });
 
     // Folder browse links
     document.querySelectorAll('[data-browse-folder]').forEach(link => {
