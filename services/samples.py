@@ -27,19 +27,22 @@ async def maybe_store_sample_from_dir(title_id: str, save_dir: str, platform: st
         if os.path.exists(zip_path):
             return
 
-        # Zero account ID before storing
-        _zero_account_id(save_dir, platform)
-
         # Detect save type before compressing
         save_type = detect_save_type(save_dir)
 
-        # Store as compressed zip
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_LZMA) as zf:
-            for root, _, files in os.walk(save_dir):
-                for f in files:
-                    full = os.path.join(root, f)
-                    arcname = os.path.relpath(full, save_dir)
-                    zf.write(full, arcname)
+        # Copy to temp dir, zero account ID there, then compress
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            shutil.copytree(save_dir, os.path.join(tmp, "save"), dirs_exist_ok=True)
+            tmp_save = os.path.join(tmp, "save")
+            _zero_account_id(tmp_save, platform)
+
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_LZMA) as zf:
+                for root, _, files in os.walk(tmp_save):
+                    for f in files:
+                        full = os.path.join(root, f)
+                        arcname = os.path.relpath(full, tmp_save)
+                        zf.write(full, arcname)
 
         info = await lookup_title_info(title_id)
         title = info["name"] if info else ""
