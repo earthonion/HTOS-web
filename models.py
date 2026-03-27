@@ -125,6 +125,7 @@ MIGRATIONS = [
     "ALTER TABLE entitlements ADD COLUMN verified BOOLEAN DEFAULT NULL",
     "ALTER TABLE sample_saves ADD COLUMN save_type TEXT DEFAULT ''",
     "ALTER TABLE sample_saves ADD COLUMN save_dir_name TEXT DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN reset_code TEXT",
 ]
 
 

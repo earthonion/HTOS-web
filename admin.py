@@ -56,6 +56,25 @@ async def change_password(username, new_password):
         await db.close()
 
 
+async def reset_user(username):
+    token = secrets.token_urlsafe(32)
+    token_hash = bcrypt.hashpw(token.encode(), bcrypt.gensalt()).decode()
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "UPDATE users SET reset_code = ? WHERE username = ?", (token_hash, username)
+        )
+        await db.commit()
+        if cursor.rowcount == 0:
+            print(f"User '{username}' not found.")
+        else:
+            print(f"Password reset link for '{username}':")
+            print(f"  https://garlicsaves.com/reset/{token}")
+            print("This link is single-use and expires when used.")
+    finally:
+        await db.close()
+
+
 async def delete_user(username):
     db = await get_db()
     try:
@@ -410,6 +429,9 @@ def main():
     p.add_argument("username")
     p.add_argument("password")
 
+    p = sub.add_parser("reset-user", help="Generate a password reset link for a user")
+    p.add_argument("username")
+
     p = sub.add_parser("deluser", help="Delete a user and all their data")
     p.add_argument("username")
 
@@ -459,6 +481,7 @@ def main():
     commands = {
         "users": lambda: list_users(),
         "passwd": lambda: change_password(args.username, args.password),
+        "reset-user": lambda: reset_user(args.username),
         "deluser": lambda: delete_user(args.username),
         "keys": lambda: list_keys(args.user),
         "revoke": lambda: revoke_key(args.key_id),
@@ -483,6 +506,7 @@ def main():
   Users:
     users                         List all users
     passwd <username> <password>  Change a user's password
+    reset-user <username>         Generate a password reset link
     deluser <username>            Delete user and all their data
 
   Worker Keys:
