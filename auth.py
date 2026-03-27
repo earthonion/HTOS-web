@@ -200,6 +200,69 @@ async def login():
     return await render_template("login.html")
 
 
+@auth_bp.route("/reset/<token>", methods=["GET", "POST"])
+async def reset_password(token):
+    # Find the user with a matching reset token
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT id, username, reset_code FROM users WHERE reset_code IS NOT NULL"
+        )
+        rows = await cursor.fetchall()
+    finally:
+        await db.close()
+
+    target = None
+    for row in rows:
+        if check_password(token, row["reset_code"]):
+            target = row
+            break
+
+    if not target:
+        await flash("Invalid or expired reset link.", "error")
+        return redirect(url_for("auth.login"))
+
+    if request.method == "POST":
+        client_ip = request.remote_addr or "unknown"
+        if _is_rate_limited(client_ip):
+            await flash("Too many attempts. Please try again later.", "error")
+            return await render_template(
+                "reset_password.html", username=target["username"]
+            )
+
+        form = await request.form
+        new_password = form.get("password", "")
+        confirm = form.get("confirm", "")
+
+        if len(new_password) < 6:
+            await flash("Password must be at least 6 characters.", "error")
+            return await render_template(
+                "reset_password.html", username=target["username"]
+            )
+
+        if new_password != confirm:
+            await flash("Passwords do not match.", "error")
+            return await render_template(
+                "reset_password.html", username=target["username"]
+            )
+
+        pw_hash = hash_password(new_password)
+        db = await get_db()
+        try:
+            await db.execute(
+                "UPDATE users SET password_hash = ?, reset_code = NULL WHERE id = ?",
+                (pw_hash, target["id"]),
+            )
+            await db.commit()
+        finally:
+            await db.close()
+
+        await flash("Password reset successfully. Please sign in.", "success")
+        return redirect(url_for("auth.login"))
+
+    return await render_template("reset_password.html", username=target["username"])
+
+
 @auth_bp.route("/logout", methods=["POST"])
 async def logout():
     session.clear()
