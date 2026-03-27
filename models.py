@@ -100,13 +100,15 @@ CREATE TABLE IF NOT EXISTS entitlements (
 
 CREATE TABLE IF NOT EXISTS sample_saves (
     id INTEGER PRIMARY KEY,
-    title_id TEXT UNIQUE NOT NULL,
+    title_id TEXT NOT NULL,
+    save_dir_name TEXT DEFAULT '',
     title TEXT DEFAULT '',
     platform TEXT DEFAULT 'ps4',
     region TEXT DEFAULT '',
     save_type TEXT DEFAULT '',
     save_path TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(title_id, save_dir_name)
 );
 
 INSERT OR IGNORE INTO settings (key, value) VALUES ('invite_only', '0');
@@ -122,11 +124,23 @@ MIGRATIONS = [
     "ALTER TABLE jobs ADD COLUMN logs TEXT",
     "ALTER TABLE entitlements ADD COLUMN verified BOOLEAN DEFAULT NULL",
     "ALTER TABLE sample_saves ADD COLUMN save_type TEXT DEFAULT ''",
+    "ALTER TABLE sample_saves ADD COLUMN save_dir_name TEXT DEFAULT ''",
 ]
 
 
 async def init_db():
     async with aiosqlite.connect(DATABASE_PATH) as db:
+        # Recreate sample_saves if it lacks save_dir_name (constraint changed)
+        try:
+            cursor = await db.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='sample_saves'"
+            )
+            row = await cursor.fetchone()
+            if row and "save_dir_name" not in row[0]:
+                await db.execute("DROP TABLE sample_saves")
+        except Exception:
+            pass
+
         await db.executescript(SCHEMA)
         for sql in MIGRATIONS:
             try:

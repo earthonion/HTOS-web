@@ -135,13 +135,13 @@ async def sample_saves():
         if q and len(q) >= 2:
             like = f"%{q}%"
             cursor = await db.execute(
-                "SELECT id, title_id, title, platform, region, save_type, created_at FROM sample_saves "
+                "SELECT id, title_id, save_dir_name, title, platform, region, save_type, created_at FROM sample_saves "
                 "WHERE title_id LIKE ? OR title LIKE ? ORDER BY title LIMIT 50",
                 (like, like),
             )
         else:
             cursor = await db.execute(
-                "SELECT id, title_id, title, platform, region, save_type, created_at FROM sample_saves "
+                "SELECT id, title_id, save_dir_name, title, platform, region, save_type, created_at FROM sample_saves "
                 "ORDER BY created_at DESC LIMIT 50"
             )
         results = [dict(r) for r in await cursor.fetchall()]
@@ -160,13 +160,13 @@ async def api_sample_saves_search():
         if q and len(q) >= 2:
             like = f"%{q}%"
             cursor = await db.execute(
-                "SELECT id, title_id, title, platform, region, save_type FROM sample_saves "
+                "SELECT id, title_id, save_dir_name, title, platform, region, save_type FROM sample_saves "
                 "WHERE title_id LIKE ? OR title LIKE ? ORDER BY title LIMIT 20",
                 (like, like),
             )
         else:
             cursor = await db.execute(
-                "SELECT id, title_id, title, platform, region, save_type FROM sample_saves "
+                "SELECT id, title_id, save_dir_name, title, platform, region, save_type FROM sample_saves "
                 "ORDER BY created_at DESC LIMIT 20"
             )
         results = [dict(r) for r in await cursor.fetchall()]
@@ -185,7 +185,7 @@ async def sample_save_download(sample_id):
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT title_id, title, save_path FROM sample_saves WHERE id = ?",
+            "SELECT title_id, save_dir_name, title, save_path FROM sample_saves WHERE id = ?",
             (sample_id,),
         )
         row = await cursor.fetchone()
@@ -200,10 +200,11 @@ async def sample_save_download(sample_id):
         if row["title"]
         else ""
     )
+    dir_suffix = f"_{row['save_dir_name']}" if row["save_dir_name"] else ""
     if safe_title:
-        filename = f"{safe_title}_{row['title_id']}_sample.zip"
+        filename = f"{safe_title}_{row['title_id']}{dir_suffix}_sample.zip"
     else:
-        filename = f"{row['title_id']}_sample.zip"
+        filename = f"{row['title_id']}{dir_suffix}_sample.zip"
 
     return await send_file(
         row["save_path"], as_attachment=True, attachment_filename=filename
