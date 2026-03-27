@@ -15,8 +15,8 @@ tr.new-row { animation: flashRow 1.5s ease-out; }
         <button class="btn-small" onclick="generateResetLink()">Reset Password</button>
     </div>
     <div id="reset-result" style="font-size: 0.8rem; display: none;">
-        <input type="text" id="reset-url" readonly style="width: 360px; font-size: 0.75rem; font-family: 'Fira Code', monospace; padding: 0.3rem 0.5rem; cursor: pointer;" onclick="this.select();document.execCommand('copy');">
-        <span style="color: var(--green); font-size: 0.75rem; margin-left: 0.3rem;">click to copy</span>
+        <input type="text" id="reset-url" readonly style="width: 360px; font-size: 0.75rem; font-family: 'Fira Code', monospace; padding: 0.3rem 0.5rem; cursor: pointer;" onclick="copyResetUrl(this)">
+        <span id="reset-copy-hint" style="color: var(--green); font-size: 0.75rem; margin-left: 0.3rem;">click to copy</span>
     </div>
 </div>
 
@@ -259,6 +259,14 @@ function updateUptimes() {
 }
 updateUptimes();
 setInterval(updateUptimes, 60000);
+
+function copyResetUrl(el) {
+    navigator.clipboard.writeText(el.value).then(function() {
+        var hint = document.getElementById('reset-copy-hint');
+        hint.textContent = 'copied!';
+        setTimeout(function() { hint.textContent = 'click to copy'; }, 2000);
+    });
+}
 
 function generateResetLink() {
     var username = document.getElementById('reset-username').value.trim();
