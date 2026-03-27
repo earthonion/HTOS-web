@@ -190,7 +190,11 @@ def _extract_icon(save_dir: str, title_id: str, save_dir_name: str):
             if f.lower() == "icon0.png" and "sce_sys" in root.split(os.sep):
                 src = os.path.join(root, f)
                 os.makedirs(ICONS_DIR, exist_ok=True)
-                icon_name = f"{title_id}_{save_dir_name}.png" if save_dir_name else f"{title_id}.png"
+                icon_name = (
+                    f"{title_id}_{save_dir_name}.png"
+                    if save_dir_name
+                    else f"{title_id}.png"
+                )
                 dst = os.path.join(ICONS_DIR, icon_name)
                 try:
                     shutil.copy2(src, dst)
