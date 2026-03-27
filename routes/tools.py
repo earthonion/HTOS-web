@@ -193,7 +193,11 @@ async def sample_save_icon(sample_id):
         abort(404)
 
     save_dir_name = row["save_dir_name"] or ""
-    icon_name = f"{row['title_id']}_{save_dir_name}.png" if save_dir_name else f"{row['title_id']}.png"
+    icon_name = (
+        f"{row['title_id']}_{save_dir_name}.png"
+        if save_dir_name
+        else f"{row['title_id']}.png"
+    )
     icon_path = os.path.join("workspace", "savedb_samples", "icons", icon_name)
 
     if not os.path.isfile(icon_path):
