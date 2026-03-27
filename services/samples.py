@@ -1,6 +1,8 @@
 """Auto-capture sample saves for the sample save database."""
 
 import os
+import shutil
+import struct
 import zipfile
 
 from models import get_db
@@ -14,16 +16,20 @@ async def maybe_store_sample_from_dir(title_id: str, save_dir: str, platform: st
     if not title_id or not os.path.isdir(save_dir):
         return
 
+    save_dir_name = _read_savedata_directory(save_dir) or ""
+
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT id FROM sample_saves WHERE title_id = ?", (title_id,)
+            "SELECT id FROM sample_saves WHERE title_id = ? AND save_dir_name = ?",
+            (title_id, save_dir_name),
         )
         if await cursor.fetchone():
             return
 
         os.makedirs(SAMPLES_DIR, exist_ok=True)
-        zip_path = os.path.join(SAMPLES_DIR, f"{title_id}.zip")
+        zip_name = f"{title_id}_{save_dir_name}.zip" if save_dir_name else f"{title_id}.zip"
+        zip_path = os.path.join(SAMPLES_DIR, zip_name)
         if os.path.exists(zip_path):
             return
 
@@ -50,9 +56,9 @@ async def maybe_store_sample_from_dir(title_id: str, save_dir: str, platform: st
 
         await db.execute(
             "INSERT OR IGNORE INTO sample_saves "
-            "(title_id, title, platform, region, save_type, save_path) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (title_id, title, platform, region, save_type, zip_path),
+            "(title_id, save_dir_name, title, platform, region, save_type, save_path) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (title_id, save_dir_name, title, platform, region, save_type, zip_path),
         )
         await db.commit()
     except Exception:
@@ -66,25 +72,29 @@ async def maybe_store_sample_from_zip(title_id: str, result_zip: str, platform: 
     if not title_id or not os.path.isfile(result_zip):
         return
 
-    db = await get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT id FROM sample_saves WHERE title_id = ?", (title_id,)
-        )
-        if await cursor.fetchone():
-            return
+    # Extract to temp dir first so we can read param.sfo
+    import tempfile
 
-        os.makedirs(SAMPLES_DIR, exist_ok=True)
-        zip_path = os.path.join(SAMPLES_DIR, f"{title_id}.zip")
-        if os.path.exists(zip_path):
-            return
+    with tempfile.TemporaryDirectory() as tmp:
+        with zipfile.ZipFile(result_zip, "r") as zf:
+            zf.extractall(tmp)
 
-        # Extract to temp dir, zero account ID, detect type, recompress with LZMA
-        import tempfile
+        save_dir_name = _read_savedata_directory(tmp) or ""
 
-        with tempfile.TemporaryDirectory() as tmp:
-            with zipfile.ZipFile(result_zip, "r") as zf:
-                zf.extractall(tmp)
+        db = await get_db()
+        try:
+            cursor = await db.execute(
+                "SELECT id FROM sample_saves WHERE title_id = ? AND save_dir_name = ?",
+                (title_id, save_dir_name),
+            )
+            if await cursor.fetchone():
+                return
+
+            os.makedirs(SAMPLES_DIR, exist_ok=True)
+            zip_name = f"{title_id}_{save_dir_name}.zip" if save_dir_name else f"{title_id}.zip"
+            zip_path = os.path.join(SAMPLES_DIR, zip_name)
+            if os.path.exists(zip_path):
+                return
 
             _zero_account_id(tmp, platform)
             save_type = detect_save_type(tmp)
@@ -96,21 +106,69 @@ async def maybe_store_sample_from_zip(title_id: str, result_zip: str, platform: 
                         arcname = os.path.relpath(full, tmp)
                         zf.write(full, arcname)
 
-        info = await lookup_title_info(title_id)
-        title = info["name"] if info else ""
-        region = info.get("region", "") if info else ""
+            info = await lookup_title_info(title_id)
+            title = info["name"] if info else ""
+            region = info.get("region", "") if info else ""
 
-        await db.execute(
-            "INSERT OR IGNORE INTO sample_saves "
-            "(title_id, title, platform, region, save_type, save_path) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (title_id, title, platform, region, save_type, zip_path),
-        )
-        await db.commit()
-    except Exception:
-        pass
-    finally:
-        await db.close()
+            await db.execute(
+                "INSERT OR IGNORE INTO sample_saves "
+                "(title_id, save_dir_name, title, platform, region, save_type, save_path) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (title_id, save_dir_name, title, platform, region, save_type, zip_path),
+            )
+            await db.commit()
+        except Exception:
+            pass
+        finally:
+            await db.close()
+
+
+def _read_savedata_directory(save_dir: str) -> str | None:
+    """Parse SAVEDATA_DIRECTORY from param.sfo in the given save directory."""
+    for root, _, files in os.walk(save_dir):
+        for f in files:
+            if f.lower() == "param.sfo":
+                path = os.path.join(root, f)
+                try:
+                    return _parse_sfo_key(path, "SAVEDATA_DIRECTORY")
+                except Exception:
+                    pass
+    return None
+
+
+def _parse_sfo_key(path: str, key: str) -> str | None:
+    """Read a string value from a PSF (param.sfo) file by key name."""
+    with open(path, "rb") as f:
+        magic = f.read(4)
+        if magic != b"\x00PSF":
+            return None
+        f.read(4)  # version
+        key_offset = struct.unpack("<I", f.read(4))[0]
+        data_offset = struct.unpack("<I", f.read(4))[0]
+        count = struct.unpack("<I", f.read(4))[0]
+
+        entries = []
+        for _ in range(count):
+            k_off = struct.unpack("<H", f.read(2))[0]
+            f.read(2)  # data_fmt
+            data_len = struct.unpack("<I", f.read(4))[0]
+            f.read(4)  # data_max_len
+            d_off = struct.unpack("<I", f.read(4))[0]
+            entries.append((k_off, d_off, data_len))
+
+        for k_off, d_off, data_len in entries:
+            f.seek(key_offset + k_off)
+            k = b""
+            while True:
+                c = f.read(1)
+                if c == b"\x00" or not c:
+                    break
+                k += c
+            if k.decode("utf-8", errors="replace") == key:
+                f.seek(data_offset + d_off)
+                val = f.read(data_len)
+                return val.rstrip(b"\x00").decode("utf-8", errors="replace")
+    return None
 
 
 def _zero_account_id(save_dir: str, platform: str):
