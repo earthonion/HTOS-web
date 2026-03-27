@@ -28,7 +28,9 @@ async def maybe_store_sample_from_dir(title_id: str, save_dir: str, platform: st
             return
 
         os.makedirs(SAMPLES_DIR, exist_ok=True)
-        zip_name = f"{title_id}_{save_dir_name}.zip" if save_dir_name else f"{title_id}.zip"
+        zip_name = (
+            f"{title_id}_{save_dir_name}.zip" if save_dir_name else f"{title_id}.zip"
+        )
         zip_path = os.path.join(SAMPLES_DIR, zip_name)
         if os.path.exists(zip_path):
             return
@@ -38,6 +40,7 @@ async def maybe_store_sample_from_dir(title_id: str, save_dir: str, platform: st
 
         # Copy to temp dir, zero account ID there, then compress
         import tempfile
+
         with tempfile.TemporaryDirectory() as tmp:
             shutil.copytree(save_dir, os.path.join(tmp, "save"), dirs_exist_ok=True)
             tmp_save = os.path.join(tmp, "save")
@@ -91,7 +94,11 @@ async def maybe_store_sample_from_zip(title_id: str, result_zip: str, platform: 
                 return
 
             os.makedirs(SAMPLES_DIR, exist_ok=True)
-            zip_name = f"{title_id}_{save_dir_name}.zip" if save_dir_name else f"{title_id}.zip"
+            zip_name = (
+                f"{title_id}_{save_dir_name}.zip"
+                if save_dir_name
+                else f"{title_id}.zip"
+            )
             zip_path = os.path.join(SAMPLES_DIR, zip_name)
             if os.path.exists(zip_path):
                 return
