@@ -50,7 +50,7 @@ async def maybe_store_sample_from_dir(title_id: str, save_dir: str, platform: st
             tmp_save = os.path.join(tmp, "save")
             _zero_account_id(tmp_save, platform)
 
-            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_LZMA) as zf:
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
                 for root, _, files in os.walk(tmp_save):
                     for f in files:
                         full = os.path.join(root, f)
@@ -111,7 +111,7 @@ async def maybe_store_sample_from_zip(title_id: str, result_zip: str, platform: 
             _zero_account_id(tmp, platform)
             save_type = detect_save_type(tmp)
 
-            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_LZMA) as zf:
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
                 for root, _, files in os.walk(tmp):
                     for f in files:
                         full = os.path.join(root, f)
