@@ -1,7 +1,9 @@
 import asyncio
 import json
+import secrets
 
-from quart import Blueprint, Response, render_template
+import bcrypt
+from quart import Blueprint, Response, jsonify, render_template, request
 
 from auth import admin_required
 from models import get_db
@@ -249,3 +251,29 @@ async def feed():
                 pass
 
     return Response(generate(), content_type="text/event-stream")
+
+
+@admin_web_bp.route("/admin/reset-user", methods=["POST"])
+@admin_required
+async def reset_user():
+    data = await request.get_json()
+    username = (data or {}).get("username", "").strip()
+    if not username:
+        return jsonify({"ok": False, "error": "Username required"}), 400
+
+    token = secrets.token_urlsafe(32)
+    token_hash = bcrypt.hashpw(token.encode(), bcrypt.gensalt()).decode()
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "UPDATE users SET reset_code = ? WHERE username = ?",
+            (token_hash, username),
+        )
+        await db.commit()
+        if cursor.rowcount == 0:
+            return jsonify({"ok": False, "error": f"User '{username}' not found"}), 404
+    finally:
+        await db.close()
+
+    return jsonify({"ok": True, "url": f"/reset/{token}"})
