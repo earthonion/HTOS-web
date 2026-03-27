@@ -237,9 +237,11 @@ async def sample_save_download(sample_id):
     else:
         filename = f"{row['title_id']}{dir_suffix}_sample.zip"
 
-    return await send_file(
+    response = await send_file(
         row["save_path"], as_attachment=True, attachment_filename=filename
     )
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
 
 
 def _load_syscalls(platform):
