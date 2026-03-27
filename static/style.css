@@ -319,6 +319,23 @@ body::before {
     transform: rotate(180deg);
 }
 
+.btn-signin {
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 0.35rem 0.85rem;
+    margin-left: 1rem;
+    border-radius: var(--r-sm);
+    background: var(--indigo);
+    color: #fff;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background var(--dur) var(--ease);
+}
+
+.btn-signin:hover {
+    background: var(--indigo-light);
+}
+
 .nav-workers {
     font-size: 0.72rem;
     font-weight: 600;
