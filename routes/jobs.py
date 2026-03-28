@@ -87,7 +87,47 @@ async def job_status(job_id):
         if updates:
             await job.update_params(updates)
 
-    return await render_template("job_status.html", job=job)
+    queue_position = 0
+    queue_total = 0
+    if job.status == "queued":
+        db = await get_db()
+        try:
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM jobs WHERE status = 'queued' AND created_at <= "
+                "(SELECT created_at FROM jobs WHERE id = ?)",
+                (job_id,),
+            )
+            queue_position = (await cursor.fetchone())[0]
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM jobs WHERE status = 'queued'"
+            )
+            queue_total = (await cursor.fetchone())[0]
+        finally:
+            await db.close()
+
+    return await render_template(
+        "job_status.html", job=job, queue_position=queue_position, queue_total=queue_total
+    )
+
+
+@jobs_bp.route("/jobs/<job_id>/queue")
+@login_required
+async def job_queue_position(job_id):
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM jobs WHERE status = 'queued' AND created_at <= "
+            "(SELECT created_at FROM jobs WHERE id = ?)",
+            (job_id,),
+        )
+        position = (await cursor.fetchone())[0]
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM jobs WHERE status = 'queued'"
+        )
+        total = (await cursor.fetchone())[0]
+    finally:
+        await db.close()
+    return {"position": position, "total": total}
 
 
 @jobs_bp.route("/jobs/<job_id>/stream")

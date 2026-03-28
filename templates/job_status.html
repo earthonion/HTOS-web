@@ -10,6 +10,10 @@
 <p style="margin-bottom: 1rem; color: var(--text-2);">{{ job.params.savename }}</p>
 {% endif %}
 
+<div id="queue-info" style="{% if job.status != 'queued' %}display:none{% endif %}; margin-bottom: 1rem; padding: 0.75rem 1rem; border-radius: 6px; background: rgba(99,102,241,0.1); color: var(--text-2); font-size: 0.9rem;">
+    Position <strong id="queue-pos">{{ queue_position }}</strong> of <strong id="queue-total">{{ queue_total }}</strong> in queue
+</div>
+
 {% if job.status == "waiting_input" and job.operation == "encrypt" %}
 <section class="panel">
     <h2>Upload Files to Encrypt</h2>
@@ -60,11 +64,37 @@ const isFinished = (currentStatus === 'done' || currentStatus === 'failed');
 // Always connect to SSE to load historical log messages
 const evtSource = new EventSource("{{ url_for('jobs.job_stream', job_id=job.job_id) }}");
 
+// Queue position polling
+const queueInfo = document.getElementById('queue-info');
+const queuePos = document.getElementById('queue-pos');
+const queueTotal = document.getElementById('queue-total');
+let queueInterval = null;
+if (currentStatus === 'queued') {
+    queueInterval = setInterval(function() {
+        fetch("{{ url_for('jobs.job_queue_position', job_id=job.job_id) }}").then(function(r) {
+            return r.json();
+        }).then(function(d) {
+            if (d.position > 0) {
+                queuePos.textContent = d.position;
+                queueTotal.textContent = d.total;
+                queueInfo.style.display = '';
+            } else {
+                queueInfo.style.display = 'none';
+                clearInterval(queueInterval);
+            }
+        }).catch(function(){});
+    }, 5000);
+}
+
 evtSource.onmessage = function(event) {
     const data = JSON.parse(event.data);
     if (data.level === 'STATUS') {
         statusBadge.textContent = data.msg;
         statusBadge.className = 'status-' + data.msg;
+        if (data.msg !== 'queued') {
+            queueInfo.style.display = 'none';
+            if (queueInterval) clearInterval(queueInterval);
+        }
         if (data.msg === 'done' || data.msg === 'failed') {
             evtSource.close();
             if (!isFinished) {
