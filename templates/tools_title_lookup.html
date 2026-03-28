@@ -94,6 +94,7 @@
             <th>Region</th>
             <th>Platform</th>
             <th></th>
+            <th></th>
         </tr>
     </thead>
     <tbody id="results-body">
@@ -104,6 +105,7 @@
             <td style="font-size:0.8rem; color:var(--text-2);">{{ r.region or '' }}</td>
             <td><span class="platform-badge {{ r.platform }}">{{ r.platform }}</span></td>
             <td>{% if r.concept_id %}{% set locale = {'US':'en-us','EU':'en-gb','JP':'ja-jp','AS':'en-hk','KR':'ko-kr'}.get(r.region,'en-us') %}<a href="https://store.playstation.com/{{ locale }}/concept/{{ r.concept_id }}" target="_blank" rel="noopener" class="btn-small" style="font-size:0.7rem;">PSN</a>{% endif %}</td>
+            <td>{% if r.platform == 'ps4' %}<a href="https://orbispatches.com/{{ r.title_id }}" target="_blank" rel="noopener" class="btn-small" style="font-size:0.7rem;">Patches</a>{% elif r.platform == 'ps5' %}<a href="https://www.prosperopatches.com/{{ r.title_id }}" target="_blank" rel="noopener" class="btn-small" style="font-size:0.7rem;">Patches</a>{% endif %}</td>
         </tr>
         {% endfor %}
     </tbody>
@@ -138,13 +140,15 @@ input.addEventListener('input', () => {
                 return;
             }
             let html = `<div class="result-count">${data.results.length}${data.results.length >= 20 ? '+' : ''} results</div>`;
-            html += '<table class="results-table"><thead><tr><th>Title ID</th><th>Game</th><th>Region</th><th>Platform</th><th></th></tr></thead><tbody>';
+            html += '<table class="results-table"><thead><tr><th>Title ID</th><th>Game</th><th>Region</th><th>Platform</th><th></th><th></th></tr></thead><tbody>';
             for (const r of data.results) {
                 const plat = r.platform || 'ps4';
                 const localeMap = {US:'en-us',EU:'en-gb',JP:'ja-jp',AS:'en-hk',KR:'ko-kr'};
                 const locale = localeMap[r.region] || 'en-us';
                 const psn = r.concept_id ? `<a href="https://store.playstation.com/${locale}/concept/${r.concept_id}" target="_blank" rel="noopener" class="btn-small" style="font-size:0.7rem;">PSN</a>` : '';
-                html += `<tr><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.name)}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="platform-badge ${plat}">${plat}</span></td><td>${psn}</td></tr>`;
+                const patchUrl = plat === 'ps5' ? `https://www.prosperopatches.com/${esc(r.title_id)}` : `https://orbispatches.com/${esc(r.title_id)}`;
+                const patches = `<a href="${patchUrl}" target="_blank" rel="noopener" class="btn-small" style="font-size:0.7rem;">Patches</a>`;
+                html += `<tr><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.name)}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="platform-badge ${plat}">${plat}</span></td><td>${psn}</td><td>${patches}</td></tr>`;
             }
             html += '</tbody></table>';
             container.innerHTML = html;
