@@ -286,7 +286,11 @@ async def sample_save_binwalk(sample_id):
                         timeout=15,
                     )
                     output_lines.append(f"=== {rel} ===")
-                    output_lines.append(result.stdout.strip() if result.stdout.strip() else "(no results)")
+                    output_lines.append(
+                        result.stdout.strip()
+                        if result.stdout.strip()
+                        else "(no results)"
+                    )
                     output_lines.append("")
                 except Exception as e:
                     output_lines.append(f"=== {rel} ===")
