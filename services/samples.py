@@ -70,7 +70,16 @@ async def maybe_store_sample_from_dir(title_id: str, save_dir: str, platform: st
             "INSERT OR IGNORE INTO sample_saves "
             "(title_id, save_dir_name, title, platform, region, save_type, binwalk_output, save_path) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (title_id, save_dir_name, title, platform, region, save_type, binwalk_output, zip_path),
+            (
+                title_id,
+                save_dir_name,
+                title,
+                platform,
+                region,
+                save_type,
+                binwalk_output,
+                zip_path,
+            ),
         )
         await db.commit()
     except Exception:
@@ -134,7 +143,16 @@ async def maybe_store_sample_from_zip(title_id: str, result_zip: str, platform: 
                 "INSERT OR IGNORE INTO sample_saves "
                 "(title_id, save_dir_name, title, platform, region, save_type, binwalk_output, save_path) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (title_id, save_dir_name, title, platform, region, save_type, binwalk_output, zip_path),
+                (
+                    title_id,
+                    save_dir_name,
+                    title,
+                    platform,
+                    region,
+                    save_type,
+                    binwalk_output,
+                    zip_path,
+                ),
             )
             await db.commit()
         except Exception:
