@@ -39,8 +39,9 @@ async def maybe_store_sample_from_dir(title_id: str, save_dir: str, platform: st
         # Detect save type before compressing
         save_type = detect_save_type(save_dir)
 
-        # Run binwalk analysis before compression
+        # Run analysis before compression
         binwalk_output = _run_binwalk(save_dir)
+        file_output = _run_file_cmd(save_dir)
 
         # Extract icon before compression
         _extract_icon(save_dir, title_id, save_dir_name)
@@ -68,18 +69,9 @@ async def maybe_store_sample_from_dir(title_id: str, save_dir: str, platform: st
 
         await db.execute(
             "INSERT OR IGNORE INTO sample_saves "
-            "(title_id, save_dir_name, title, platform, region, save_type, binwalk_output, save_path) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                title_id,
-                save_dir_name,
-                title,
-                platform,
-                region,
-                save_type,
-                binwalk_output,
-                zip_path,
-            ),
+            "(title_id, save_dir_name, title, platform, region, save_type, binwalk_output, file_output, save_path) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (title_id, save_dir_name, title, platform, region, save_type, binwalk_output, file_output, zip_path),
         )
         await db.commit()
     except Exception:
@@ -124,6 +116,7 @@ async def maybe_store_sample_from_zip(title_id: str, result_zip: str, platform: 
             _extract_icon(tmp, title_id, save_dir_name)
             save_type = detect_save_type(tmp)
             binwalk_output = _run_binwalk(tmp)
+            file_output = _run_file_cmd(tmp)
             _zero_account_id(tmp, platform)
 
             with zipfile.ZipFile(
@@ -141,18 +134,9 @@ async def maybe_store_sample_from_zip(title_id: str, result_zip: str, platform: 
 
             await db.execute(
                 "INSERT OR IGNORE INTO sample_saves "
-                "(title_id, save_dir_name, title, platform, region, save_type, binwalk_output, save_path) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    title_id,
-                    save_dir_name,
-                    title,
-                    platform,
-                    region,
-                    save_type,
-                    binwalk_output,
-                    zip_path,
-                ),
+                "(title_id, save_dir_name, title, platform, region, save_type, binwalk_output, file_output, save_path) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (title_id, save_dir_name, title, platform, region, save_type, binwalk_output, file_output, zip_path),
             )
             await db.commit()
         except Exception:
@@ -276,6 +260,34 @@ def _run_binwalk(save_dir: str) -> str:
                 output_lines.append(f"=== {rel} ===")
                 output_lines.append("(binwalk not available)")
                 output_lines.append("")
+    return "\n".join(output_lines)
+
+
+def _run_file_cmd(save_dir: str) -> str:
+    """Run file command on non-sce_sys files and return combined output."""
+    import subprocess
+
+    output_lines = []
+    for root, _, files in os.walk(save_dir):
+        if "sce_sys" in root.split(os.sep):
+            continue
+        for fname in sorted(files):
+            fpath = os.path.join(root, fname)
+            rel = os.path.relpath(fpath, save_dir)
+            try:
+                result = subprocess.run(
+                    ["file", fpath],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                out = result.stdout.strip()
+                # Replace full path with relative name
+                if out.startswith(fpath):
+                    out = rel + out[len(fpath):]
+                output_lines.append(out)
+            except Exception:
+                output_lines.append(f"{rel}: (file command not available)")
     return "\n".join(output_lines)
 
 
