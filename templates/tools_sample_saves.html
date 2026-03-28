@@ -215,6 +215,46 @@
     word-break: break-all;
     color: var(--text-1);
 }
+.actions-row {
+    white-space: nowrap;
+}
+.actions-row > * {
+    vertical-align: middle;
+    margin-right: 0.4rem;
+}
+@media (max-width: 700px) {
+    .results-table thead { display: none; }
+    .results-table, .results-table tbody, .results-table tr, .results-table td {
+        display: block;
+        width: 100%;
+    }
+    .results-table tr {
+        border-bottom: 1px solid var(--border);
+        padding: 0.6rem 0;
+        position: relative;
+    }
+    .results-table td {
+        border-bottom: none;
+        padding: 0.15rem 0.5rem;
+    }
+    .results-table td.icon-cell {
+        width: auto;
+        float: left;
+        padding-right: 0.5rem;
+    }
+    .results-table td.action-cell {
+        display: inline-block;
+        width: auto;
+        padding: 0.15rem 0.2rem;
+    }
+    .results-table .actions-row {
+        display: flex;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+        padding: 0.4rem 0.5rem 0.2rem;
+        clear: both;
+    }
+}
 </style>
 {% endblock %}
 {% block content %}
@@ -245,8 +285,6 @@
             <th>Type</th>
             <th>Platform</th>
             <th></th>
-            <th style="width:100px;"></th>
-            {% if session.get('is_admin') %}<th></th>{% endif %}
         </tr>
     </thead>
     <tbody id="results-body">
@@ -259,7 +297,7 @@
             <td style="font-size:0.8rem; color:var(--text-2);">{{ r.region or '' }}</td>
             <td><span class="type-badge">{{ r.save_type or '' }}</span></td>
             <td><span class="platform-badge {{ r.platform }}">{{ r.platform }}</span></td>
-            <td>
+            <td class="actions-row">
                 <div class="analysis-dropdown">
                     <button class="btn-analysis" onclick="toggleDropdown(this)">Analyze ▾</button>
                     <div class="analysis-menu">
@@ -270,11 +308,11 @@
                         <button onclick="showAnalysis({{ r.id }}, 'entropy')">entropy</button>
                     </div>
                 </div>
+                <a href="{{ url_for('tools.sample_save_download', sample_id=r.id) }}" class="btn-sample">Sample Save</a>
+                {% if session.get('is_admin') %}
+                <button class="btn-delete-sample" onclick="deleteSample({{ r.id }}, this)">Delete</button>
+                {% endif %}
             </td>
-            <td><a href="{{ url_for('tools.sample_save_download', sample_id=r.id) }}" class="btn-sample">Sample Save</a></td>
-            {% if session.get('is_admin') %}
-            <td><button class="btn-delete-sample" onclick="deleteSample({{ r.id }}, this)">Delete</button></td>
-            {% endif %}
         </tr>
         {% endfor %}
     </tbody>
@@ -373,10 +411,10 @@ input.addEventListener('input', () => {
                 return;
             }
             let html = `<div class="result-count">${data.results.length}${data.results.length >= 20 ? '+' : ''} results</div>`;
-            html += '<table class="results-table"><thead><tr><th></th><th>Title ID</th><th>Game</th><th>Save Dir</th><th>Region</th><th>Type</th><th>Platform</th><th></th><th style="width:100px;"></th>' + (isAdmin ? '<th></th>' : '') + '</tr></thead><tbody>';
+            html += '<table class="results-table"><thead><tr><th></th><th>Title ID</th><th>Game</th><th>Save Dir</th><th>Region</th><th>Type</th><th>Platform</th><th></th></tr></thead><tbody>';
             for (const r of data.results) {
                 const plat = r.platform || 'ps4';
-                html += `<tr><td class="icon-cell"><img class="save-icon" src="/tools/sample-saves/${r.id}/icon" onerror="this.outerHTML='<span class=\\'save-icon-placeholder\\'></span>'" loading="lazy"></td><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.title)}</td><td style="font-size:0.8rem; font-family:monospace; color:var(--text-2);">${esc(r.save_dir_name || '')}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="type-badge">${esc(r.save_type || '')}</span></td><td><span class="platform-badge ${plat}">${plat}</span></td><td><div class="analysis-dropdown"><button class="btn-analysis" onclick="toggleDropdown(this)">Analyze ▾</button><div class="analysis-menu"><button onclick="showAnalysis(${r.id}, 'binwalk')">binwalk</button><button onclick="showAnalysis(${r.id}, 'file')">file</button><button onclick="showAnalysis(${r.id}, 'strings')">strings</button><button onclick="showAnalysis(${r.id}, 'xxd')">xxd</button><button onclick="showAnalysis(${r.id}, 'entropy')">entropy</button></div></div></td><td><a href="/tools/sample-saves/${r.id}/download" class="btn-sample">Sample Save</a></td>${isAdmin ? `<td><button class="btn-delete-sample" onclick="deleteSample(${r.id}, this)">Delete</button></td>` : ''}</tr>`;
+                html += `<tr><td class="icon-cell"><img class="save-icon" src="/tools/sample-saves/${r.id}/icon" onerror="this.outerHTML='<span class=\\'save-icon-placeholder\\'></span>'" loading="lazy"></td><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.title)}</td><td style="font-size:0.8rem; font-family:monospace; color:var(--text-2);">${esc(r.save_dir_name || '')}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="type-badge">${esc(r.save_type || '')}</span></td><td><span class="platform-badge ${plat}">${plat}</span></td><td class="actions-row"><div class="analysis-dropdown"><button class="btn-analysis" onclick="toggleDropdown(this)">Analyze ▾</button><div class="analysis-menu"><button onclick="showAnalysis(${r.id}, 'binwalk')">binwalk</button><button onclick="showAnalysis(${r.id}, 'file')">file</button><button onclick="showAnalysis(${r.id}, 'strings')">strings</button><button onclick="showAnalysis(${r.id}, 'xxd')">xxd</button><button onclick="showAnalysis(${r.id}, 'entropy')">entropy</button></div></div><a href="/tools/sample-saves/${r.id}/download" class="btn-sample">Sample Save</a>${isAdmin ? `<button class="btn-delete-sample" onclick="deleteSample(${r.id}, this)">Delete</button>` : ''}</td></tr>`;
             }
             html += '</tbody></table>';
             container.innerHTML = html;
