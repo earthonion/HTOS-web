@@ -280,7 +280,8 @@ async def sample_save_binwalk(sample_id):
                 rel = os.path.relpath(fpath, tmp)
                 try:
                     proc = await asyncio.create_subprocess_exec(
-                        "binwalk", fpath,
+                        "binwalk",
+                        fpath,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
                     )
