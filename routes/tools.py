@@ -279,11 +279,14 @@ async def sample_save_binwalk(sample_id):
                 fpath = os.path.join(root, fname)
                 rel = os.path.relpath(fpath, tmp)
                 try:
+                    env = os.environ.copy()
+                    env["HOME"] = tmp
                     proc = await asyncio.create_subprocess_exec(
                         "binwalk",
                         fpath,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
+                        env=env,
                     )
                     stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
                     out = stdout.decode("utf-8", errors="replace").strip()
