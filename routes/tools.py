@@ -244,6 +244,58 @@ async def sample_save_download(sample_id):
     return response
 
 
+@tools_bp.route("/tools/sample-saves/<int:sample_id>/binwalk")
+@login_required
+async def sample_save_binwalk(sample_id):
+    import subprocess
+    import tempfile
+    import zipfile
+
+    from quart import abort
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT save_path FROM sample_saves WHERE id = ?",
+            (sample_id,),
+        )
+        row = await cursor.fetchone()
+    finally:
+        await db.close()
+
+    if not row or not os.path.isfile(row["save_path"]):
+        abort(404)
+
+    output_lines = []
+    with tempfile.TemporaryDirectory() as tmp:
+        with zipfile.ZipFile(row["save_path"], "r") as zf:
+            zf.extractall(tmp)
+
+        for root, _, files in os.walk(tmp):
+            rel_root = os.path.relpath(root, tmp)
+            if "sce_sys" in rel_root.split(os.sep):
+                continue
+            for fname in sorted(files):
+                fpath = os.path.join(root, fname)
+                rel = os.path.relpath(fpath, tmp)
+                try:
+                    result = subprocess.run(
+                        ["binwalk", fpath],
+                        capture_output=True,
+                        text=True,
+                        timeout=15,
+                    )
+                    output_lines.append(f"=== {rel} ===")
+                    output_lines.append(result.stdout.strip() if result.stdout.strip() else "(no results)")
+                    output_lines.append("")
+                except Exception as e:
+                    output_lines.append(f"=== {rel} ===")
+                    output_lines.append(f"Error: {e}")
+                    output_lines.append("")
+
+    return jsonify({"output": "\n".join(output_lines)})
+
+
 def _load_syscalls(platform):
     import os
 
