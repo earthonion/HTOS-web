@@ -286,6 +286,69 @@ async def sample_save_file(sample_id):
     return jsonify({"output": row["file_output"] or "(no file data)"})
 
 
+@tools_bp.route("/tools/sample-saves/<int:sample_id>/strings")
+@login_required
+async def sample_save_strings(sample_id):
+    from quart import abort
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT strings_output FROM sample_saves WHERE id = ?",
+            (sample_id,),
+        )
+        row = await cursor.fetchone()
+    finally:
+        await db.close()
+
+    if not row:
+        abort(404)
+
+    return jsonify({"output": row["strings_output"] or "(no strings data)"})
+
+
+@tools_bp.route("/tools/sample-saves/<int:sample_id>/xxd")
+@login_required
+async def sample_save_xxd(sample_id):
+    from quart import abort
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT xxd_output FROM sample_saves WHERE id = ?",
+            (sample_id,),
+        )
+        row = await cursor.fetchone()
+    finally:
+        await db.close()
+
+    if not row:
+        abort(404)
+
+    return jsonify({"output": row["xxd_output"] or "(no xxd data)"})
+
+
+@tools_bp.route("/tools/sample-saves/<int:sample_id>/entropy")
+@login_required
+async def sample_save_entropy(sample_id):
+    from quart import abort
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT entropy_output FROM sample_saves WHERE id = ?",
+            (sample_id,),
+        )
+        row = await cursor.fetchone()
+    finally:
+        await db.close()
+
+    if not row:
+        abort(404)
+
+    return jsonify({"output": row["entropy_output"] or "(no entropy data)"})
+
+
 def _load_syscalls(platform):
     import os
 
