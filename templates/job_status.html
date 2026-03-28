@@ -1,5 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Job Status{% endblock %}
+{% block footer_text %}
+{% if job.status == 'done' %}
+<p style="margin-bottom: 0.3rem; font-size: 0.85rem; color: var(--text-2);">If you find this website useful, consider sponsoring!</p>
+<iframe src="https://github.com/sponsors/earthonion/button" title="Sponsor earthonion" height="32" width="114" style="border: 0; border-radius: 6px;"></iframe>
+{% else %}
+<p>garlicsaves</p>
+{% endif %}
+{% endblock %}
 {% block content %}
 <h1>Job: {{ job.operation }} <span class="status-{{ job.status }}" id="status-badge">{{ job.status }}</span></h1>
 {% if job.params and job.params.get('game_title') %}
@@ -55,11 +63,6 @@
     <div id="log" class="log-area"></div>
 </section>
 
-<div id="sponsor-section" style="{% if job.status != 'done' %}display:none{% endif %}; margin-top: 1.5rem; text-align: center; color: var(--text-2); font-size: 0.9rem;">
-    <p style="margin-bottom: 0.5rem;">If you find this website useful, consider sponsoring!</p>
-    <iframe src="https://github.com/sponsors/earthonion/button" title="Sponsor earthonion" height="32" width="114" style="border: 0; border-radius: 6px;"></iframe>
-</div>
-
 <script>
 const logEl = document.getElementById('log');
 const statusBadge = document.getElementById('status-badge');
@@ -99,9 +102,6 @@ evtSource.onmessage = function(event) {
         if (data.msg !== 'queued') {
             queueInfo.style.display = 'none';
             if (queueInterval) clearInterval(queueInterval);
-        }
-        if (data.msg === 'done') {
-            document.getElementById('sponsor-section').style.display = '';
         }
         if (data.msg === 'done' || data.msg === 'failed') {
             evtSource.close();

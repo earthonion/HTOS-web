@@ -118,7 +118,7 @@
             <span title="PS4 workers online">PS4: {{ ps4_workers }}</span>
             <span title="PS5 workers online">PS5: {{ ps5_workers }}</span>
         </div>
-        <p>garlicsaves</p>
+        {% block footer_text %}<p>garlicsaves</p>{% endblock %}
     </footer>
 
     <script src="{{ url_for('static', filename='chunked-upload.js') }}"></script>
