@@ -48,7 +48,7 @@ async def search_titles(query: str, limit: int = 10) -> list[dict]:
         async with aiosqlite.connect(DB_PATH) as conn:
             conn.row_factory = aiosqlite.Row
             async with conn.execute(
-                "SELECT DISTINCT title_id, name, platform, region FROM titles "
+                "SELECT DISTINCT title_id, name, platform, region, content_id FROM titles "
                 "WHERE title_id LIKE ? OR name LIKE ? LIMIT ?",
                 (f"%{query}%", f"%{query}%", limit),
             ) as cursor:

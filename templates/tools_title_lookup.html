@@ -93,6 +93,7 @@
             <th>Game</th>
             <th>Region</th>
             <th>Platform</th>
+            <th></th>
         </tr>
     </thead>
     <tbody id="results-body">
@@ -102,6 +103,7 @@
             <td>{{ r.name }}</td>
             <td style="font-size:0.8rem; color:var(--text-2);">{{ r.region or '' }}</td>
             <td><span class="platform-badge {{ r.platform }}">{{ r.platform }}</span></td>
+            <td>{% if r.content_id %}<a href="https://store.playstation.com/en-us/product/{{ r.content_id }}" target="_blank" rel="noopener" class="btn-small" style="font-size:0.7rem;">PSN</a>{% endif %}</td>
         </tr>
         {% endfor %}
     </tbody>
@@ -136,10 +138,11 @@ input.addEventListener('input', () => {
                 return;
             }
             let html = `<div class="result-count">${data.results.length}${data.results.length >= 20 ? '+' : ''} results</div>`;
-            html += '<table class="results-table"><thead><tr><th>Title ID</th><th>Game</th><th>Region</th><th>Platform</th></tr></thead><tbody>';
+            html += '<table class="results-table"><thead><tr><th>Title ID</th><th>Game</th><th>Region</th><th>Platform</th><th></th></tr></thead><tbody>';
             for (const r of data.results) {
                 const plat = r.platform || 'ps4';
-                html += `<tr><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.name)}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="platform-badge ${plat}">${plat}</span></td></tr>`;
+                const psn = r.content_id ? `<a href="https://store.playstation.com/en-us/product/${esc(r.content_id)}" target="_blank" rel="noopener" class="btn-small" style="font-size:0.7rem;">PSN</a>` : '';
+                html += `<tr><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.name)}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="platform-badge ${plat}">${plat}</span></td><td>${psn}</td></tr>`;
             }
             html += '</tbody></table>';
             container.innerHTML = html;
