@@ -106,7 +106,10 @@ async def job_status(job_id):
             await db.close()
 
     return await render_template(
-        "job_status.html", job=job, queue_position=queue_position, queue_total=queue_total
+        "job_status.html",
+        job=job,
+        queue_position=queue_position,
+        queue_total=queue_total,
     )
 
 
@@ -121,9 +124,7 @@ async def job_queue_position(job_id):
             (job_id,),
         )
         position = (await cursor.fetchone())[0]
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM jobs WHERE status = 'queued'"
-        )
+        cursor = await db.execute("SELECT COUNT(*) FROM jobs WHERE status = 'queued'")
         total = (await cursor.fetchone())[0]
     finally:
         await db.close()
