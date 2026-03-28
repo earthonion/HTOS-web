@@ -247,7 +247,7 @@ async def sample_save_download(sample_id):
 @tools_bp.route("/tools/sample-saves/<int:sample_id>/binwalk")
 @login_required
 async def sample_save_binwalk(sample_id):
-    import subprocess
+    import asyncio
     import tempfile
     import zipfile
 
@@ -279,18 +279,15 @@ async def sample_save_binwalk(sample_id):
                 fpath = os.path.join(root, fname)
                 rel = os.path.relpath(fpath, tmp)
                 try:
-                    result = subprocess.run(
-                        ["binwalk", fpath],
-                        capture_output=True,
-                        text=True,
-                        timeout=15,
+                    proc = await asyncio.create_subprocess_exec(
+                        "binwalk", fpath,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
                     )
+                    stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+                    out = stdout.decode("utf-8", errors="replace").strip()
                     output_lines.append(f"=== {rel} ===")
-                    output_lines.append(
-                        result.stdout.strip()
-                        if result.stdout.strip()
-                        else "(no results)"
-                    )
+                    output_lines.append(out if out else "(no results)")
                     output_lines.append("")
                 except Exception as e:
                     output_lines.append(f"=== {rel} ===")
