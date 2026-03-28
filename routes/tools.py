@@ -247,58 +247,22 @@ async def sample_save_download(sample_id):
 @tools_bp.route("/tools/sample-saves/<int:sample_id>/binwalk")
 @login_required
 async def sample_save_binwalk(sample_id):
-    import asyncio
-    import tempfile
-    import zipfile
-
     from quart import abort
 
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT save_path FROM sample_saves WHERE id = ?",
+            "SELECT binwalk_output FROM sample_saves WHERE id = ?",
             (sample_id,),
         )
         row = await cursor.fetchone()
     finally:
         await db.close()
 
-    if not row or not os.path.isfile(row["save_path"]):
+    if not row:
         abort(404)
 
-    output_lines = []
-    with tempfile.TemporaryDirectory() as tmp:
-        with zipfile.ZipFile(row["save_path"], "r") as zf:
-            zf.extractall(tmp)
-
-        for root, _, files in os.walk(tmp):
-            rel_root = os.path.relpath(root, tmp)
-            if "sce_sys" in rel_root.split(os.sep):
-                continue
-            for fname in sorted(files):
-                fpath = os.path.join(root, fname)
-                rel = os.path.relpath(fpath, tmp)
-                try:
-                    env = os.environ.copy()
-                    env["HOME"] = tmp
-                    proc = await asyncio.create_subprocess_exec(
-                        "binwalk",
-                        fpath,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                        env=env,
-                    )
-                    stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
-                    out = stdout.decode("utf-8", errors="replace").strip()
-                    output_lines.append(f"=== {rel} ===")
-                    output_lines.append(out if out else "(no results)")
-                    output_lines.append("")
-                except Exception as e:
-                    output_lines.append(f"=== {rel} ===")
-                    output_lines.append(f"Error: {e}")
-                    output_lines.append("")
-
-    return jsonify({"output": "\n".join(output_lines)})
+    return jsonify({"output": row["binwalk_output"] or "(no binwalk data)"})
 
 
 def _load_syscalls(platform):

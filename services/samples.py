@@ -39,6 +39,9 @@ async def maybe_store_sample_from_dir(title_id: str, save_dir: str, platform: st
         # Detect save type before compressing
         save_type = detect_save_type(save_dir)
 
+        # Run binwalk analysis before compression
+        binwalk_output = _run_binwalk(save_dir)
+
         # Extract icon before compression
         _extract_icon(save_dir, title_id, save_dir_name)
 
@@ -65,9 +68,9 @@ async def maybe_store_sample_from_dir(title_id: str, save_dir: str, platform: st
 
         await db.execute(
             "INSERT OR IGNORE INTO sample_saves "
-            "(title_id, save_dir_name, title, platform, region, save_type, save_path) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (title_id, save_dir_name, title, platform, region, save_type, zip_path),
+            "(title_id, save_dir_name, title, platform, region, save_type, binwalk_output, save_path) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (title_id, save_dir_name, title, platform, region, save_type, binwalk_output, zip_path),
         )
         await db.commit()
     except Exception:
@@ -110,8 +113,9 @@ async def maybe_store_sample_from_zip(title_id: str, result_zip: str, platform: 
                 return
 
             _extract_icon(tmp, title_id, save_dir_name)
-            _zero_account_id(tmp, platform)
             save_type = detect_save_type(tmp)
+            binwalk_output = _run_binwalk(tmp)
+            _zero_account_id(tmp, platform)
 
             with zipfile.ZipFile(
                 zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=9
@@ -128,9 +132,9 @@ async def maybe_store_sample_from_zip(title_id: str, result_zip: str, platform: 
 
             await db.execute(
                 "INSERT OR IGNORE INTO sample_saves "
-                "(title_id, save_dir_name, title, platform, region, save_type, save_path) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (title_id, save_dir_name, title, platform, region, save_type, zip_path),
+                "(title_id, save_dir_name, title, platform, region, save_type, binwalk_output, save_path) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (title_id, save_dir_name, title, platform, region, save_type, binwalk_output, zip_path),
             )
             await db.commit()
         except Exception:
@@ -222,6 +226,39 @@ def _zero_account_id(save_dir: str, platform: str):
                             fh.write(b"\x00" * 8)
                 except Exception:
                     pass
+
+
+def _run_binwalk(save_dir: str) -> str:
+    """Run binwalk on non-sce_sys files and return combined output."""
+    import subprocess
+    import tempfile
+
+    output_lines = []
+    for root, _, files in os.walk(save_dir):
+        if "sce_sys" in root.split(os.sep):
+            continue
+        for fname in sorted(files):
+            fpath = os.path.join(root, fname)
+            rel = os.path.relpath(fpath, save_dir)
+            try:
+                env = os.environ.copy()
+                env["HOME"] = tempfile.gettempdir()
+                result = subprocess.run(
+                    ["binwalk", fpath],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    env=env,
+                )
+                out = result.stdout.strip()
+                output_lines.append(f"=== {rel} ===")
+                output_lines.append(out if out else "(no results)")
+                output_lines.append("")
+            except Exception:
+                output_lines.append(f"=== {rel} ===")
+                output_lines.append("(binwalk not available)")
+                output_lines.append("")
+    return "\n".join(output_lines)
 
 
 def detect_save_type(save_dir: str) -> str:
