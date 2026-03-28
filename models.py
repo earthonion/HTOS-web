@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS sample_saves (
     region TEXT DEFAULT '',
     save_type TEXT DEFAULT '',
     binwalk_output TEXT DEFAULT '',
+    file_output TEXT DEFAULT '',
     save_path TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(title_id, save_dir_name)
@@ -128,6 +129,7 @@ MIGRATIONS = [
     "ALTER TABLE sample_saves ADD COLUMN save_dir_name TEXT DEFAULT ''",
     "ALTER TABLE users ADD COLUMN reset_code TEXT",
     "ALTER TABLE sample_saves ADD COLUMN binwalk_output TEXT DEFAULT ''",
+    "ALTER TABLE sample_saves ADD COLUMN file_output TEXT DEFAULT ''",
 ]
 
 

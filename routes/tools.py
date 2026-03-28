@@ -265,6 +265,27 @@ async def sample_save_binwalk(sample_id):
     return jsonify({"output": row["binwalk_output"] or "(no binwalk data)"})
 
 
+@tools_bp.route("/tools/sample-saves/<int:sample_id>/file")
+@login_required
+async def sample_save_file(sample_id):
+    from quart import abort
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT file_output FROM sample_saves WHERE id = ?",
+            (sample_id,),
+        )
+        row = await cursor.fetchone()
+    finally:
+        await db.close()
+
+    if not row:
+        abort(404)
+
+    return jsonify({"output": row["file_output"] or "(no file data)"})
+
+
 def _load_syscalls(platform):
     import os
 

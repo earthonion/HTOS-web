@@ -108,7 +108,11 @@
     width: 74px;
     padding: 0.3rem 0.5rem;
 }
-.btn-binwalk {
+.analysis-dropdown {
+    position: relative;
+    display: inline-block;
+}
+.btn-analysis {
     display: inline-block;
     font-size: 0.72rem;
     font-weight: 600;
@@ -121,7 +125,34 @@
     cursor: pointer;
     border: none;
 }
-.btn-binwalk:hover { background: rgba(99, 102, 241, 0.3); }
+.btn-analysis:hover { background: rgba(99, 102, 241, 0.3); }
+.analysis-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 2px;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    z-index: 50;
+    min-width: 100px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.analysis-dropdown.open .analysis-menu { display: block; }
+.analysis-menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
+    background: none;
+    border: none;
+    color: var(--text-1);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.analysis-menu button:hover { background: var(--bg-2); }
 .modal-overlay {
     display: none;
     position: fixed;
@@ -215,7 +246,15 @@
             <td><span class="type-badge">{{ r.save_type or '' }}</span></td>
             <td><span class="platform-badge {{ r.platform }}">{{ r.platform }}</span></td>
             <td><a href="{{ url_for('tools.sample_save_download', sample_id=r.id) }}" class="btn-sample">Sample Save</a></td>
-            <td><button class="btn-binwalk" onclick="showBinwalk({{ r.id }}, this)">binwalk</button></td>
+            <td>
+                <div class="analysis-dropdown">
+                    <button class="btn-analysis" onclick="toggleDropdown(this)">Analyze ▾</button>
+                    <div class="analysis-menu">
+                        <button onclick="showAnalysis({{ r.id }}, 'binwalk')">binwalk</button>
+                        <button onclick="showAnalysis({{ r.id }}, 'file')">file</button>
+                    </div>
+                </div>
+            </td>
         </tr>
         {% endfor %}
     </tbody>
@@ -244,17 +283,36 @@
 </div>
 
 <script>
-function showBinwalk(id, btn) {
+function toggleDropdown(btn) {
+    var dd = btn.parentElement;
+    document.querySelectorAll('.analysis-dropdown.open').forEach(function(el) {
+        if (el !== dd) el.classList.remove('open');
+    });
+    dd.classList.toggle('open');
+}
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.analysis-dropdown')) {
+        document.querySelectorAll('.analysis-dropdown.open').forEach(function(el) {
+            el.classList.remove('open');
+        });
+    }
+});
+function showAnalysis(id, type) {
+    document.querySelectorAll('.analysis-dropdown.open').forEach(function(el) {
+        el.classList.remove('open');
+    });
     var modal = document.getElementById('binwalk-modal');
+    var title = document.getElementById('binwalk-title');
     var output = document.getElementById('binwalk-output');
+    title.textContent = type;
     output.textContent = 'Loading...';
     modal.classList.add('open');
-    fetch('/tools/sample-saves/' + id + '/binwalk').then(function(r) {
+    fetch('/tools/sample-saves/' + id + '/' + type).then(function(r) {
         return r.json();
     }).then(function(d) {
         output.textContent = d.output || '(no output)';
     }).catch(function() {
-        output.textContent = 'Error loading binwalk output.';
+        output.textContent = 'Error loading output.';
     });
 }
 function closeBinwalk() {
@@ -287,7 +345,7 @@ input.addEventListener('input', () => {
             html += '<table class="results-table"><thead><tr><th></th><th>Title ID</th><th>Game</th><th>Save Dir</th><th>Region</th><th>Type</th><th>Platform</th><th style="width:100px;"></th><th></th></tr></thead><tbody>';
             for (const r of data.results) {
                 const plat = r.platform || 'ps4';
-                html += `<tr><td class="icon-cell"><img class="save-icon" src="/tools/sample-saves/${r.id}/icon" onerror="this.outerHTML='<span class=\\'save-icon-placeholder\\'></span>'" loading="lazy"></td><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.title)}</td><td style="font-size:0.8rem; font-family:monospace; color:var(--text-2);">${esc(r.save_dir_name || '')}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="type-badge">${esc(r.save_type || '')}</span></td><td><span class="platform-badge ${plat}">${plat}</span></td><td><a href="/tools/sample-saves/${r.id}/download" class="btn-sample">Sample Save</a></td><td><button class="btn-binwalk" onclick="showBinwalk(${r.id}, this)">binwalk</button></td></tr>`;
+                html += `<tr><td class="icon-cell"><img class="save-icon" src="/tools/sample-saves/${r.id}/icon" onerror="this.outerHTML='<span class=\\'save-icon-placeholder\\'></span>'" loading="lazy"></td><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.title)}</td><td style="font-size:0.8rem; font-family:monospace; color:var(--text-2);">${esc(r.save_dir_name || '')}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="type-badge">${esc(r.save_type || '')}</span></td><td><span class="platform-badge ${plat}">${plat}</span></td><td><a href="/tools/sample-saves/${r.id}/download" class="btn-sample">Sample Save</a></td><td><div class="analysis-dropdown"><button class="btn-analysis" onclick="toggleDropdown(this)">Analyze ▾</button><div class="analysis-menu"><button onclick="showAnalysis(${r.id}, 'binwalk')">binwalk</button><button onclick="showAnalysis(${r.id}, 'file')">file</button></div></div></td></tr>`;
             }
             html += '</tbody></table>';
             container.innerHTML = html;
