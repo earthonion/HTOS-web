@@ -653,29 +653,6 @@ async def api_submit_entitlements():
 @tools_bp.route("/tools/entitlements/browse")
 @login_required
 async def browse_entitlements():
-    user_id = session.get("user_id")
-    is_admin = session.get("is_admin", False)
-
-    # Non-admins must have contributed at least one entitlement
-    if not is_admin:
-        db = await get_db()
-        try:
-            cursor = await db.execute(
-                "SELECT COUNT(*) FROM entitlements WHERE contributed_by = ?",
-                (user_id,),
-            )
-            count = (await cursor.fetchone())[0]
-        finally:
-            await db.close()
-        if count == 0:
-            from quart import flash, redirect, url_for
-
-            await flash(
-                "Contribute entitlements using the Entitlement Dumper tool to access the database.",
-                "error",
-            )
-            return redirect(url_for("tools.entitlements"))
-
     q = request.args.get("q", "").strip()
     platform = request.args.get("platform", "").strip().lower()
     if platform not in ("ps4", "ps5"):
@@ -724,29 +701,13 @@ async def browse_entitlements():
         has_next=has_next,
         total=total,
         platform=platform,
-        is_admin=is_admin,
+        is_admin=session.get("is_admin", False),
     )
 
 
 @tools_bp.route("/tools/entitlements/csv")
 @login_required
 async def entitlements_csv():
-    user_id = session.get("user_id")
-    is_admin = session.get("is_admin", False)
-
-    if not is_admin:
-        db = await get_db()
-        try:
-            cursor = await db.execute(
-                "SELECT COUNT(*) FROM entitlements WHERE contributed_by = ?",
-                (user_id,),
-            )
-            count = (await cursor.fetchone())[0]
-        finally:
-            await db.close()
-        if count == 0:
-            return "Contribute entitlements first to access downloads.", 403
-
     platform = request.args.get("platform", "").strip().lower()
 
     db = await get_db()
