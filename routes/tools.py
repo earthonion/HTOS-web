@@ -244,6 +244,48 @@ async def sample_save_download(sample_id):
     return response
 
 
+@tools_bp.route("/tools/sample-saves/<int:sample_id>/delete", methods=["POST"])
+@login_required
+async def sample_save_delete(sample_id):
+    from quart import abort
+
+    if not session.get("is_admin"):
+        abort(403)
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT save_path, title_id, save_dir_name FROM sample_saves WHERE id = ?",
+            (sample_id,),
+        )
+        row = await cursor.fetchone()
+        if not row:
+            abort(404)
+
+        # Delete zip file
+        if row["save_path"] and os.path.isfile(row["save_path"]):
+            os.remove(row["save_path"])
+
+        # Delete icon
+        from services.samples import ICONS_DIR
+
+        icon_name = (
+            f"{row['title_id']}_{row['save_dir_name']}.png"
+            if row["save_dir_name"]
+            else f"{row['title_id']}.png"
+        )
+        icon_path = os.path.join(ICONS_DIR, icon_name)
+        if os.path.isfile(icon_path):
+            os.remove(icon_path)
+
+        await db.execute("DELETE FROM sample_saves WHERE id = ?", (sample_id,))
+        await db.commit()
+    finally:
+        await db.close()
+
+    return jsonify({"ok": True})
+
+
 @tools_bp.route("/tools/sample-saves/<int:sample_id>/binwalk")
 @login_required
 async def sample_save_binwalk(sample_id):

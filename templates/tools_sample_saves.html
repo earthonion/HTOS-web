@@ -91,6 +91,19 @@
 .btn-sample:hover {
     background: rgba(34, 197, 94, 0.3);
 }
+.btn-delete-sample {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--red, #f87171);
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.btn-delete-sample:hover { background: rgba(239, 68, 68, 0.3); }
 .save-icon {
     height: 36px;
     border-radius: 3px;
@@ -233,6 +246,7 @@
             <th>Platform</th>
             <th></th>
             <th style="width:100px;"></th>
+            {% if session.get('is_admin') %}<th></th>{% endif %}
         </tr>
     </thead>
     <tbody id="results-body">
@@ -258,6 +272,9 @@
                 </div>
             </td>
             <td><a href="{{ url_for('tools.sample_save_download', sample_id=r.id) }}" class="btn-sample">Sample Save</a></td>
+            {% if session.get('is_admin') %}
+            <td><button class="btn-delete-sample" onclick="deleteSample({{ r.id }}, this)">Delete</button></td>
+            {% endif %}
         </tr>
         {% endfor %}
     </tbody>
@@ -318,6 +335,16 @@ function showAnalysis(id, type) {
         output.textContent = 'Error loading output.';
     });
 }
+function deleteSample(id, btn) {
+    if (!confirm('Delete this sample save?')) return;
+    fetch('/tools/sample-saves/' + id + '/delete', {method: 'POST'}).then(function(r) {
+        if (r.ok) {
+            btn.closest('tr').remove();
+        } else {
+            alert('Delete failed.');
+        }
+    });
+}
 function closeBinwalk() {
     document.getElementById('binwalk-modal').classList.remove('open');
 }
@@ -325,6 +352,7 @@ document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') closeBinwalk();
 });
 
+const isAdmin = {{ 'true' if session.get('is_admin') else 'false' }};
 let debounceTimer;
 const input = document.getElementById('search-input');
 const container = document.getElementById('results-container');
@@ -345,10 +373,10 @@ input.addEventListener('input', () => {
                 return;
             }
             let html = `<div class="result-count">${data.results.length}${data.results.length >= 20 ? '+' : ''} results</div>`;
-            html += '<table class="results-table"><thead><tr><th></th><th>Title ID</th><th>Game</th><th>Save Dir</th><th>Region</th><th>Type</th><th>Platform</th><th></th><th style="width:100px;"></th></tr></thead><tbody>';
+            html += '<table class="results-table"><thead><tr><th></th><th>Title ID</th><th>Game</th><th>Save Dir</th><th>Region</th><th>Type</th><th>Platform</th><th></th><th style="width:100px;"></th>' + (isAdmin ? '<th></th>' : '') + '</tr></thead><tbody>';
             for (const r of data.results) {
                 const plat = r.platform || 'ps4';
-                html += `<tr><td class="icon-cell"><img class="save-icon" src="/tools/sample-saves/${r.id}/icon" onerror="this.outerHTML='<span class=\\'save-icon-placeholder\\'></span>'" loading="lazy"></td><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.title)}</td><td style="font-size:0.8rem; font-family:monospace; color:var(--text-2);">${esc(r.save_dir_name || '')}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="type-badge">${esc(r.save_type || '')}</span></td><td><span class="platform-badge ${plat}">${plat}</span></td><td><div class="analysis-dropdown"><button class="btn-analysis" onclick="toggleDropdown(this)">Analyze ▾</button><div class="analysis-menu"><button onclick="showAnalysis(${r.id}, 'binwalk')">binwalk</button><button onclick="showAnalysis(${r.id}, 'file')">file</button><button onclick="showAnalysis(${r.id}, 'strings')">strings</button><button onclick="showAnalysis(${r.id}, 'xxd')">xxd</button><button onclick="showAnalysis(${r.id}, 'entropy')">entropy</button></div></div></td><td><a href="/tools/sample-saves/${r.id}/download" class="btn-sample">Sample Save</a></td></tr>`;
+                html += `<tr><td class="icon-cell"><img class="save-icon" src="/tools/sample-saves/${r.id}/icon" onerror="this.outerHTML='<span class=\\'save-icon-placeholder\\'></span>'" loading="lazy"></td><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.title)}</td><td style="font-size:0.8rem; font-family:monospace; color:var(--text-2);">${esc(r.save_dir_name || '')}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="type-badge">${esc(r.save_type || '')}</span></td><td><span class="platform-badge ${plat}">${plat}</span></td><td><div class="analysis-dropdown"><button class="btn-analysis" onclick="toggleDropdown(this)">Analyze ▾</button><div class="analysis-menu"><button onclick="showAnalysis(${r.id}, 'binwalk')">binwalk</button><button onclick="showAnalysis(${r.id}, 'file')">file</button><button onclick="showAnalysis(${r.id}, 'strings')">strings</button><button onclick="showAnalysis(${r.id}, 'xxd')">xxd</button><button onclick="showAnalysis(${r.id}, 'entropy')">entropy</button></div></div></td><td><a href="/tools/sample-saves/${r.id}/download" class="btn-sample">Sample Save</a></td>${isAdmin ? `<td><button class="btn-delete-sample" onclick="deleteSample(${r.id}, this)">Delete</button></td>` : ''}</tr>`;
             }
             html += '</tbody></table>';
             container.innerHTML = html;
