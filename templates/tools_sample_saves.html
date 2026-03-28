@@ -251,6 +251,9 @@
                     <div class="analysis-menu">
                         <button onclick="showAnalysis({{ r.id }}, 'binwalk')">binwalk</button>
                         <button onclick="showAnalysis({{ r.id }}, 'file')">file</button>
+                        <button onclick="showAnalysis({{ r.id }}, 'strings')">strings</button>
+                        <button onclick="showAnalysis({{ r.id }}, 'xxd')">xxd</button>
+                        <button onclick="showAnalysis({{ r.id }}, 'entropy')">entropy</button>
                     </div>
                 </div>
             </td>
@@ -345,7 +348,7 @@ input.addEventListener('input', () => {
             html += '<table class="results-table"><thead><tr><th></th><th>Title ID</th><th>Game</th><th>Save Dir</th><th>Region</th><th>Type</th><th>Platform</th><th></th><th style="width:100px;"></th></tr></thead><tbody>';
             for (const r of data.results) {
                 const plat = r.platform || 'ps4';
-                html += `<tr><td class="icon-cell"><img class="save-icon" src="/tools/sample-saves/${r.id}/icon" onerror="this.outerHTML='<span class=\\'save-icon-placeholder\\'></span>'" loading="lazy"></td><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.title)}</td><td style="font-size:0.8rem; font-family:monospace; color:var(--text-2);">${esc(r.save_dir_name || '')}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="type-badge">${esc(r.save_type || '')}</span></td><td><span class="platform-badge ${plat}">${plat}</span></td><td><div class="analysis-dropdown"><button class="btn-analysis" onclick="toggleDropdown(this)">Analyze ▾</button><div class="analysis-menu"><button onclick="showAnalysis(${r.id}, 'binwalk')">binwalk</button><button onclick="showAnalysis(${r.id}, 'file')">file</button></div></div></td><td><a href="/tools/sample-saves/${r.id}/download" class="btn-sample">Sample Save</a></td></tr>`;
+                html += `<tr><td class="icon-cell"><img class="save-icon" src="/tools/sample-saves/${r.id}/icon" onerror="this.outerHTML='<span class=\\'save-icon-placeholder\\'></span>'" loading="lazy"></td><td class="title-id">${esc(r.title_id)}</td><td>${esc(r.title)}</td><td style="font-size:0.8rem; font-family:monospace; color:var(--text-2);">${esc(r.save_dir_name || '')}</td><td style="font-size:0.8rem; color:var(--text-2);">${esc(r.region || '')}</td><td><span class="type-badge">${esc(r.save_type || '')}</span></td><td><span class="platform-badge ${plat}">${plat}</span></td><td><div class="analysis-dropdown"><button class="btn-analysis" onclick="toggleDropdown(this)">Analyze ▾</button><div class="analysis-menu"><button onclick="showAnalysis(${r.id}, 'binwalk')">binwalk</button><button onclick="showAnalysis(${r.id}, 'file')">file</button><button onclick="showAnalysis(${r.id}, 'strings')">strings</button><button onclick="showAnalysis(${r.id}, 'xxd')">xxd</button><button onclick="showAnalysis(${r.id}, 'entropy')">entropy</button></div></div></td><td><a href="/tools/sample-saves/${r.id}/download" class="btn-sample">Sample Save</a></td></tr>`;
             }
             html += '</tbody></table>';
             container.innerHTML = html;

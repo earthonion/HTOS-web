@@ -42,6 +42,9 @@ async def maybe_store_sample_from_dir(title_id: str, save_dir: str, platform: st
         # Run analysis before compression
         binwalk_output = _run_binwalk(save_dir)
         file_output = _run_file_cmd(save_dir)
+        strings_output = _run_strings(save_dir)
+        xxd_output = _run_xxd(save_dir)
+        entropy_output = _run_entropy(save_dir)
 
         # Extract icon before compression
         _extract_icon(save_dir, title_id, save_dir_name)
@@ -69,8 +72,8 @@ async def maybe_store_sample_from_dir(title_id: str, save_dir: str, platform: st
 
         await db.execute(
             "INSERT OR IGNORE INTO sample_saves "
-            "(title_id, save_dir_name, title, platform, region, save_type, binwalk_output, file_output, save_path) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "(title_id, save_dir_name, title, platform, region, save_type, binwalk_output, file_output, strings_output, xxd_output, entropy_output, save_path) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 title_id,
                 save_dir_name,
@@ -80,6 +83,9 @@ async def maybe_store_sample_from_dir(title_id: str, save_dir: str, platform: st
                 save_type,
                 binwalk_output,
                 file_output,
+                strings_output,
+                xxd_output,
+                entropy_output,
                 zip_path,
             ),
         )
@@ -127,6 +133,9 @@ async def maybe_store_sample_from_zip(title_id: str, result_zip: str, platform: 
             save_type = detect_save_type(tmp)
             binwalk_output = _run_binwalk(tmp)
             file_output = _run_file_cmd(tmp)
+            strings_output = _run_strings(tmp)
+            xxd_output = _run_xxd(tmp)
+            entropy_output = _run_entropy(tmp)
             _zero_account_id(tmp, platform)
 
             with zipfile.ZipFile(
@@ -144,8 +153,8 @@ async def maybe_store_sample_from_zip(title_id: str, result_zip: str, platform: 
 
             await db.execute(
                 "INSERT OR IGNORE INTO sample_saves "
-                "(title_id, save_dir_name, title, platform, region, save_type, binwalk_output, file_output, save_path) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "(title_id, save_dir_name, title, platform, region, save_type, binwalk_output, file_output, strings_output, xxd_output, entropy_output, save_path) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     title_id,
                     save_dir_name,
@@ -155,6 +164,9 @@ async def maybe_store_sample_from_zip(title_id: str, result_zip: str, platform: 
                     save_type,
                     binwalk_output,
                     file_output,
+                    strings_output,
+                    xxd_output,
+                    entropy_output,
                     zip_path,
                 ),
             )
@@ -500,6 +512,109 @@ def _identify_file(path: str, fname: str) -> str | None:
         return "Encrypted"
 
     return "Binary"
+
+
+def _run_strings(save_dir: str) -> str:
+    """Run strings on non-sce_sys files and return combined output."""
+    import subprocess
+
+    output_lines = []
+    for root, _, files in os.walk(save_dir):
+        if "sce_sys" in root.split(os.sep):
+            continue
+        for fname in sorted(files):
+            fpath = os.path.join(root, fname)
+            rel = os.path.relpath(fpath, save_dir)
+            try:
+                result = subprocess.run(
+                    ["strings", "-n", "6", fpath],
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+                out = result.stdout.strip()
+                lines = out.split("\n") if out else []
+                # Cap at 200 lines per file to keep DB size reasonable
+                if len(lines) > 200:
+                    lines = lines[:200] + [f"... ({len(lines) - 200} more lines)"]
+                output_lines.append(f"=== {rel} ===")
+                output_lines.append("\n".join(lines) if lines else "(no strings)")
+                output_lines.append("")
+            except Exception:
+                output_lines.append(f"=== {rel} ===")
+                output_lines.append("(strings not available)")
+                output_lines.append("")
+    return "\n".join(output_lines)
+
+
+def _run_xxd(save_dir: str) -> str:
+    """Run xxd on first 512 bytes of non-sce_sys files and return combined output."""
+    import subprocess
+
+    output_lines = []
+    for root, _, files in os.walk(save_dir):
+        if "sce_sys" in root.split(os.sep):
+            continue
+        for fname in sorted(files):
+            fpath = os.path.join(root, fname)
+            rel = os.path.relpath(fpath, save_dir)
+            try:
+                result = subprocess.run(
+                    ["xxd", "-l", "512", fpath],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                out = result.stdout.strip()
+                output_lines.append(f"=== {rel} ===")
+                output_lines.append(out if out else "(empty file)")
+                output_lines.append("")
+            except Exception:
+                output_lines.append(f"=== {rel} ===")
+                output_lines.append("(xxd not available)")
+                output_lines.append("")
+    return "\n".join(output_lines)
+
+
+def _run_entropy(save_dir: str) -> str:
+    """Calculate Shannon entropy for non-sce_sys files."""
+    import math
+
+    output_lines = []
+    for root, _, files in os.walk(save_dir):
+        if "sce_sys" in root.split(os.sep):
+            continue
+        for fname in sorted(files):
+            fpath = os.path.join(root, fname)
+            rel = os.path.relpath(fpath, save_dir)
+            try:
+                size = os.path.getsize(fpath)
+                if size == 0:
+                    output_lines.append(f"{rel}: 0 bytes (empty)")
+                    continue
+                with open(fpath, "rb") as f:
+                    data = f.read()
+                counts = [0] * 256
+                for b in data:
+                    counts[b] += 1
+                entropy = 0.0
+                for c in counts:
+                    if c:
+                        p = c / len(data)
+                        entropy -= p * math.log2(p)
+                label = ""
+                if entropy >= 7.5:
+                    label = " [likely encrypted/compressed]"
+                elif entropy >= 6.0:
+                    label = " [moderate entropy]"
+                elif entropy < 3.0:
+                    label = " [low entropy / structured]"
+                output_lines.append(
+                    f"{rel}: {entropy:.4f} bits/byte ({size:,} bytes){label}"
+                )
+            except Exception:
+                output_lines.append(f"{rel}: (error reading file)")
+    return "\n".join(output_lines)
 
 
 def _is_high_entropy(data: bytes) -> bool:
