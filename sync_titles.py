@@ -63,10 +63,16 @@ async def init_db(conn: aiosqlite.Connection) -> None:
             name TEXT NOT NULL,
             platform TEXT NOT NULL,
             content_id TEXT,
+            concept_id INTEGER,
             region TEXT
         )
     """)
     await conn.execute("CREATE INDEX IF NOT EXISTS idx_titles_name ON titles(name)")
+    # Migration: add concept_id column if missing
+    try:
+        await conn.execute("ALTER TABLE titles ADD COLUMN concept_id INTEGER")
+    except Exception:
+        pass
     await conn.commit()
 
 
@@ -94,6 +100,7 @@ async def sync():
                 title_id = raw_id.partition("_")[0]
                 name = entry.get("name", "").strip()
                 content_id = entry.get("contentId", "")
+                concept_id = entry.get("conceptId")
                 raw_region = entry.get("region", "")
 
                 if not title_id or not name or not content_id or not raw_region:
@@ -111,13 +118,14 @@ async def sync():
                         name,
                         platform,
                         content_id,
+                        concept_id,
                         region,
                     )
                 )
 
             await conn.executemany(
-                "INSERT OR REPLACE INTO titles (title_id, name, platform, content_id, region) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO titles (title_id, name, platform, content_id, concept_id, region) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
                 batch,
             )
             await conn.commit()
