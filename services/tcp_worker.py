@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import struct
+import sys
 import zipfile
 
 from config import WORKER_KEY
@@ -545,7 +546,7 @@ async def start_tcp_server(port: int = 42069):
         "0.0.0.0",
         port,
         reuse_address=True,
-        reuse_port=True,
+        reuse_port=(sys.platform != "win32"),
         start_serving=True,
     )
     log.info("TCP worker server listening on port %d", port)
