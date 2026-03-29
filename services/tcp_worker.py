@@ -135,10 +135,20 @@ async def _update_worker_heartbeat(key: str, platform: str):
 # ── Job queries ────────────────────────────────────────────────
 
 
-async def _get_next_job(platform: str) -> dict | None:
+async def _get_next_job(platform: str, worker_key: str = "") -> dict | None:
     """Find next queued job for the given platform and atomically claim it."""
     db = await get_db()
     try:
+        # Resolve worker_key_id for tracking
+        wk_id = None
+        if worker_key:
+            cursor = await db.execute(
+                "SELECT id FROM worker_keys WHERE key = ?", (worker_key,)
+            )
+            wk_row = await cursor.fetchone()
+            if wk_row:
+                wk_id = wk_row["id"]
+
         cursor = await db.execute(
             "SELECT id, user_id, operation, params FROM jobs "
             "WHERE status = 'queued' ORDER BY created_at ASC LIMIT 20"
@@ -152,10 +162,17 @@ async def _get_next_job(platform: str) -> dict | None:
             if job_platform != platform:
                 continue
             # Atomically claim it
-            cursor2 = await db.execute(
-                "UPDATE jobs SET status = 'running' WHERE id = ? AND status = 'queued'",
-                (row["id"],),
-            )
+            if wk_id:
+                cursor2 = await db.execute(
+                    "UPDATE jobs SET status = 'running', worker_key_id = ? "
+                    "WHERE id = ? AND status = 'queued'",
+                    (wk_id, row["id"]),
+                )
+            else:
+                cursor2 = await db.execute(
+                    "UPDATE jobs SET status = 'running' WHERE id = ? AND status = 'queued'",
+                    (row["id"],),
+                )
             if cursor2.rowcount == 0:
                 continue  # someone else grabbed it
             await db.commit()
@@ -429,7 +446,7 @@ async def handle_worker(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
 
             if msg_type == "ready":
                 # Try to find a job for this worker
-                job = await _get_next_job(platform)
+                job = await _get_next_job(platform, key)
                 if not job:
                     # No job — add to idle pool and wait for wake
                     worker.wake_event.clear()
@@ -444,7 +461,7 @@ async def handle_worker(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                         pass  # No wake — send no_job so worker can heartbeat
                     else:
                         # Woken up — check for a job now
-                        job = await _get_next_job(platform)
+                        job = await _get_next_job(platform, key)
 
                 if job:
                     log.info("Dispatching job %s to %s", job["id"], worker)
