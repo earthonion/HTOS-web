@@ -516,7 +516,9 @@ async def notify_job_available(platform: str):
 
 async def start_tcp_server(port: int = 42069):
     server = await asyncio.start_server(
-        handle_worker, "0.0.0.0", port,
+        handle_worker,
+        "0.0.0.0",
+        port,
         reuse_address=True,
         start_serving=True,
     )
