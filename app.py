@@ -20,6 +20,7 @@ def create_app():
     from models import init_db
     from routes.admin_web import admin_web_bp
     from routes.api import api_bp
+    from routes.api_v1 import api_v1_bp
     from routes.chunked import chunked_bp
     from routes.contribute import contribute_bp
     from routes.convert import convert_bp
@@ -32,7 +33,6 @@ def create_app():
     from routes.quickcodes import quickcodes_bp
     from routes.reregion import reregion_bp
     from routes.resign import resign_bp
-    from routes.api_v1 import api_v1_bp
     from routes.rest_api import rest_bp
     from routes.savedb import savedb_bp
     from routes.tools import tools_bp

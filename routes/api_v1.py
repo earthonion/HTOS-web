@@ -4,7 +4,7 @@ import json
 import os
 from functools import wraps
 
-from quart import Blueprint, Response, jsonify, request, send_file
+from quart import Blueprint, jsonify, request, send_file
 
 from models import get_db
 from routes.api import validate_worker_key
@@ -18,7 +18,6 @@ from services.files import (
     validate_save_pairs,
 )
 from services.jobs import create_job
-from services.titles import lookup_title
 
 api_v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
 
@@ -98,7 +97,9 @@ async def create_job_endpoint(user_id):
             savename = form.get("savename", "")
             saveblocks = form.get("saveblocks", "")
             if not savename or not saveblocks:
-                return jsonify({"error": "Missing required field: savename or saveblocks"}), 400
+                return jsonify(
+                    {"error": "Missing required field: savename or saveblocks"}
+                ), 400
             params["savename"] = savename
             params["saveblocks"] = int(saveblocks)
 
@@ -225,4 +226,6 @@ async def get_result(user_id, job_id):
     if not row["result_path"] or not os.path.exists(row["result_path"]):
         return jsonify({"error": "Result file not found"}), 404
 
-    return await send_file(row["result_path"], as_attachment=True, attachment_filename=f"{job_id}.zip")
+    return await send_file(
+        row["result_path"], as_attachment=True, attachment_filename=f"{job_id}.zip"
+    )
