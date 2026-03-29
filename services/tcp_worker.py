@@ -186,7 +186,12 @@ async def _build_job_zip(job_id: str) -> str | None:
     if params.get("saves_dir"):
         upload_dir = os.path.dirname(params["saves_dir"])
 
-    log.warning("_build_job_zip: job=%s upload_dir=%s isdir=%s", job_id, upload_dir, os.path.isdir(upload_dir) if upload_dir else "N/A")
+    log.warning(
+        "_build_job_zip: job=%s upload_dir=%s isdir=%s",
+        job_id,
+        upload_dir,
+        os.path.isdir(upload_dir) if upload_dir else "N/A",
+    )
 
     if not upload_dir or not os.path.isdir(upload_dir):
         return None
