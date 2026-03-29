@@ -190,7 +190,10 @@ def create_app():
                 app.tcp_server = await start_tcp_server(TCP_WORKER_PORT)
             except OSError as e:
                 import logging
-                logging.getLogger(__name__).error("TCP worker server failed to start: %s", e)
+
+                logging.getLogger(__name__).error(
+                    "TCP worker server failed to start: %s", e
+                )
 
     return app
 
