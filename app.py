@@ -32,6 +32,7 @@ def create_app():
     from routes.quickcodes import quickcodes_bp
     from routes.reregion import reregion_bp
     from routes.resign import resign_bp
+    from routes.api_v1 import api_v1_bp
     from routes.rest_api import rest_bp
     from routes.savedb import savedb_bp
     from routes.tools import tools_bp
@@ -48,6 +49,7 @@ def create_app():
     app.register_blueprint(jobs_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(contribute_bp)
+    app.register_blueprint(api_v1_bp)
     app.register_blueprint(rest_bp)
     app.register_blueprint(chunked_bp)
     app.register_blueprint(admin_web_bp)
