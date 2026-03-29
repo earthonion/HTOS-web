@@ -43,6 +43,7 @@ class TCPWorker:
         self.platform: str = platform
         self.worker_key: str = worker_key
         self.addr = writer.get_extra_info("peername")
+        self.wake_event: asyncio.Event = asyncio.Event()
 
     def __repr__(self):
         return f"<TCPWorker {self.platform} {self.addr}>"
@@ -434,6 +435,22 @@ async def handle_worker(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             if msg_type == "ready":
                 # Try to find a job for this worker
                 job = await _get_next_job(platform)
+                if not job:
+                    # No job — add to idle pool and wait for wake
+                    worker.wake_event.clear()
+                    async with _lock:
+                        if worker not in _idle_workers[platform]:
+                            _idle_workers[platform].append(worker)
+                    await _update_worker_heartbeat(key, platform)
+                    # Wait until proactive dispatch wakes us (or timeout for heartbeat)
+                    try:
+                        await asyncio.wait_for(worker.wake_event.wait(), timeout=60)
+                    except asyncio.TimeoutError:
+                        pass  # No wake — send no_job so worker can heartbeat
+                    else:
+                        # Woken up — check for a job now
+                        job = await _get_next_job(platform)
+
                 if job:
                     log.info("Dispatching job %s to %s", job["id"], worker)
                     await send_msg(
@@ -445,13 +462,8 @@ async def handle_worker(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                             "params": job["params"],
                         },
                     )
-                    # Update heartbeat
                     await _update_worker_heartbeat(key, platform)
                 else:
-                    # No job — add to idle pool and wait
-                    async with _lock:
-                        if worker not in _idle_workers[platform]:
-                            _idle_workers[platform].append(worker)
                     await send_msg(writer, {"type": "no_job"})
                     await _update_worker_heartbeat(key, platform)
 
@@ -501,32 +513,15 @@ async def handle_worker(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
 
 
 async def notify_job_available(platform: str):
-    """Called when a new job is queued. Dispatches to an idle TCP worker if one exists."""
+    """Called when a new job is queued. Wakes an idle TCP worker to pick it up."""
     async with _lock:
         workers = _idle_workers.get(platform, [])
         if not workers:
             return
         worker = workers.pop(0)
 
-    try:
-        job = await _get_next_job(platform)
-        if job:
-            log.info("Proactive dispatch: job %s to %s", job["id"], worker)
-            await send_msg(
-                worker.writer,
-                {
-                    "type": "job",
-                    "id": job["id"],
-                    "operation": job["operation"],
-                    "params": job["params"],
-                },
-            )
-        else:
-            # Job was grabbed by someone else, put worker back
-            async with _lock:
-                _idle_workers[platform].append(worker)
-    except Exception:
-        log.exception("Failed to dispatch to %s", worker)
+    log.info("Waking idle worker %s for new %s job", worker, platform)
+    worker.wake_event.set()
 
 
 # ── Server startup ─────────────────────────────────────────────
