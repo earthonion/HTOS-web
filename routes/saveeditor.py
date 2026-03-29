@@ -110,8 +110,16 @@ def _ue5_prop_to_flat(name: str, prop: dict) -> dict:
     elif ptype == "BoolProperty":
         out["value"] = prop.get("value", False)
     elif ptype == "EnumProperty":
-        out["subtype"] = prop.get("value", {}).get("enum_type", "") if isinstance(prop.get("value"), dict) else ""
-        out["value"] = prop.get("value", {}).get("value", "") if isinstance(prop.get("value"), dict) else prop.get("value", "")
+        out["subtype"] = (
+            prop.get("value", {}).get("enum_type", "")
+            if isinstance(prop.get("value"), dict)
+            else ""
+        )
+        out["value"] = (
+            prop.get("value", {}).get("value", "")
+            if isinstance(prop.get("value"), dict)
+            else prop.get("value", "")
+        )
     else:
         val = prop.get("value", "")
         out["value"] = val
@@ -156,11 +164,17 @@ def _flat_to_ue5_prop(flat: dict, orig: dict) -> dict:
         orig_raw = orig.get("value", {})
         if arr_type == "StructProperty" and isinstance(flat_val, list):
             converted = []
-            orig_values = orig_raw.get("values", []) if isinstance(orig_raw, dict) else []
+            orig_values = (
+                orig_raw.get("values", []) if isinstance(orig_raw, dict) else []
+            )
             for i, item in enumerate(flat_val):
                 if isinstance(item, list):
                     orig_item = orig_values[i] if i < len(orig_values) else {}
-                    converted.append(_flat_to_ue5_props(item, orig_item if isinstance(orig_item, dict) else {}))
+                    converted.append(
+                        _flat_to_ue5_props(
+                            item, orig_item if isinstance(orig_item, dict) else {}
+                        )
+                    )
                 else:
                     converted.append(item)
             if isinstance(orig_raw, dict):
@@ -227,7 +241,9 @@ async def saveeditor_upload():
             return jsonify({"error": "Invalid zip file"}), 400
 
     if not _is_gvas(raw):
-        return jsonify({"error": "Not a valid GVAS save file (missing GVAS header)"}), 400
+        return jsonify(
+            {"error": "Not a valid GVAS save file (missing GVAS header)"}
+        ), 400
 
     version = _gvas_version(raw)
 
@@ -248,7 +264,9 @@ async def saveeditor_upload():
         try:
             from palworld_save_tools.gvas import GvasFile
         except ImportError:
-            return jsonify({"error": "palworld-save-tools not installed on server"}), 500
+            return jsonify(
+                {"error": "palworld-save-tools not installed on server"}
+            ), 500
         try:
             gvas = GvasFile.read(raw, allow_nan=True)
             header = gvas.header.dump()
@@ -256,12 +274,15 @@ async def saveeditor_upload():
             save_class = header.get("save_game_class_name", "")
             parsed = _ue5_props_to_flat(gvas.properties)
             # Prepend a synthetic header for the frontend
-            parsed.insert(0, {
-                "type": "HeaderProperty",
-                "engine_version": engine_version,
-                "save_game_class_name": save_class,
-                "save_game_version": 3,
-            })
+            parsed.insert(
+                0,
+                {
+                    "type": "HeaderProperty",
+                    "engine_version": engine_version,
+                    "save_game_class_name": save_class,
+                    "save_game_version": 3,
+                },
+            )
             engine_label = f"UE5 ({engine_version})"
         except Exception as e:
             return jsonify({"error": f"Failed to parse UE5 save: {e}"}), 400
@@ -276,19 +297,28 @@ async def saveeditor_upload():
             parsed = sav_to_json(raw_props)
         except Exception as e:
             return jsonify({"error": f"Failed to parse UE4 save: {e}"}), 400
-        hdr = next((p for p in parsed if isinstance(p, dict) and p.get("type") == "HeaderProperty"), None)
+        hdr = next(
+            (
+                p
+                for p in parsed
+                if isinstance(p, dict) and p.get("type") == "HeaderProperty"
+            ),
+            None,
+        )
         engine_version = hdr.get("engine_version", "") if hdr else ""
         engine_label = f"UE4 ({engine_version})" if engine_version else "UE4"
 
     with open(os.path.join(sdir, "meta.json"), "w") as out:
         json.dump({"filename": filename, "version": version}, out)
 
-    return jsonify({
-        "session_id": sid,
-        "filename": filename,
-        "engine": engine_label,
-        "properties": parsed,
-    })
+    return jsonify(
+        {
+            "session_id": sid,
+            "filename": filename,
+            "engine": engine_label,
+            "properties": parsed,
+        }
+    )
 
 
 @saveeditor_bp.route("/saveeditor/save", methods=["POST"])
@@ -326,7 +356,9 @@ async def saveeditor_save():
         try:
             from palworld_save_tools.gvas import GvasFile
         except ImportError:
-            return jsonify({"error": "palworld-save-tools not installed on server"}), 500
+            return jsonify(
+                {"error": "palworld-save-tools not installed on server"}
+            ), 500
         try:
             with open(sav_path, "rb") as sf:
                 original_raw = sf.read()
