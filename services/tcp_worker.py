@@ -15,8 +15,8 @@ import json
 import logging
 import os
 import struct
-import zipfile
 import sys
+import zipfile
 
 from config import WORKER_KEY
 from models import get_db
