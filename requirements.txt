@@ -17,3 +17,4 @@ pyzstd>=0.18.0
 zstandard>=0.25.0
 httpx>=0.28.1
 SavConverter>=0.1.1
+palworld-save-tools>=0.24.0

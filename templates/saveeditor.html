@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Save Editor — UE4{% endblock %}
+{% block title %}UE4/UE5 Save Editor{% endblock %}
 {% block extra_head %}
 <style>
 .se-drop {
@@ -224,9 +224,9 @@
 {% endblock %}
 
 {% block content %}
-<h1>Save Editor <span style="font-size:0.5em; color:var(--text-3); font-weight:400;">UE4 GVAS</span></h1>
+<h1>Save Editor <span style="font-size:0.5em; color:var(--text-3); font-weight:400;">UE4 / UE5 GVAS</span></h1>
 <p style="color:var(--text-2); font-size:0.85rem; margin-bottom:1.5rem;">
-    Upload a UE4 <code>.sav</code> file to view and edit properties. Supports most GVAS property types.
+    Upload a <code>.sav</code> file to view and edit properties. Supports UE4 and UE5 GVAS saves.
 </p>
 
 <div class="se-drop" id="drop-zone">
@@ -261,7 +261,7 @@ const editorEl = document.getElementById('editor');
 const treeEl = document.getElementById('tree');
 const headerEl = document.getElementById('save-header');
 
-let STATE = { sessionId: null, properties: null, filename: '' };
+let STATE = { sessionId: null, properties: null, filename: '', engine: '' };
 
 // Drop zone
 dropZone.addEventListener('click', () => fileInput.click());
@@ -293,6 +293,7 @@ async function upload(file) {
         STATE.sessionId = data.session_id;
         STATE.properties = data.properties;
         STATE.filename = data.filename;
+        STATE.engine = data.engine || '';
         statusEl.innerHTML = '';
         renderEditor();
     } catch (e) {
@@ -308,9 +309,11 @@ function renderEditor() {
     const hdr = STATE.properties.find(p => p.type === 'HeaderProperty');
     let hhtml = '';
     hhtml += `<div class="se-header-item"><div class="label">File</div><div class="value">${esc(STATE.filename)}</div></div>`;
+    if (STATE.engine) {
+        hhtml += `<div class="se-header-item"><div class="label">Engine</div><div class="value">${esc(STATE.engine)}</div></div>`;
+    }
     if (hdr) {
-        hhtml += `<div class="se-header-item"><div class="label">Engine</div><div class="value">UE ${esc(hdr.engine_version || '?')}</div></div>`;
-        hhtml += `<div class="se-header-item"><div class="label">Save Class</div><div class="value">${esc(hdr.save_game_class_name || '?')}</div></div>`;
+        if (hdr.save_game_class_name) hhtml += `<div class="se-header-item"><div class="label">Save Class</div><div class="value">${esc(hdr.save_game_class_name)}</div></div>`;
         hhtml += `<div class="se-header-item"><div class="label">Save Version</div><div class="value">${hdr.save_game_version || '?'}</div></div>`;
     }
     headerEl.innerHTML = hhtml;
@@ -598,7 +601,7 @@ document.getElementById('btn-reset').addEventListener('click', () => {
     editorEl.style.display = 'none';
     dropZone.style.display = '';
     statusEl.innerHTML = '';
-    STATE = { sessionId: null, properties: null, filename: '' };
+    STATE = { sessionId: null, properties: null, filename: '', engine: '' };
     fileInput.value = '';
 });
 
