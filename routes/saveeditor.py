@@ -15,16 +15,17 @@ saveeditor_bp = Blueprint("saveeditor", __name__)
 
 
 def _patch_savconverter():
-    """Fix SavConverter's write_date_time to handle datetimes without microseconds."""
+    """Fix SavConverter bugs: datetime format and GVAS v1 header support."""
     try:
         from datetime import datetime
         from struct import pack
 
         from SavConverter import SavProperties, SavWriter
 
+        # Fix 1: write_date_time doesn't handle datetimes without microseconds
         _orig = SavWriter.write_date_time
 
-        def _patched(date_time_string):
+        def _patched_dt(date_time_string):
             if isinstance(date_time_string, int):
                 return _orig(date_time_string)
             try:
@@ -35,8 +36,9 @@ def _patch_savconverter():
                 ticks = (ts_ms + 62135596800000) * 10000
                 return pack("<Q", ticks)
 
-        SavWriter.write_date_time = _patched
-        SavProperties.write_date_time = _patched
+        SavWriter.write_date_time = _patched_dt
+        SavProperties.write_date_time = _patched_dt
+
     except ImportError:
         pass
 
@@ -246,6 +248,8 @@ async def saveeditor_upload():
         ), 400
 
     version = _gvas_version(raw)
+    if version < 2:
+        return jsonify({"error": "GVAS v1 saves are not yet supported. This is an older UE4 format."}), 400
 
     # Store original file
     sid = uuid.uuid4().hex[:12]
