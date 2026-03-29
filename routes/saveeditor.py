@@ -249,7 +249,11 @@ async def saveeditor_upload():
 
     version = _gvas_version(raw)
     if version < 2:
-        return jsonify({"error": "GVAS v1 saves are not yet supported. This is an older UE4 format."}), 400
+        return jsonify(
+            {
+                "error": "GVAS v1 saves are not yet supported. This is an older UE4 format."
+            }
+        ), 400
 
     # Store original file
     sid = uuid.uuid4().hex[:12]
