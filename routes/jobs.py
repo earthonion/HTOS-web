@@ -141,6 +141,7 @@ async def job_stream(job_id):
 
     async def generate():
         q = job.logger.subscribe()
+        db_log_count = len(job.logger.messages)
         try:
             # Send existing messages first
             for msg in job.logger.messages:
@@ -156,21 +157,32 @@ async def job_stream(job_id):
                 try:
                     msg = await asyncio.wait_for(q.get(), timeout=3)
                     yield f"data: {json.dumps(msg)}\n\n"
+                    db_log_count += 1
                     if msg.get("level") == "STATUS" and msg.get("msg") in (
                         "done",
                         "failed",
                     ):
                         break
                 except asyncio.TimeoutError:
-                    # Check DB for status changes (worker API may be in another process)
+                    # Poll DB for status and new logs (worker may be in another process)
                     db = await get_db()
                     try:
                         cursor = await db.execute(
-                            "SELECT status FROM jobs WHERE id = ?", (job_id,)
+                            "SELECT status, logs FROM jobs WHERE id = ?", (job_id,)
                         )
                         row = await cursor.fetchone()
                     finally:
                         await db.close()
+                    if row and row["logs"]:
+                        db_entries = row["logs"].split("\n")
+                        if len(db_entries) > db_log_count:
+                            for line in db_entries[db_log_count:]:
+                                try:
+                                    entry = json.loads(line)
+                                    yield f"data: {json.dumps(entry)}\n\n"
+                                except (json.JSONDecodeError, ValueError):
+                                    pass
+                            db_log_count = len(db_entries)
                     if row and row["status"] in ("done", "failed"):
                         job.status = row["status"]
                         yield f"data: {json.dumps({'level': 'STATUS', 'msg': row['status']})}\n\n"
