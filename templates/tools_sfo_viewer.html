@@ -210,21 +210,49 @@ function parseSfo(buf) {
 async function extractSfoFromZip(file) {
     const buf = await file.arrayBuffer();
     const dv = new DataView(buf);
-    let off = 0;
-    while (off < buf.byteLength - 30) {
-        if (dv.getUint32(off, true) !== 0x04034b50) break;
-        const compMethod = dv.getUint16(off + 8, true);
-        const compSize = dv.getUint32(off + 18, true);
-        const uncompSize = dv.getUint32(off + 22, true);
-        const nameLen = dv.getUint16(off + 26, true);
-        const extraLen = dv.getUint16(off + 28, true);
-        const nameBytes = new Uint8Array(buf, off + 30, nameLen);
-        const name = new TextDecoder().decode(nameBytes);
-        const dataStart = off + 30 + nameLen + extraLen;
-        if (name.toLowerCase().endsWith('param.sfo') && compMethod === 0) {
-            return buf.slice(dataStart, dataStart + uncompSize);
+
+    for (let i = 0; i < buf.byteLength - 46; i++) {
+        if (dv.getUint32(i, true) === 0x02014b50) {
+            const compMethod = dv.getUint16(i + 10, true);
+            const compSize = dv.getUint32(i + 20, true);
+            const nameLen = dv.getUint16(i + 28, true);
+            const localHeaderOffset = dv.getUint32(i + 42, true);
+
+            if (i + 46 + nameLen > buf.byteLength) continue;
+
+            const nameBytes = new Uint8Array(buf, i + 46, nameLen);
+            const name = new TextDecoder().decode(nameBytes).toLowerCase();
+
+            if (name === 'param.sfo' || name.endsWith('/param.sfo') || name.endsWith('\\param.sfo')) {
+                const lhOff = localHeaderOffset;
+                
+                if (lhOff + 30 <= buf.byteLength && dv.getUint32(lhOff, true) === 0x04034b50) {
+                    const lhNameLen = dv.getUint16(lhOff + 26, true);
+                    const lhExtraLen = dv.getUint16(lhOff + 28, true);
+                    const dataStart = lhOff + 30 + lhNameLen + lhExtraLen;
+
+                    if (dataStart + compSize > buf.byteLength) return null;
+                    
+                    const fileData = buf.slice(dataStart, dataStart + compSize);
+
+                    if (compMethod === 0) {
+                        return fileData;
+                    } else if (compMethod === 8) {
+                        try {
+                            const ds = new DecompressionStream('deflate-raw');
+                            const writer = ds.writable.getWriter();
+                            writer.write(new Uint8Array(fileData));
+                            writer.close();
+                            const response = new Response(ds.readable);
+                            return await response.arrayBuffer();
+                        } catch (e) {
+                            console.error("Decompression failed", e);
+                            return null;
+                        }
+                    }
+                }
+            }
         }
-        off = dataStart + compSize;
     }
     return null;
 }
