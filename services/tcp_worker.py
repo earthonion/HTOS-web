@@ -45,6 +45,7 @@ class TCPWorker:
 
 # ── Protocol framing ──────────────────────────────────────────
 
+
 async def send_msg(writer: asyncio.StreamWriter, data: dict):
     payload = json.dumps(data, separators=(",", ":")).encode()
     writer.write(struct.pack(">I", len(payload)))
@@ -87,6 +88,7 @@ async def recv_file_data(reader: asyncio.StreamReader, dest_path: str, size: int
 
 # ── Worker key validation ──────────────────────────────────────
 
+
 async def _validate_key(key: str) -> bool:
     if WORKER_KEY and hmac.compare_digest(key, WORKER_KEY):
         return True
@@ -125,6 +127,7 @@ async def _update_worker_heartbeat(key: str, platform: str):
 
 
 # ── Job queries ────────────────────────────────────────────────
+
 
 async def _get_next_job(platform: str) -> dict | None:
     """Find next queued job for the given platform and atomically claim it."""
@@ -180,9 +183,7 @@ async def _build_job_zip(job_id: str) -> str | None:
     if not upload_dir or not os.path.isdir(upload_dir):
         return None
 
-    tmp_path = os.path.join(
-        os.path.dirname(upload_dir), f"{job_id}_tcp_worker.zip"
-    )
+    tmp_path = os.path.join(os.path.dirname(upload_dir), f"{job_id}_tcp_worker.zip")
     with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_STORED) as zf:
         for root, _, files in os.walk(upload_dir):
             for f in files:
@@ -212,6 +213,7 @@ def _validate_result_zip(path: str) -> str | None:
 
 
 # ── Status/log handlers (reuse existing SSE + DB logic) ────────
+
 
 async def _handle_log(msg: dict):
     job_id = msg.get("job_id", "")
@@ -257,9 +259,7 @@ async def _handle_status(msg: dict, worker_key: str):
                 fields.append("worker_key_id = ?")
                 values.append(wk_row["id"])
         values.append(job_id)
-        await db.execute(
-            f"UPDATE jobs SET {', '.join(fields)} WHERE id = ?", values
-        )
+        await db.execute(f"UPDATE jobs SET {', '.join(fields)} WHERE id = ?", values)
         if status == "done" and worker_key:
             await db.execute(
                 "UPDATE worker_keys SET jobs_completed = jobs_completed + 1 "
@@ -309,11 +309,7 @@ async def _handle_status(msg: dict, worker_key: str):
                             await db2.commit()
 
                     tid = jp.get("title_id", "")
-                    if (
-                        tid
-                        and jrow["operation"] == "decrypt"
-                        and os.path.exists(rp)
-                    ):
+                    if tid and jrow["operation"] == "decrypt" and os.path.exists(rp):
                         platform = jp.get("platform", "ps4")
                         await maybe_store_sample_from_zip(tid, rp, platform)
             finally:
@@ -386,6 +382,7 @@ async def _handle_result_upload(worker: TCPWorker, msg: dict):
 
 # ── Main client handler ───────────────────────────────────────
 
+
 async def handle_worker(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     addr = writer.get_extra_info("peername")
     log.info("TCP worker connected from %s", addr)
@@ -421,12 +418,15 @@ async def handle_worker(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 job = await _get_next_job(platform)
                 if job:
                     log.info("Dispatching job %s to %s", job["id"], worker)
-                    await send_msg(writer, {
-                        "type": "job",
-                        "id": job["id"],
-                        "operation": job["operation"],
-                        "params": job["params"],
-                    })
+                    await send_msg(
+                        writer,
+                        {
+                            "type": "job",
+                            "id": job["id"],
+                            "operation": job["operation"],
+                            "params": job["params"],
+                        },
+                    )
                     # Update heartbeat
                     await _update_worker_heartbeat(key, platform)
                 else:
@@ -481,6 +481,7 @@ async def handle_worker(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
 
 # ── Proactive job dispatch ─────────────────────────────────────
 
+
 async def notify_job_available(platform: str):
     """Called when a new job is queued. Dispatches to an idle TCP worker if one exists."""
     async with _lock:
@@ -493,12 +494,15 @@ async def notify_job_available(platform: str):
         job = await _get_next_job(platform)
         if job:
             log.info("Proactive dispatch: job %s to %s", job["id"], worker)
-            await send_msg(worker.writer, {
-                "type": "job",
-                "id": job["id"],
-                "operation": job["operation"],
-                "params": job["params"],
-            })
+            await send_msg(
+                worker.writer,
+                {
+                    "type": "job",
+                    "id": job["id"],
+                    "operation": job["operation"],
+                    "params": job["params"],
+                },
+            )
         else:
             # Job was grabbed by someone else, put worker back
             async with _lock:
@@ -508,6 +512,7 @@ async def notify_job_available(platform: str):
 
 
 # ── Server startup ─────────────────────────────────────────────
+
 
 async def start_tcp_server(port: int = 9090):
     server = await asyncio.start_server(handle_worker, "0.0.0.0", port)
