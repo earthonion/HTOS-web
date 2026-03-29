@@ -456,7 +456,7 @@ function buildNode(prop, path) {
                 const mval = document.createElement('span');
                 mval.className = 'se-val';
                 mval.textContent = typeof entry.value === 'object' ? JSON.stringify(entry.value) : String(entry.value);
-                mval.addEventListener('click', () => startEdit(mval, entry, 'value', [...path, 'value', i, 'value']));
+                mval.addEventListener('click', () => startEdit(mval, entry, 'value', [...path, 'value', i]));
                 wrow.appendChild(mval);
                 wrapper.appendChild(wrow);
                 childDiv.appendChild(wrapper);
@@ -519,7 +519,7 @@ function createValueSpan(prop, path) {
 
     span.className = cls;
     span.textContent = display;
-    span.addEventListener('click', () => startEdit(span, prop, 'value', [...path]));
+    span.addEventListener('click', () => startEdit(span, prop, 'value', [...path, 'value']));
     return span;
 }
 
