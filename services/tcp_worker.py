@@ -136,17 +136,12 @@ async def _update_worker_heartbeat(key: str, platform: str):
 
 
 async def _get_next_job(platform: str) -> dict | None:
-    """Find next queued job for the given platform and atomically claim it.
-
-    NOTE: Temporarily restricted to root user only while TCP protocol is tested.
-    """
+    """Find next queued job for the given platform and atomically claim it."""
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT j.id, j.user_id, j.operation, j.params FROM jobs j "
-            "JOIN users u ON j.user_id = u.id "
-            "WHERE j.status = 'queued' AND u.username = 'root' "
-            "ORDER BY j.created_at ASC LIMIT 20"
+            "SELECT id, user_id, operation, params FROM jobs "
+            "WHERE status = 'queued' ORDER BY created_at ASC LIMIT 20"
         )
         rows = await cursor.fetchall()
         for row in rows:
