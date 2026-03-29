@@ -22,6 +22,11 @@ from models import get_db
 from services.jobs import get_or_create_job_logger, push_log
 
 log = logging.getLogger("tcp_worker")
+log.setLevel(logging.DEBUG)
+if not log.handlers:
+    _h = logging.StreamHandler()
+    _h.setFormatter(logging.Formatter("[TCP] %(message)s"))
+    log.addHandler(_h)
 
 # ── Connected worker tracking ──────────────────────────────────
 
@@ -173,12 +178,15 @@ async def _build_job_zip(job_id: str) -> str | None:
         await db.close()
 
     if not row:
+        log.error("_build_job_zip: no row for job %s", job_id)
         return None
 
     params = json.loads(row["params"]) if row["params"] else {}
     upload_dir = params.get("upload_dir") or params.get("saves_dir")
     if params.get("saves_dir"):
         upload_dir = os.path.dirname(params["saves_dir"])
+
+    log.warning("_build_job_zip: job=%s upload_dir=%s isdir=%s", job_id, upload_dir, os.path.isdir(upload_dir) if upload_dir else "N/A")
 
     if not upload_dir or not os.path.isdir(upload_dir):
         return None
