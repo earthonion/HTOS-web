@@ -70,7 +70,12 @@ def _patch_savconverter():
                             child = sav_reader.read_property()
                             el.append(child)
                         self.value.append(el)
-            elif self.subtype in ["ObjectProperty", "EnumProperty", "NameProperty", "StrProperty"]:
+            elif self.subtype in [
+                "ObjectProperty",
+                "EnumProperty",
+                "NameProperty",
+                "StrProperty",
+            ]:
                 content_count = sav_reader.read_uint32()
                 self.value = [sav_reader.read_string() for _ in range(content_count)]
             elif self.subtype in ["IntProperty", "UInt32Property"]:
@@ -81,7 +86,9 @@ def _patch_savconverter():
                 self.value = [sav_reader.read_float32() for _ in range(content_count)]
             elif self.subtype == "BoolProperty":
                 content_count = sav_reader.read_uint32()
-                self.value = [bool(sav_reader.read_bytes(1)[0]) for _ in range(content_count)]
+                self.value = [
+                    bool(sav_reader.read_bytes(1)[0]) for _ in range(content_count)
+                ]
             elif self.subtype == "ByteProperty":
                 self.value = sav_reader.read_bytes(content_size)
             else:
@@ -91,7 +98,13 @@ def _patch_savconverter():
 
         # Fix 3: MapProperty doesn't handle ObjectProperty/SoftObjectProperty keys/values
         _OrigMap = SavProperties.MapProperty
-        _STRING_TYPES = {"StrProperty", "NameProperty", "EnumProperty", "ObjectProperty", "SoftObjectProperty"}
+        _STRING_TYPES = {
+            "StrProperty",
+            "NameProperty",
+            "EnumProperty",
+            "ObjectProperty",
+            "SoftObjectProperty",
+        }
 
         def _patched_map_init(self, name, sav_reader):
             self.name = name
@@ -131,7 +144,9 @@ def _patch_savconverter():
                 elif self.value_type == "BoolProperty":
                     cv = bool(sav_reader.read_bytes(1)[0])
                 else:
-                    raise Exception(f"Map value type not implemented: {self.value_type}")
+                    raise Exception(
+                        f"Map value type not implemented: {self.value_type}"
+                    )
                 self.value.append([ck, cv])
 
         _OrigMap.__init__ = _patched_map_init
@@ -402,7 +417,11 @@ async def saveeditor_upload():
             parsed = sav_to_json(raw_props)
         except Exception as e:
             msg = str(e) or "Unknown parse error"
-            return jsonify({"error": f"Failed to parse save: {msg}. This game may use unsupported property types."}), 400
+            return jsonify(
+                {
+                    "error": f"Failed to parse save: {msg}. This game may use unsupported property types."
+                }
+            ), 400
         hdr = next(
             (
                 p
