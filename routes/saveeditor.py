@@ -16,9 +16,10 @@ saveeditor_bp = Blueprint("saveeditor", __name__)
 def _patch_savconverter():
     """Fix SavConverter's write_date_time to handle datetimes without microseconds."""
     try:
-        from SavConverter import SavWriter
         from datetime import datetime
         from struct import pack
+
+        from SavConverter import SavWriter
 
         _orig = SavWriter.write_date_time
 
@@ -36,6 +37,7 @@ def _patch_savconverter():
         SavWriter.write_date_time = _patched
         # Also patch in SavProperties since it does `from .SavWriter import *`
         from SavConverter import SavProperties
+
         SavProperties.write_date_time = _patched
     except ImportError:
         pass
@@ -92,7 +94,9 @@ async def saveeditor_upload():
             return jsonify({"error": "Invalid zip file"}), 400
 
     if not _is_gvas(raw):
-        return jsonify({"error": "Not a valid UE4 save file (missing GVAS header)"}), 400
+        return jsonify(
+            {"error": "Not a valid UE4 save file (missing GVAS header)"}
+        ), 400
 
     try:
         from SavConverter import read_sav, sav_to_json
@@ -116,11 +120,13 @@ async def saveeditor_upload():
     except Exception as e:
         return jsonify({"error": f"Failed to parse save: {e}"}), 400
 
-    return jsonify({
-        "session_id": sid,
-        "filename": filename,
-        "properties": parsed,
-    })
+    return jsonify(
+        {
+            "session_id": sid,
+            "filename": filename,
+            "properties": parsed,
+        }
+    )
 
 
 @saveeditor_bp.route("/saveeditor/save", methods=["POST"])
