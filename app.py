@@ -35,6 +35,7 @@ def create_app():
     from routes.resign import resign_bp
     from routes.rest_api import rest_bp
     from routes.savedb import savedb_bp
+    from routes.saveeditor import saveeditor_bp
     from routes.tools import tools_bp
 
     app.register_blueprint(auth_bp)
@@ -55,6 +56,7 @@ def create_app():
     app.register_blueprint(admin_web_bp)
     app.register_blueprint(luac0re_bp)
     app.register_blueprint(savedb_bp)
+    app.register_blueprint(saveeditor_bp)
     app.register_blueprint(tools_bp)
 
     @app.errorhandler(400)
@@ -179,6 +181,7 @@ def create_app():
             "workspace/chunks",
             "workspace/savedb",
             "workspace/savedb_samples",
+            "workspace/saveeditor",
         ]:
             os.makedirs(d, exist_ok=True)
 
