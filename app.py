@@ -180,6 +180,14 @@ def create_app():
         ]:
             os.makedirs(d, exist_ok=True)
 
+        # Start TCP direct-connect worker server
+        from config import TCP_WORKER_ENABLED, TCP_WORKER_PORT
+
+        if TCP_WORKER_ENABLED:
+            from services.tcp_worker import start_tcp_server
+
+            app.tcp_server = await start_tcp_server(TCP_WORKER_PORT)
+
     return app
 
 
