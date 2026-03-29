@@ -186,7 +186,11 @@ def create_app():
         if TCP_WORKER_ENABLED:
             from services.tcp_worker import start_tcp_server
 
-            app.tcp_server = await start_tcp_server(TCP_WORKER_PORT)
+            try:
+                app.tcp_server = await start_tcp_server(TCP_WORKER_PORT)
+            except OSError as e:
+                import logging
+                logging.getLogger(__name__).error("TCP worker server failed to start: %s", e)
 
     return app
 
