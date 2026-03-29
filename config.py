@@ -28,6 +28,14 @@ CHUNK_DIR = os.path.join("workspace", "chunks")
 CHUNK_SIZE = 50 * 1024 * 1024  # 50MB
 CHUNK_EXPIRY = 3600  # 1 hour TTL for incomplete uploads
 
+# TCP direct-connect workers
+TCP_WORKER_PORT = int(os.getenv("TCP_WORKER_PORT", "9090"))
+TCP_WORKER_ENABLED = os.getenv("TCP_WORKER_ENABLED", "1").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+
 # Paths
 UPLOAD_DIR = os.path.join("workspace", "uploads")
 RESULT_DIR = os.path.join("workspace", "results")

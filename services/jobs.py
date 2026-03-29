@@ -142,6 +142,17 @@ async def create_job(
     job = Job(job_id, user_id, operation, params)
     job.status = status
     _jobs[job_id] = job
+
+    # Notify TCP workers that a job is available
+    if ready:
+        try:
+            from services.tcp_worker import notify_job_available
+
+            platform = (params or {}).get("platform", "ps4")
+            asyncio.ensure_future(notify_job_available(platform))
+        except Exception:
+            pass
+
     return job
 
 
