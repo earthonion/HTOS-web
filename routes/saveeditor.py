@@ -39,6 +39,103 @@ def _patch_savconverter():
         SavWriter.write_date_time = _patched_dt
         SavProperties.write_date_time = _patched_dt
 
+        # Fix 2: ArrayProperty rejects non-zero unknown/GUID bytes in struct arrays
+        _OrigArray = SavProperties.ArrayProperty
+
+        def _patched_array_init(self, name, sav_reader):
+            self.type = "ArrayProperty"
+            self.name = name
+            content_size = sav_reader.read_uint32()
+            sav_reader.read_bytes(4)
+            self.subtype = sav_reader.read_string()
+            sav_reader.read_bytes(1)
+
+            if self.subtype == "StructProperty":
+                content_count = sav_reader.read_uint32()
+                sav_reader.read_string()  # name_again
+                sav_reader.read_string()  # subtype_again
+                sav_reader.read_uint32()  # arraySize
+                sav_reader.read_bytes(4)  # padding
+                self.generic_type = sav_reader.read_string()
+                self.unknown = sav_reader.read_bytes(17)  # store instead of validating
+                self.value = []
+                if self.generic_type == "Guid":
+                    for _ in range(content_count):
+                        self.value.append(sav_reader.read_bytes(16))
+                else:
+                    for _ in range(content_count):
+                        el = []
+                        child = None
+                        while not isinstance(child, SavProperties.NoneProperty):
+                            child = sav_reader.read_property()
+                            el.append(child)
+                        self.value.append(el)
+            elif self.subtype in ["ObjectProperty", "EnumProperty", "NameProperty", "StrProperty"]:
+                content_count = sav_reader.read_uint32()
+                self.value = [sav_reader.read_string() for _ in range(content_count)]
+            elif self.subtype in ["IntProperty", "UInt32Property"]:
+                content_count = sav_reader.read_uint32()
+                self.value = [sav_reader.read_int32() for _ in range(content_count)]
+            elif self.subtype == "FloatProperty":
+                content_count = sav_reader.read_uint32()
+                self.value = [sav_reader.read_float32() for _ in range(content_count)]
+            elif self.subtype == "BoolProperty":
+                content_count = sav_reader.read_uint32()
+                self.value = [bool(sav_reader.read_bytes(1)[0]) for _ in range(content_count)]
+            elif self.subtype == "ByteProperty":
+                self.value = sav_reader.read_bytes(content_size)
+            else:
+                self.value = sav_reader.read_bytes(content_size)
+
+        _OrigArray.__init__ = _patched_array_init
+
+        # Fix 3: MapProperty doesn't handle ObjectProperty/SoftObjectProperty keys/values
+        _OrigMap = SavProperties.MapProperty
+        _STRING_TYPES = {"StrProperty", "NameProperty", "EnumProperty", "ObjectProperty", "SoftObjectProperty"}
+
+        def _patched_map_init(self, name, sav_reader):
+            self.name = name
+            self.type = "MapProperty"
+            sav_reader.read_uint32()  # contentSize
+            sav_reader.read_bytes(4)
+            self.key_type = sav_reader.read_string()
+            self.value_type = sav_reader.read_string()
+            sav_reader.read_bytes(1)
+            self.value = []
+            sav_reader.read_bytes(4)
+            content_count = sav_reader.read_uint32()
+
+            for _ in range(content_count):
+                # Read key
+                if self.key_type == "StructProperty":
+                    ck = sav_reader.read_bytes(16)
+                elif self.key_type == "IntProperty":
+                    ck = sav_reader.read_int32()
+                elif self.key_type in _STRING_TYPES:
+                    ck = sav_reader.read_string()
+                else:
+                    raise Exception(f"Map key type not implemented: {self.key_type}")
+                # Read value
+                if self.value_type == "StructProperty":
+                    cv = []
+                    prop = None
+                    while not isinstance(prop, SavProperties.NoneProperty):
+                        prop = sav_reader.read_property()
+                        cv.append(prop)
+                elif self.value_type == "IntProperty":
+                    cv = sav_reader.read_int32()
+                elif self.value_type == "FloatProperty":
+                    cv = sav_reader.read_float32()
+                elif self.value_type in _STRING_TYPES:
+                    cv = sav_reader.read_string()
+                elif self.value_type == "BoolProperty":
+                    cv = bool(sav_reader.read_bytes(1)[0])
+                else:
+                    raise Exception(f"Map value type not implemented: {self.value_type}")
+                self.value.append([ck, cv])
+
+        _OrigMap.__init__ = _patched_map_init
+
     except ImportError:
         pass
 
@@ -304,7 +401,8 @@ async def saveeditor_upload():
             raw_props = read_sav(sav_path)
             parsed = sav_to_json(raw_props)
         except Exception as e:
-            return jsonify({"error": f"Failed to parse UE4 save: {e}"}), 400
+            msg = str(e) or "Unknown parse error"
+            return jsonify({"error": f"Failed to parse save: {msg}. This game may use unsupported property types."}), 400
         hdr = next(
             (
                 p
