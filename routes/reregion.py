@@ -90,7 +90,10 @@ async def reregion():
                 shutil.rmtree(chunk_dir, ignore_errors=True)
         else:
             for f in saves:
-                await f.save(os.path.join(saves_dir, f.filename))
+                if not f.filename or f.filename.endswith("/"):
+                    continue
+                dest = os.path.join(saves_dir, os.path.basename(f.filename))
+                await f.save(dest)
 
         if sample_upload_ids_json:
             for uid in json.loads(sample_upload_ids_json):
@@ -105,7 +108,10 @@ async def reregion():
                 shutil.rmtree(chunk_dir, ignore_errors=True)
         else:
             for f in sample_files:
-                await f.save(os.path.join(sample_dir, f.filename))
+                if not f.filename or f.filename.endswith("/"):
+                    continue
+                dest = os.path.join(sample_dir, os.path.basename(f.filename))
+                await f.save(dest)
 
         platform = detect_platform_in_dir(saves_dir)
 
