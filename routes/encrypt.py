@@ -106,7 +106,7 @@ async def encrypt():
         if is_folder_upload:
             # Folder upload: save files preserving relative paths
             for f in folder_files:
-                if not f.filename:
+                if not f.filename or f.filename.endswith("/"):
                     continue
                 dest = os.path.join(extract_dir, f.filename)
                 os.makedirs(os.path.dirname(dest), exist_ok=True)
