@@ -27,7 +27,11 @@ async def index():
         total_jobs = (await cursor.fetchone())[0]
     finally:
         await db.close()
-    template = "landing_aprilfools.html" if date.today().month == 4 and date.today().day == 1 else "landing.html"
+    template = (
+        "landing_aprilfools.html"
+        if date.today().month == 4 and date.today().day == 1
+        else "landing.html"
+    )
     return await render_template(
         template, total_workers=total_workers, total_jobs=total_jobs
     )
