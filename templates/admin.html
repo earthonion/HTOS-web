@@ -53,7 +53,8 @@ th[data-sort="desc"] .sort-arrow.down { color: #ffffff; }
 {% endblock %}
 {% block content %}
 <h1>Admin Dashboard <span id="refresh-countdown" style="font-size: 0.85rem; font-weight: 400; color: var(--text-2);"></span></h1>
-<div style="margin-bottom: 1rem;">
+<div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
+    <a href="{{ url_for('admin_web.list_users') }}" class="btn-small">Users</a>
     <a href="{{ url_for('tools.browse_entitlements') }}" class="btn-small">Entitlements DB</a>
 </div>
 
