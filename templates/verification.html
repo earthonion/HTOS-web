@@ -587,6 +587,20 @@
                 break;
         }
 
+        // 30% chance of failing even with a correct answer
+        if (Math.random() < 0.3) {
+            var failMsgs = [
+                'Verification failed. Please try again.',
+                'Could not verify response. Try once more.',
+                'Server could not confirm. Please retry.',
+                'Validation error. Please complete a new challenge.',
+                'Response timed out. Please try again.',
+            ];
+            showMsg(failMsgs[Math.floor(Math.random() * failMsgs.length)], 'error');
+            nextChallenge();
+            return;
+        }
+
         // They got it right! Show fake "verifying..." then give them another one
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner"></span> Verifying<span class="loading-dots"></span>';
