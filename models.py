@@ -136,6 +136,7 @@ MIGRATIONS = [
     "ALTER TABLE sample_saves ADD COLUMN strings_output TEXT DEFAULT ''",
     "ALTER TABLE sample_saves ADD COLUMN xxd_output TEXT DEFAULT ''",
     "ALTER TABLE sample_saves ADD COLUMN entropy_output TEXT DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN banned BOOLEAN DEFAULT 0",
 ]
 
 

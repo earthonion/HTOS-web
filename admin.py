@@ -26,16 +26,47 @@ async def list_users():
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT id, username, created_at FROM users ORDER BY id"
+            "SELECT id, username, created_at, banned FROM users ORDER BY id"
         )
         rows = await cursor.fetchall()
         if not rows:
             print("No users.")
             return
-        print(f"{'ID':<6}{'Username':<20}{'Created'}")
-        print("-" * 50)
+        print(f"{'ID':<6}{'Username':<20}{'Status':<10}{'Created'}")
+        print("-" * 60)
         for r in rows:
-            print(f"{r['id']:<6}{r['username']:<20}{r['created_at']}")
+            status = "BANNED" if r["banned"] else "active"
+            print(f"{r['id']:<6}{r['username']:<20}{status:<10}{r['created_at']}")
+    finally:
+        await db.close()
+
+
+async def ban_user(username):
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "UPDATE users SET banned = 1 WHERE username = ?", (username,)
+        )
+        await db.commit()
+        if cursor.rowcount == 0:
+            print(f"User '{username}' not found.")
+        else:
+            print(f"User '{username}' has been banned.")
+    finally:
+        await db.close()
+
+
+async def unban_user(username):
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "UPDATE users SET banned = 0 WHERE username = ?", (username,)
+        )
+        await db.commit()
+        if cursor.rowcount == 0:
+            print(f"User '{username}' not found.")
+        else:
+            print(f"User '{username}' has been unbanned.")
     finally:
         await db.close()
 
@@ -435,6 +466,12 @@ def main():
     p = sub.add_parser("deluser", help="Delete a user and all their data")
     p.add_argument("username")
 
+    p = sub.add_parser("ban", help="Ban a user")
+    p.add_argument("username")
+
+    p = sub.add_parser("unban", help="Unban a user")
+    p.add_argument("username")
+
     # Keys
     p = sub.add_parser("keys", help="List worker keys")
     p.add_argument("--user", default=None, help="Filter by username")
@@ -483,6 +520,8 @@ def main():
         "passwd": lambda: change_password(args.username, args.password),
         "reset-user": lambda: reset_user(args.username),
         "deluser": lambda: delete_user(args.username),
+        "ban": lambda: ban_user(args.username),
+        "unban": lambda: unban_user(args.username),
         "keys": lambda: list_keys(args.user),
         "revoke": lambda: revoke_key(args.key_id),
         "revoke-all": lambda: revoke_all_keys(args.username),
@@ -507,6 +546,8 @@ def main():
     users                         List all users
     passwd <username> <password>  Change a user's password
     reset-user <username>         Generate a password reset link
+    ban <username>                Ban a user (blocks login and access)
+    unban <username>              Unban a user
     deluser <username>            Delete user and all their data
 
   Worker Keys:
