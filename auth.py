@@ -41,6 +41,19 @@ def login_required(f):
     async def decorated(*args, **kwargs):
         if "user_id" not in session:
             return redirect(url_for("auth.login"))
+        # Check if user is banned
+        db = await get_db()
+        try:
+            cursor = await db.execute(
+                "SELECT banned FROM users WHERE id = ?", (session["user_id"],)
+            )
+            row = await cursor.fetchone()
+            if not row or row["banned"]:
+                session.clear()
+                await flash("Your account has been banned.", "error")
+                return redirect(url_for("auth.login"))
+        finally:
+            await db.close()
         return await f(*args, **kwargs)
 
     return decorated
@@ -181,13 +194,17 @@ async def login():
         db = await get_db()
         try:
             cursor = await db.execute(
-                "SELECT id, password_hash, is_admin FROM users WHERE username = ?",
+                "SELECT id, password_hash, is_admin, banned FROM users WHERE username = ?",
                 (username,),
             )
             row = await cursor.fetchone()
             if not row or not check_password(password, row["password_hash"]):
                 _record_attempt(client_ip)
                 await flash("Invalid username or password.", "error")
+                return await render_template("login.html")
+
+            if row["banned"]:
+                await flash("Your account has been banned.", "error")
                 return await render_template("login.html")
 
             session["user_id"] = row["id"]
