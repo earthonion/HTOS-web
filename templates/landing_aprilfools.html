@@ -1,0 +1,565 @@
+{% extends "base.html" %}
+{% block title %}The Church of the Holy Clove{% endblock %}
+{% block extra_head %}
+<style>
+@keyframes floatUp {
+    0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateY(-100vh) rotate(360deg); opacity: 0; }
+}
+@keyframes pulse-glow {
+    0%, 100% { filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.3)); }
+    50% { filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.6)); }
+}
+@keyframes halo-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+@keyframes scripture-fade {
+    0%, 100% { opacity: 0; transform: translateY(8px); }
+    15%, 85% { opacity: 1; transform: translateY(0); }
+}
+
+.garlic-bg {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+}
+.garlic-bg .clove {
+    position: absolute;
+    bottom: -40px;
+    font-size: 1.5rem;
+    animation: floatUp linear infinite;
+    opacity: 0;
+}
+
+.landing-hero {
+    text-align: center;
+    padding: 3rem 0 2rem;
+    position: relative;
+    z-index: 1;
+}
+
+.garlic-icon-wrapper {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 1.5rem;
+}
+.garlic-icon-wrapper img {
+    width: 96px;
+    height: 96px;
+    animation: pulse-glow 3s ease-in-out infinite;
+}
+.halo-ring {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 110px;
+    height: 110px;
+    border: 2px solid rgba(255, 215, 0, 0.2);
+    border-top-color: rgba(255, 215, 0, 0.6);
+    border-radius: 50%;
+    animation: halo-spin 8s linear infinite;
+}
+
+.landing-hero h1 {
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-size: 2.4rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    margin-bottom: 0.5rem;
+}
+.landing-hero h1 span {
+    background: linear-gradient(135deg, #ffd700, #ff8c00, #ffd700);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.landing-hero .subtitle {
+    font-size: 1rem;
+    color: var(--text-2);
+    max-width: 540px;
+    margin: 0 auto 0.5rem;
+    line-height: 1.7;
+}
+.scripture-scroll {
+    font-style: italic;
+    color: #daa520;
+    font-size: 0.88rem;
+    min-height: 2em;
+    margin: 1rem auto;
+    max-width: 480px;
+    animation: scripture-fade 8s ease-in-out infinite;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    margin: 1.5rem 0;
+    flex-wrap: wrap;
+}
+.stat-item { text-align: center; }
+.stat-num {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #ffd700;
+    display: block;
+}
+.stat-label {
+    font-size: 0.72rem;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.landing-cta {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 1.5rem;
+}
+.landing-cta .btn {
+    background: linear-gradient(135deg, #daa520, #b8860b) !important;
+    color: #1a1200 !important;
+    font-weight: 700;
+    border: none;
+}
+.landing-cta .btn:hover {
+    background: linear-gradient(135deg, #ffd700, #daa520) !important;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+}
+.landing-cta .btn-outline {
+    background: transparent !important;
+    border: 1px solid rgba(218, 165, 32, 0.4);
+    color: #daa520 !important;
+}
+.landing-cta .btn-outline:hover {
+    border-color: #ffd700;
+    color: #ffd700 !important;
+    background: rgba(255, 215, 0, 0.05) !important;
+    box-shadow: none;
+}
+
+.tenets-section {
+    margin: 2.5rem 0;
+    position: relative;
+    z-index: 1;
+}
+.tenets-section h2 {
+    text-align: center;
+    margin-bottom: 0.3rem;
+    color: #ffd700;
+}
+.tenets-section .sect-sub {
+    text-align: center;
+    color: var(--text-3);
+    font-size: 0.78rem;
+    margin-bottom: 1.25rem;
+    font-style: italic;
+}
+.tenet {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+.tenet-num {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: rgba(218, 165, 32, 0.12);
+    border: 1px solid rgba(218, 165, 32, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #daa520;
+}
+.tenet-content h3 {
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+    color: var(--text-1);
+}
+.tenet-content p {
+    font-size: 0.82rem;
+    color: var(--text-2);
+    margin-bottom: 0;
+    line-height: 1.6;
+}
+
+.how-it-works {
+    margin: 2rem 0;
+    position: relative;
+    z-index: 1;
+}
+.how-it-works h2 {
+    text-align: center;
+    margin-bottom: 1.25rem;
+    color: #ffd700;
+}
+.step-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.step {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+}
+.step-num {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(218, 165, 32, 0.12);
+    border: 1px solid rgba(218, 165, 32, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #daa520;
+}
+.step-content h3 {
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+}
+.step-content p {
+    font-size: 0.82rem;
+    color: var(--text-2);
+    margin-bottom: 0;
+}
+
+.faq-section {
+    margin: 2rem 0 1rem;
+    position: relative;
+    z-index: 1;
+}
+.faq-section h2 {
+    text-align: center;
+    margin-bottom: 1.25rem;
+    color: #ffd700;
+}
+.faq-item {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+}
+.faq-item summary {
+    padding: 0.85rem 1rem;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-1);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary::before {
+    content: '+';
+    color: #daa520;
+    font-size: 1rem;
+    font-weight: 400;
+    flex-shrink: 0;
+    width: 1rem;
+    text-align: center;
+}
+.faq-item[open] summary::before { content: '-'; }
+.faq-item .faq-body {
+    padding: 0 1rem 1rem 2.5rem;
+    font-size: 0.82rem;
+    color: var(--text-2);
+    line-height: 1.7;
+}
+
+.community-section {
+    text-align: center;
+    margin: 2rem 0 1rem;
+    position: relative;
+    z-index: 1;
+}
+.community-section p {
+    font-size: 0.88rem;
+}
+
+.free-tools h2 {
+    color: #ffd700;
+}
+.free-tools .card:hover {
+    border-color: rgba(218, 165, 32, 0.4);
+}
+
+@media (max-width: 768px) {
+    .landing-hero { padding: 1.5rem 0 1rem; }
+    .landing-hero h1 { font-size: 1.5rem; }
+    .stat-row { gap: 1.25rem; }
+    .garlic-icon-wrapper img { width: 72px; height: 72px; }
+    .halo-ring { width: 85px; height: 85px; }
+}
+</style>
+{% endblock %}
+{% block content %}
+
+<!-- Floating garlic cloves background -->
+<div class="garlic-bg" id="garlic-bg"></div>
+
+<div class="landing-hero">
+    <div class="garlic-icon-wrapper">
+        <div class="halo-ring"></div>
+        <img src="{{ url_for('static', filename='favicon.svg') }}" alt="The Holy Clove">
+    </div>
+    <h1>The <span>Garlic</span> Saves</h1>
+    <p class="subtitle">
+        For centuries, the pungent truth has been suppressed. Today, the Holy Clove reveals itself.
+        Come forth, children of the bulb — your saves shall be decrypted, your accounts resigned,
+        and your regions transformed. For Garlic saves all.
+    </p>
+    <div class="scripture-scroll" id="scripture"></div>
+    <div class="stat-row">
+        <div class="stat-item">
+            <span class="stat-num">{{ total_workers }}</span>
+            <span class="stat-label">Disciples Online</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-num">{{ total_jobs }}</span>
+            <span class="stat-label">Souls Saved</span>
+        </div>
+    </div>
+    <div class="landing-cta">
+        <a href="{{ url_for('auth.register') }}" class="btn">Join the Congregation</a>
+        <a href="{{ url_for('auth.login') }}" class="btn btn-outline">Return to the Fold</a>
+    </div>
+</div>
+
+<div class="tenets-section">
+    <h2>The Sacred Tenets</h2>
+    <p class="sect-sub">As inscribed upon the First Clove, preserved in the Holy Bulb</p>
+    <div class="step-list">
+        <div class="tenet">
+            <div class="tenet-num">I</div>
+            <div class="tenet-content">
+                <h3>Thou Shalt Not Let Thy Saves Expire</h3>
+                <p>A save file is a sacred vessel containing hours of devotion. To lose one is sin. To back one up is prayer. To decrypt one is enlightenment.</p>
+            </div>
+        </div>
+        <div class="tenet">
+            <div class="tenet-num">II</div>
+            <div class="tenet-content">
+                <h3>The Sealed Key Shall Be Unsealed</h3>
+                <p>No corporation shall stand between a believer and their data. The AES-CBC chains that bind thy saves are but mortal constructs. The Clove dissolves all encryption.</p>
+            </div>
+        </div>
+        <div class="tenet">
+            <div class="tenet-num">III</div>
+            <div class="tenet-content">
+                <h3>All Accounts Are One Under Garlic</h3>
+                <p>The resign is the holiest sacrament. Through it, a save transcends its original vessel and is reborn into a new account. As the cloves separate yet remain one bulb, so too do our profiles.</p>
+            </div>
+        </div>
+        <div class="tenet">
+            <div class="tenet-num">IV</div>
+            <div class="tenet-content">
+                <h3>Contribute Thy Console to the Collective</h3>
+                <p>The faithful donate their PS4s and PS5s as worker consoles — tireless silicon monks processing the prayers of the congregation, day and night, asking nothing in return.</p>
+            </div>
+        </div>
+        <div class="tenet">
+            <div class="tenet-num">V</div>
+            <div class="tenet-content">
+                <h3>Spread the Aroma of Open Source</h3>
+                <p>The sacred texts (source code) shall never be hidden. All tools, all knowledge, all cloves — freely shared on GitHub, as the Garlic intended.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="how-it-works">
+    <h2>The Path to Salvation</h2>
+    <div class="step-list">
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+                <h3>Present thy offering</h3>
+                <p>Extract the sacred save file from thy console via the holy FTP protocol and lay it upon the altar (the upload form). Both PS4 and PS5 offerings are accepted — the Garlic does not discriminate.</p>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-content">
+                <h3>Declare thy intention</h3>
+                <p>Choose the ritual you seek — decryption to reveal hidden truths, encryption to protect the worthy, resignation to grant new life, or re-regioning to transcend earthly borders.</p>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-content">
+                <h3>A disciple answers the call</h3>
+                <p>Your prayer enters the queue and is answered by a consecrated PlayStation console — a real machine running Sony's own system libraries, blessed by the Clove. No emulation. No heresy.</p>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-content">
+                <h3>Receive the blessing</h3>
+                <p>Within seconds, your processed save descends from the cloud. FTP it back to your console and bask in the warm, aromatic glow of salvation.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="how-it-works free-tools">
+    <h2>Sacred Relics</h2>
+    <p style="text-align:center; color:var(--text-2); margin-bottom:1.25rem; font-style:italic;">Free to all — no initiation required</p>
+    <div style="display:flex; flex-wrap:wrap; gap:1rem; justify-content:center;">
+        <a href="{{ url_for('tools.title_lookup') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:340px; padding:1.25rem;">
+            <h3 style="margin:0 0 0.4rem;">Title ID Lookup</h3>
+            <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Search 67,000+ PlayStation titles in the Holy Registry by game name or title ID.</p>
+        </a>
+        <a href="{{ url_for('tools.fs_browser') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:340px; padding:1.25rem;">
+            <h3 style="margin:0 0 0.4rem;">Filesystem Browser</h3>
+            <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Explore the sacred inner filesystem of PS4 and PS5 — every file, every directory, revealed.</p>
+        </a>
+        <a href="{{ url_for('tools.sfo_viewer') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:340px; padding:1.25rem;">
+            <h3 style="margin:0 0 0.4rem;">param.sfo Viewer</h3>
+            <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Peer into the soul of any param.sfo — title, ID, category, version, all laid bare.</p>
+        </a>
+        <a href="{{ url_for('tools.function_lookup') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:340px; padding:1.25rem;">
+            <h3 style="margin:0 0 0.4rem;">Function Lookup</h3>
+            <p style="font-size:0.82rem; color:var(--text-2); margin:0;">18,000+ Sony system functions — the forbidden knowledge, indexed and searchable.</p>
+        </a>
+        <a href="{{ url_for('tools.entitlements') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:340px; padding:1.25rem;">
+            <h3 style="margin:0 0 0.4rem;">Entitlement Dumper</h3>
+            <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Extract divine game titles and package URLs from your entitlement.db — all client-side, as Garlic wills.</p>
+        </a>
+    </div>
+</div>
+
+<div class="faq-section">
+    <h2>Questions from the Uninitiated</h2>
+
+    <details class="faq-item">
+        <summary>Is this actually a religion?</summary>
+        <div class="faq-body">
+            The Garlic neither confirms nor denies. What we can confirm is that your PS4 and PS5 saves will be processed with the devotion and care that only a consecrated worker console can provide. Also it's April 1st.
+        </div>
+    </details>
+
+    <details class="faq-item">
+        <summary>What do I need to receive salvation?</summary>
+        <div class="faq-body">
+            A jailbroken PS4 or PS5 with FTP access, and a free account in our congregation. The Clove asks for no tithes — this service is entirely free, sustained by the faithful who donate their consoles as workers.
+        </div>
+    </details>
+
+    <details class="faq-item">
+        <summary>Which firmware versions are blessed?</summary>
+        <div class="faq-body">
+            For PS4, any jailbreakable firmware up to 13.00 has received the Clove's blessing. For PS5, firmware versions up to 10.01 are within the fold. The worker consoles handle all the sacred crypto, so your save need not match the worker's firmware.
+        </div>
+    </details>
+
+    <details class="faq-item">
+        <summary>How does the worker system actually work?</summary>
+        <div class="faq-body">
+            The faithful volunteer their jailbroken consoles as worker monks. These tireless machines run in the background, picking up jobs from the queue and processing saves using Sony's actual system libraries. It's a distributed monastery of PlayStations, humming with purpose.
+        </div>
+    </details>
+
+    <details class="faq-item">
+        <summary>Can I use saves from another believer's account?</summary>
+        <div class="faq-body">
+            That is the very essence of the Resign sacrament. Upload the save, enter your own account ID, and the save is reborn — re-signed so your console recognizes it as your own. The Garlic knows no borders between accounts.
+        </div>
+    </details>
+
+    <details class="faq-item">
+        <summary>What if no disciples are online?</summary>
+        <div class="faq-body">
+            Your prayer remains in the queue, patiently awaiting a disciple. The Garlic tests the faithful with patience. Usually a worker comes online within minutes, but during the quiet hours, the wait may be longer. Check the dashboard for real-time worker status.
+        </div>
+    </details>
+
+    <details class="faq-item">
+        <summary>How can I become a disciple (worker)?</summary>
+        <div class="faq-body">
+            If you possess a jailbroken PS4 or PS5 that walks the earth with an internet connection, you can ordain it as a worker. Create an account, visit the Contribute page for your worker key, and follow the sacred installation rites. Your console will serve the congregation while you use it normally — truly selfless.
+        </div>
+    </details>
+</div>
+
+<div class="community-section">
+    <h2>The Sacred Texts Are Open</h2>
+    <p>
+        Garlic Saves is fully open source — as the First Clove commanded.
+        The worker code, the server, the save tools — all freely given on
+        <a href="https://github.com/earthonion" target="_blank" style="color: #daa520;">GitHub</a>.
+        Built by the homebrew community. Blessed by the bulb.
+    </p>
+    <div style="display: flex; justify-content: center; margin-top: 1rem;">
+        <iframe src="https://github.com/sponsors/earthonion/card" title="Sponsor earthonion" height="115" width="600" style="border: 0;"></iframe>
+    </div>
+</div>
+
+<script>
+(function() {
+    // Floating garlic cloves
+    var bg = document.getElementById('garlic-bg');
+    var cloves = ['🧄', '🧄', '🧄', '🌿', '✨'];
+    function spawnClove() {
+        var el = document.createElement('span');
+        el.className = 'clove';
+        el.textContent = cloves[Math.floor(Math.random() * cloves.length)];
+        el.style.left = Math.random() * 100 + '%';
+        el.style.animationDuration = (Math.random() * 10 + 12) + 's';
+        el.style.animationDelay = '0s';
+        el.style.fontSize = (Math.random() * 1 + 1) + 'rem';
+        el.style.opacity = '0';
+        bg.appendChild(el);
+        setTimeout(function() { el.remove(); }, 22000);
+    }
+    for (var i = 0; i < 8; i++) setTimeout(spawnClove, i * 800);
+    setInterval(spawnClove, 2500);
+
+    // Rotating scripture quotes
+    var scriptures = [
+        '"And on the seventh day, Garlic said: Let there be decryption." — Book of Cloves 1:7',
+        '"Blessed are the save modders, for they shall inherit the leaderboards." — Allium 3:16',
+        '"The sealed key is but a test of faith. The faithful shall unseal it." — Psalms of PFS 4:2',
+        '"Go forth and resign, for no account is bound eternally." — The Gospel of HMAC-SHA256',
+        '"Where two or three saves are gathered, there am I in the midst of them." — Garlicinthians 18:20',
+        '"Give a man a save and he plays for a day. Teach him to decrypt and he plays forever." — Proverbs of the Bulb',
+        '"Fear not the firmware update, for the jailbreak shall return." — Revelations 9:03',
+        '"In the beginning was the Clove, and the Clove was with FTP, and the Clove was good." — Genesis of Saves 1:1',
+        '"Thou shalt not covet thy neighbor\'s account ID, but thou mayest resign unto thine own." — Commandment III',
+        '"And the Garlic looked upon the open source, and saw that it was pungent and good." — Acts of the Workers 2:4',
+    ];
+    var scriptureEl = document.getElementById('scripture');
+    var idx = Math.floor(Math.random() * scriptures.length);
+    scriptureEl.textContent = scriptures[idx];
+    setInterval(function() {
+        idx = (idx + 1) % scriptures.length;
+        scriptureEl.style.animation = 'none';
+        scriptureEl.offsetHeight;
+        scriptureEl.textContent = scriptures[idx];
+        scriptureEl.style.animation = 'scripture-fade 8s ease-in-out infinite';
+    }, 8000);
+})();
+</script>
+
+{% endblock %}
