@@ -7,6 +7,7 @@ from quart import (
     Blueprint,
     abort,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -49,9 +50,7 @@ def login_required(f):
             )
             row = await cursor.fetchone()
             if not row or row["banned"]:
-                session.clear()
-                await flash("Your account has been banned.", "error")
-                return redirect(url_for("auth.login"))
+                return redirect(url_for("auth.verification"))
         finally:
             await db.close()
         return await f(*args, **kwargs)
@@ -203,13 +202,13 @@ async def login():
                 await flash("Invalid username or password.", "error")
                 return await render_template("login.html")
 
-            if row["banned"]:
-                await flash("Your account has been banned.", "error")
-                return await render_template("login.html")
-
             session["user_id"] = row["id"]
             session["username"] = username
             session["is_admin"] = bool(row["is_admin"])
+
+            if row["banned"]:
+                return redirect(url_for("auth.verification"))
+
             return redirect(url_for("main.dashboard"))
         finally:
             await db.close()
@@ -278,6 +277,30 @@ async def reset_password(token):
         return redirect(url_for("auth.login"))
 
     return await render_template("reset_password.html", username=target["username"])
+
+
+@auth_bp.route("/verification")
+async def verification():
+    if "user_id" not in session:
+        return redirect(url_for("auth.login"))
+    return await render_template("verification.html")
+
+
+@auth_bp.route("/verification/check", methods=["POST"])
+async def verification_check():
+    """Always returns another challenge. There is no escape."""
+    import random
+
+    challenges = [
+        "We detected unusual activity. Please complete this additional step.",
+        "Verification incomplete. One more step required.",
+        "Almost there! Please verify you are human.",
+        "Security check required. Please complete the challenge.",
+        "Additional verification needed for your account.",
+        "Your session requires re-verification.",
+        "One more security check before we can proceed.",
+    ]
+    return jsonify({"ok": False, "message": random.choice(challenges)})
 
 
 @auth_bp.route("/logout", methods=["POST"])
