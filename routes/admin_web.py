@@ -277,3 +277,90 @@ async def reset_user():
         await db.close()
 
     return jsonify({"ok": True, "url": f"/reset/{token}"})
+
+
+@admin_web_bp.route("/admin/users")
+@admin_required
+async def list_users():
+    q = request.args.get("q", "").strip()
+    page = int(request.args.get("page", "1"))
+    per_page = 50
+
+    db = await get_db()
+    try:
+        if q:
+            like = f"%{q}%"
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM users WHERE username LIKE ?", (like,)
+            )
+            total = (await cursor.fetchone())[0]
+            cursor = await db.execute(
+                "SELECT id, username, created_at, banned FROM users "
+                "WHERE username LIKE ? ORDER BY id DESC LIMIT ? OFFSET ?",
+                (like, per_page, (page - 1) * per_page),
+            )
+        else:
+            cursor = await db.execute("SELECT COUNT(*) FROM users")
+            total = (await cursor.fetchone())[0]
+            cursor = await db.execute(
+                "SELECT id, username, created_at, banned FROM users "
+                "ORDER BY id DESC LIMIT ? OFFSET ?",
+                (per_page, (page - 1) * per_page),
+            )
+        users = [dict(r) for r in await cursor.fetchall()]
+    finally:
+        await db.close()
+
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    return await render_template(
+        "admin_users.html",
+        users=users,
+        q=q,
+        page=page,
+        total_pages=total_pages,
+        total=total,
+    )
+
+
+@admin_web_bp.route("/admin/ban-user", methods=["POST"])
+@admin_required
+async def ban_user():
+    data = await request.get_json()
+    username = (data or {}).get("username", "").strip()
+    if not username:
+        return jsonify({"ok": False, "error": "Username required"}), 400
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "UPDATE users SET banned = 1 WHERE username = ?", (username,)
+        )
+        await db.commit()
+        if cursor.rowcount == 0:
+            return jsonify({"ok": False, "error": f"User '{username}' not found"}), 404
+    finally:
+        await db.close()
+
+    return jsonify({"ok": True})
+
+
+@admin_web_bp.route("/admin/unban-user", methods=["POST"])
+@admin_required
+async def unban_user():
+    data = await request.get_json()
+    username = (data or {}).get("username", "").strip()
+    if not username:
+        return jsonify({"ok": False, "error": "Username required"}), 400
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "UPDATE users SET banned = 0 WHERE username = ?", (username,)
+        )
+        await db.commit()
+        if cursor.rowcount == 0:
+            return jsonify({"ok": False, "error": f"User '{username}' not found"}), 404
+    finally:
+        await db.close()
+
+    return jsonify({"ok": True})
