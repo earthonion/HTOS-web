@@ -91,9 +91,9 @@
             user-select: none;
         }
         .captcha-text {
-            font-size: 1.8rem;
+            font-size: 1rem;
             font-weight: 700;
-            letter-spacing: 0.5rem;
+            letter-spacing: 0.25rem;
             position: relative;
             z-index: 1;
         }
@@ -325,7 +325,7 @@
     // ── CAPTCHA ──
     function generateCaptcha() {
         challengeType = 'captcha';
-        captchaAnswer = randomChars(6);
+        captchaAnswer = randomChars(16);
         document.getElementById('challenge-title').textContent = 'Text Verification';
         var colors = ['#f87171', '#fb923c', '#a78bfa', '#34d399', '#60a5fa', '#fbbf24'];
         var html = '<div class="captcha-img"><svg class="captcha-noise" viewBox="0 0 200 70">';
@@ -339,7 +339,7 @@
             html += '<circle cx="' + Math.random()*200 + '" cy="' + Math.random()*70 + '" r="' + (Math.random()*2+1) + '" fill="' + colors[Math.floor(Math.random()*colors.length)] + '" opacity="0.3"/>';
         }
         html += '</svg><span class="captcha-text" style="color:' + colors[Math.floor(Math.random()*colors.length)] + '; transform: rotate(' + (Math.random()*8-4) + 'deg) skewX(' + (Math.random()*10-5) + 'deg);">' + captchaAnswer + '</span></div>';
-        html += '<input type="text" class="captcha-input" id="captcha-input" placeholder="Enter the text above" autocomplete="off" maxlength="6">';
+        html += '<input type="text" class="captcha-input" id="captcha-input" placeholder="Enter the text above" autocomplete="off" maxlength="16">';
         document.getElementById('challenge-body').innerHTML = html;
         document.getElementById('captcha-input').focus();
     }
