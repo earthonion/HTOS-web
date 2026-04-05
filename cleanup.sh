@@ -1,22 +1,25 @@
 #!/bin/bash
-set -e
+# No set -e: file cleanup must always run even if later commands fail
 
 BASE=/opt/htos
 SAVES=$BASE/UserSaves
 WORKSPACE=$BASE/workspace
 
-mkdir -p "$SAVES" "$WORKSPACE"
+# --- File cleanup (runs first, must not be blocked) ---
+mkdir -p "$SAVES" "$WORKSPACE" 2>/dev/null || true
 
-find "$SAVES" -mindepth 1 -delete
+find "$SAVES" -mindepth 1 -delete 2>/dev/null || true
 find "$WORKSPACE" -mindepth 1 \
     -not -path "$WORKSPACE/savedb" -not -path "$WORKSPACE/savedb/*" \
     -not -path "$WORKSPACE/savedb_samples" -not -path "$WORKSPACE/savedb_samples/*" \
-    -delete
+    -delete 2>/dev/null || true
 
 # Recreate subdirectories that the app expects
-mkdir -p "$WORKSPACE/uploads" "$WORKSPACE/results" "$WORKSPACE/savedb" "$WORKSPACE/savedb_samples"
+mkdir -p "$WORKSPACE/uploads" "$WORKSPACE/results" "$WORKSPACE/savedb" "$WORKSPACE/savedb_samples" 2>/dev/null || true
 
 cd "$BASE"
+
+# --- DB cleanup (best-effort, failures won't block restart) ---
 
 # Delete abandoned pending jobs (no upload_dir or upload_dir missing, older than 10 min)
 .venv/bin/python -c "
@@ -37,9 +40,10 @@ async def main():
             await db.commit()
             print(f'Deleted {len(expired)} abandoned pending job(s).')
 asyncio.run(main())
-"
+" || echo "Warning: abandoned job cleanup failed"
 
-.venv/bin/python admin.py clear-jobs
+.venv/bin/python admin.py clear-jobs || echo "Warning: clear-jobs failed"
+
 .venv/bin/python -c "
 import asyncio, aiosqlite
 async def main():
@@ -48,8 +52,8 @@ async def main():
         await db.commit()
         print(f'Deleted {c.rowcount} revoked worker key(s).')
 asyncio.run(main())
-"
+" || echo "Warning: revoke cleanup failed"
 
-chown -R www-data:www-data "$SAVES" "$WORKSPACE"
+chown -R www-data:www-data "$SAVES" "$WORKSPACE" 2>/dev/null || true
 
 systemctl restart htos
