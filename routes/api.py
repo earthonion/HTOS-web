@@ -71,6 +71,54 @@ def _validate_result_zip(path):
     return None
 
 
+def _client_ip():
+    """Return the real client IP. Prefers CF-Connecting-IP (Cloudflare),
+    then X-Real-IP / X-Forwarded-For (set by nginx), then peer."""
+    cf = request.headers.get("CF-Connecting-IP", "").strip()
+    if cf:
+        return cf
+    real = request.headers.get("X-Real-IP", "").strip()
+    if real:
+        return real
+    fwd = request.headers.get("X-Forwarded-For", "").strip()
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.remote_addr or ""
+
+
+async def _touch_instance(db, worker_key_id, platform):
+    """Upsert a worker_instances row for this (key_id, ip) and bump heartbeat.
+
+    Also sticky-marks the is_psX_capable flag for whichever platform this poll
+    requested. A dual-platform worker (PS5 ELF that polls both ps5 and ps4)
+    accumulates both flags and stays counted in both pools even between polls.
+    """
+    if not worker_key_id:
+        return
+    ip = _client_ip()
+    if not ip:
+        return
+    ua = request.headers.get("User-Agent", "")[:200]
+    ps4_cap = 1 if platform == "ps4" else 0
+    ps5_cap = 1 if platform == "ps5" else 0
+    # Set online_since when this instance has been quiet for >300s
+    await db.execute(
+        "INSERT INTO worker_instances (worker_key_id, ip, user_agent, last_platform, "
+        "  is_ps4_capable, is_ps5_capable, online_since) "
+        "VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) "
+        "ON CONFLICT(worker_key_id, ip) DO UPDATE SET "
+        "  last_seen = CURRENT_TIMESTAMP, "
+        "  user_agent = excluded.user_agent, "
+        "  last_platform = excluded.last_platform, "
+        "  is_ps4_capable = MAX(is_ps4_capable, excluded.is_ps4_capable), "
+        "  is_ps5_capable = MAX(is_ps5_capable, excluded.is_ps5_capable), "
+        "  online_since = CASE "
+        "    WHEN last_seen IS NULL OR last_seen < datetime('now', '-300 seconds') "
+        "      THEN CURRENT_TIMESTAMP ELSE online_since END",
+        (worker_key_id, ip, ua, platform, ps4_cap, ps5_cap),
+    )
+
+
 async def validate_worker_key(key):
     """Check key against DB. Returns user_id or None."""
     db = await get_db()
@@ -93,7 +141,7 @@ async def validate_worker_key(key):
 
 
 async def _ensure_global_key_in_db():
-    """Insert or update the global worker key in the DB so worker count tracking works."""
+    """Insert or update the global worker key in the DB. Returns its row id."""
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -101,20 +149,20 @@ async def _ensure_global_key_in_db():
         )
         row = await cursor.fetchone()
         if row:
+            key_id = row["id"]
             await db.execute(
                 "UPDATE worker_keys SET last_used = CURRENT_TIMESTAMP WHERE id = ?",
-                (row["id"],),
+                (key_id,),
             )
         else:
-            await db.execute(
-                "INSERT INTO worker_keys (user_id, key, name, is_active) VALUES (NULL, ?, 'global', 1)",
+            cursor = await db.execute(
+                "INSERT INTO worker_keys (user_id, key, name, is_active, last_used) "
+                "VALUES (NULL, ?, 'global', 1, CURRENT_TIMESTAMP)",
                 (WORKER_KEY,),
             )
-            await db.execute(
-                "UPDATE worker_keys SET last_used = CURRENT_TIMESTAMP WHERE key = ?",
-                (WORKER_KEY,),
-            )
+            key_id = cursor.lastrowid
         await db.commit()
+        return key_id
     finally:
         await db.close()
 
@@ -135,6 +183,15 @@ def require_worker_key(f):
     return decorated
 
 
+async def _resolve_key_id(db, key):
+    """Look up worker_keys.id for a given key string."""
+    if not key:
+        return None
+    cursor = await db.execute("SELECT id FROM worker_keys WHERE key = ?", (key,))
+    row = await cursor.fetchone()
+    return row["id"] if row else None
+
+
 @api_bp.route("/next", methods=["GET"])
 @require_worker_key
 async def next_job():
@@ -147,7 +204,7 @@ async def next_job():
     if worker_key:
         db = await get_db()
         try:
-            # Check if worker is suspended
+            # Check key-level suspension (legacy / user-owned keys)
             cursor = await db.execute(
                 "SELECT suspended_until FROM worker_keys WHERE key = ?", (worker_key,)
             )
@@ -171,6 +228,39 @@ async def next_job():
                         (worker_key,),
                     )
 
+            # Check instance-level suspension (per-IP — important for the
+            # shared global key so one bad PS5 doesn't lock out everyone).
+            client_ip = _client_ip()
+            if client_ip:
+                cursor = await db.execute(
+                    "SELECT wi.suspended_until FROM worker_instances wi "
+                    "JOIN worker_keys wk ON wk.id = wi.worker_key_id "
+                    "WHERE wk.key = ? AND wi.ip = ?",
+                    (worker_key, client_ip),
+                )
+                wi = await cursor.fetchone()
+                if wi and wi["suspended_until"]:
+                    cursor2 = await db.execute(
+                        "SELECT ? > datetime('now') as is_suspended",
+                        (wi["suspended_until"],),
+                    )
+                    check = await cursor2.fetchone()
+                    if check and check["is_suspended"]:
+                        return Response(
+                            json.dumps({"suspended_until": wi["suspended_until"],
+                                        "scope": "instance"}),
+                            status=429,
+                            content_type="application/json",
+                        )
+                    else:
+                        await db.execute(
+                            "UPDATE worker_instances wi SET suspended_until = NULL "
+                            "WHERE wi.id = (SELECT wi2.id FROM worker_instances wi2 "
+                            "  JOIN worker_keys wk ON wk.id = wi2.worker_key_id "
+                            "  WHERE wk.key = ? AND wi2.ip = ?)",
+                            (worker_key, client_ip),
+                        )
+
             # Set online_since if worker was offline (last_used > 300s ago or NULL)
             await db.execute(
                 "UPDATE worker_keys SET online_since = datetime('now') "
@@ -186,6 +276,9 @@ async def next_job():
                     "INSERT INTO settings (key, value) VALUES ('last_ps5_worker', datetime('now')) "
                     "ON CONFLICT(key) DO UPDATE SET value = datetime('now')"
                 )
+            # Per-instance (per-IP) heartbeat
+            key_id = await _resolve_key_id(db, worker_key)
+            await _touch_instance(db, key_id, worker_platform)
             await db.commit()
         finally:
             await db.close()
@@ -280,13 +373,44 @@ async def update_status(job_id):
 
     worker_key = request.headers.get("X-Worker-Key", "")
 
+    # Failure-retry: a worker that fails a job has the job requeued (status
+    # back to "queued") up to MAX_RETRIES times before we finally mark it
+    # failed. Lets another worker pick it up. Inject a user-facing apology
+    # line into jobs.logs so the live status page surfaces the retry.
+    MAX_RETRIES = 3
+    requeued = False
+    apology_line = None
+    if status == "failed":
+        db_chk = await get_db()
+        try:
+            cursor = await db_chk.execute(
+                "SELECT retry_count FROM jobs WHERE id = ?", (job_id,)
+            )
+            r = await cursor.fetchone()
+            cur_retries = (r["retry_count"] or 0) if r else 0
+            if cur_retries < MAX_RETRIES:
+                status = "queued"  # override — go back into the pool
+                requeued = True
+                apology_line = (
+                    f"Sorry, this is taking a bit — finding a new worker "
+                    f"(attempt {cur_retries + 2}/{MAX_RETRIES + 1})..."
+                )
+        finally:
+            await db_chk.close()
+
     db = await get_db()
     try:
         fields = ["status = ?"]
         values = [status]
-        if "error" in data:
+        if "error" in data and not requeued:
             fields.append("error = ?")
             values.append(data["error"])
+        if requeued:
+            # Clear stale worker stamps so a different worker can pick it up
+            # cleanly, and bump the retry counter.
+            fields.append("retry_count = retry_count + 1")
+            fields.append("worker_key_id = NULL")
+            fields.append("worker_instance_id = NULL")
         if "result_path" in data:
             # Validate result_path stays within workspace
             rp = data["result_path"]
@@ -295,41 +419,93 @@ async def update_status(job_id):
                 fields.append("result_path = ?")
                 values.append(rp)
         # Track which worker handled this job
-        if status == "running" and worker_key:
-            cursor = await db.execute(
-                "SELECT id FROM worker_keys WHERE key = ?", (worker_key,)
-            )
-            wk_row = await cursor.fetchone()
-            if wk_row:
-                fields.append("worker_key_id = ?")
-                values.append(wk_row["id"])
+        key_id = await _resolve_key_id(db, worker_key) if worker_key else None
+        if status == "running" and key_id:
+            fields.append("worker_key_id = ?")
+            values.append(key_id)
+            # Stamp the originating instance (per-IP) at run time
+            ip = _client_ip()
+            if ip:
+                cursor = await db.execute(
+                    "SELECT id FROM worker_instances WHERE worker_key_id = ? AND ip = ?",
+                    (key_id, ip),
+                )
+                inst = await cursor.fetchone()
+                if inst:
+                    fields.append("worker_instance_id = ?")
+                    values.append(inst["id"])
         values.append(job_id)
         await db.execute(f"UPDATE jobs SET {', '.join(fields)} WHERE id = ?", values)
+
+        # On requeue, append a WARN line to jobs.logs so the live SSE feed
+        # surfaces it AND push to the in-process log pubsub for live viewers.
+        if requeued and apology_line:
+            entry = json.dumps({"level": "WARN", "msg": apology_line})
+            await db.execute(
+                "UPDATE jobs SET logs = CASE WHEN logs IS NULL THEN ? "
+                "ELSE logs || '\n' || ? END WHERE id = ?",
+                (entry, entry, job_id),
+            )
+            try:
+                push_log(job_id, "WARN", apology_line)
+            except Exception:
+                pass
         # Increment jobs_completed counter for this worker key
         if status == "done" and worker_key:
             await db.execute(
                 "UPDATE worker_keys SET jobs_completed = jobs_completed + 1 WHERE key = ?",
                 (worker_key,),
             )
-        # Auto-suspend after 10 consecutive failures
-        if status == "failed" and worker_key:
+        # Per-instance counters (use the instance recorded on the job, if any)
+        if status in ("done", "failed"):
             cursor = await db.execute(
-                "SELECT id FROM worker_keys WHERE key = ?", (worker_key,)
+                "SELECT worker_instance_id FROM jobs WHERE id = ?", (job_id,)
             )
-            wk = await cursor.fetchone()
-            if wk:
-                cursor2 = await db.execute(
-                    "SELECT status FROM jobs WHERE worker_key_id = ? "
-                    "ORDER BY created_at DESC LIMIT 10",
-                    (wk["id"],),
+            jrow = await cursor.fetchone()
+            inst_id = jrow["worker_instance_id"] if jrow else None
+            if inst_id:
+                col = "jobs_done" if status == "done" else "jobs_failed"
+                await db.execute(
+                    f"UPDATE worker_instances SET {col} = {col} + 1 WHERE id = ?",
+                    (inst_id,),
                 )
-                recent = await cursor2.fetchall()
+        # Auto-suspend after 10 consecutive failures.
+        # Prefer per-instance suspension (isolates one buggy PS5 on the shared
+        # global key); fall back to per-key only when no instance row is
+        # associated with the failing job (legacy / pre-instance tracking).
+        if status == "failed":
+            if inst_id:
+                cursor3 = await db.execute(
+                    "SELECT status FROM jobs WHERE worker_instance_id = ? "
+                    "ORDER BY created_at DESC LIMIT 10",
+                    (inst_id,),
+                )
+                recent = await cursor3.fetchall()
                 if len(recent) >= 10 and all(r["status"] == "failed" for r in recent):
                     await db.execute(
-                        "UPDATE worker_keys SET suspended_until = datetime('now', '+24 hours') "
-                        "WHERE id = ?",
+                        "UPDATE worker_instances SET suspended_until = "
+                        "datetime('now', '+24 hours') WHERE id = ?",
+                        (inst_id,),
+                    )
+            elif worker_key:
+                cursor = await db.execute(
+                    "SELECT id FROM worker_keys WHERE key = ?", (worker_key,)
+                )
+                wk = await cursor.fetchone()
+                if wk:
+                    cursor2 = await db.execute(
+                        "SELECT status FROM jobs WHERE worker_key_id = ? "
+                        "AND worker_instance_id IS NULL "
+                        "ORDER BY created_at DESC LIMIT 10",
                         (wk["id"],),
                     )
+                    recent = await cursor2.fetchall()
+                    if len(recent) >= 10 and all(r["status"] == "failed" for r in recent):
+                        await db.execute(
+                            "UPDATE worker_keys SET suspended_until = "
+                            "datetime('now', '+24 hours') WHERE id = ?",
+                            (wk["id"],),
+                        )
         await db.commit()
     finally:
         await db.close()

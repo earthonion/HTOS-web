@@ -16,7 +16,7 @@ admin_web_bp = Blueprint("admin_web", __name__)
 async def dashboard():
     db = await get_db()
     try:
-        # Worker stats (combine current jobs + persisted stats)
+        # Worker stats (combine current jobs + persisted stats + instance count)
         cursor = await db.execute(
             "SELECT wk.id, wk.name, wk.last_platform, wk.is_active, wk.jobs_completed, "
             "wk.suspended_until, wk.online_since, "
@@ -26,15 +26,26 @@ async def dashboard():
             "  + COALESCE(ps.hist_failed, 0) as failed, "
             "COUNT(j.id) + COALESCE(ps.hist_total, 0) as tracked, "
             "CASE WHEN wk.last_used IS NOT NULL AND wk.last_used > datetime('now', '-300 seconds') "
-            "THEN 1 ELSE 0 END as is_online "
+            "THEN 1 ELSE 0 END as is_online, "
+            "COALESCE(ic.instance_count, 0) as instances, "
+            "COALESCE(ic.online_count, 0) as online_instances, "
+            "COALESCE(ic.ps4_online, 0) as ps4_online, "
+            "COALESCE(ic.ps5_online, 0) as ps5_online "
             "FROM worker_keys wk "
             "LEFT JOIN jobs j ON j.worker_key_id = wk.id "
             "LEFT JOIN ("
             "  SELECT worker_key_id, SUM(done) as hist_done, SUM(failed) as hist_failed, "
             "  SUM(total) as hist_total FROM job_stats GROUP BY worker_key_id"
             ") ps ON ps.worker_key_id = wk.id "
+            "LEFT JOIN ("
+            "  SELECT worker_key_id, COUNT(*) as instance_count, "
+            "    SUM(CASE WHEN last_seen > datetime('now','-300 seconds') THEN 1 ELSE 0 END) as online_count, "
+            "    SUM(CASE WHEN last_seen > datetime('now','-300 seconds') AND is_ps4_capable=1 THEN 1 ELSE 0 END) as ps4_online, "
+            "    SUM(CASE WHEN last_seen > datetime('now','-300 seconds') AND is_ps5_capable=1 THEN 1 ELSE 0 END) as ps5_online "
+            "  FROM worker_instances GROUP BY worker_key_id"
+            ") ic ON ic.worker_key_id = wk.id "
             "GROUP BY wk.id "
-            "ORDER BY tracked DESC, wk.last_used DESC"
+            "ORDER BY is_online DESC, tracked DESC, wk.last_used DESC"
         )
         workers = [dict(r) for r in await cursor.fetchall()]
 
@@ -107,6 +118,14 @@ async def dashboard():
         op_completed = op["done"] + op["failed"]
         op["rate"] = f"{100 * op['done'] // op_completed}%" if op_completed > 0 else "-"
 
+    # Workers Online = sum of online instances per key, falling back to is_online
+    # for keys with no instance rows yet (legacy / pre-migration heartbeat).
+    workers_online = sum(
+        max(w["online_instances"], w["is_online"])
+        for w in workers
+        if w["is_active"] and not w["suspended_until"]
+    )
+
     return await render_template(
         "admin.html",
         workers=workers,
@@ -115,6 +134,7 @@ async def dashboard():
         total_users=total_users,
         stats=stats,
         op_stats=op_stats,
+        workers_online=workers_online,
     )
 
 
@@ -141,12 +161,28 @@ async def stats_json():
         cursor = await db.execute("SELECT COUNT(*) FROM users")
         total_users = (await cursor.fetchone())[0]
 
+        # Online instances under active, non-suspended keys
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM worker_instances wi "
+            "JOIN worker_keys wk ON wk.id = wi.worker_key_id "
+            "WHERE wi.last_seen > datetime('now', '-300 seconds') "
+            "AND wk.is_active = 1 "
+            "AND (wk.suspended_until IS NULL OR wk.suspended_until <= datetime('now'))"
+        )
+        instance_online = (await cursor.fetchone())[0]
+        # Plus active keys with a recent heartbeat that have no online instance row yet
         cursor = await db.execute(
             "SELECT COUNT(*) FROM worker_keys wk "
             "WHERE wk.last_used IS NOT NULL AND wk.last_used > datetime('now', '-300 seconds') "
-            "AND wk.is_active = 1 AND (wk.suspended_until IS NULL OR wk.suspended_until <= datetime('now'))"
+            "AND wk.is_active = 1 "
+            "AND (wk.suspended_until IS NULL OR wk.suspended_until <= datetime('now')) "
+            "AND NOT EXISTS ("
+            "  SELECT 1 FROM worker_instances wi WHERE wi.worker_key_id = wk.id "
+            "  AND wi.last_seen > datetime('now','-300 seconds')"
+            ")"
         )
-        workers_online = (await cursor.fetchone())[0]
+        key_only_online = (await cursor.fetchone())[0]
+        workers_online = instance_online + key_only_online
 
         cursor = await db.execute(
             "SELECT operation, SUM(done) as done, SUM(failed) as failed, SUM(total) as total FROM ("
@@ -176,6 +212,32 @@ async def stats_json():
         "stats": stats,
         "op_stats": op_stats,
     }
+
+
+@admin_web_bp.route("/admin/worker-instances/<int:key_id>")
+@admin_required
+async def worker_instances(key_id):
+    """Per-IP instances for a worker key (used to break down the shared global key)."""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT wi.id, wi.ip, wi.user_agent, wi.first_seen, wi.last_seen, "
+            "wi.online_since, wi.last_platform, wi.is_ps4_capable, wi.is_ps5_capable, "
+            "wi.jobs_done, wi.jobs_failed, wi.suspended_until, "
+            "CASE WHEN wi.last_seen > datetime('now', '-300 seconds') THEN 1 ELSE 0 END as is_online, "
+            "CASE WHEN wi.suspended_until IS NOT NULL AND wi.suspended_until > datetime('now') THEN 1 ELSE 0 END as is_suspended "
+            "FROM worker_instances wi WHERE wi.worker_key_id = ? "
+            "ORDER BY wi.last_seen DESC",
+            (key_id,),
+        )
+        rows = [dict(r) for r in await cursor.fetchall()]
+    finally:
+        await db.close()
+    for r in rows:
+        total = r["jobs_done"] + r["jobs_failed"]
+        r["total"] = total
+        r["rate"] = f"{100 * r['jobs_done'] // total}%" if total else "-"
+    return jsonify({"instances": rows})
 
 
 @admin_web_bp.route("/admin/feed")
@@ -364,3 +426,85 @@ async def unban_user():
         await db.close()
 
     return jsonify({"ok": True})
+
+
+@admin_web_bp.route("/admin/send-message", methods=["POST"])
+@admin_required
+async def send_message():
+    """Post a banner message to a specific user, or to '*' for broadcast."""
+    from quart import session as _session
+    data = await request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "JSON body required"}), 400
+    target = (data.get("username") or "").strip()
+    message = (data.get("message") or "").strip()
+    level = (data.get("level") or "info").strip().lower()
+    if not target or not message:
+        return jsonify({"ok": False, "error": "username and message required"}), 400
+    if level not in ("info", "success", "warning", "error"):
+        level = "info"
+    if len(message) > 2000:
+        return jsonify({"ok": False, "error": "message too long (max 2000)"}), 400
+
+    db = await get_db()
+    try:
+        if target == "*":
+            user_id = None
+        else:
+            cursor = await db.execute(
+                "SELECT id FROM users WHERE username = ?", (target,)
+            )
+            row = await cursor.fetchone()
+            if not row:
+                return jsonify({"ok": False, "error": f"User '{target}' not found"}), 404
+            user_id = row["id"]
+        await db.execute(
+            "INSERT INTO admin_messages (user_id, sender_id, message, level) VALUES (?, ?, ?, ?)",
+            (user_id, _session.get("user_id"), message, level),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+    return jsonify({"ok": True, "target": target, "level": level})
+
+
+@admin_web_bp.route("/admin/messages")
+@admin_required
+async def list_messages():
+    """List recently-sent admin messages (for the panel history view)."""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT m.id, m.message, m.level, m.created_at, m.dismissed_at, "
+            "       u.username AS target, su.username AS sender "
+            "FROM admin_messages m "
+            "LEFT JOIN users u ON u.id = m.user_id "
+            "LEFT JOIN users su ON su.id = m.sender_id "
+            "ORDER BY m.created_at DESC LIMIT 30"
+        )
+        rows = [dict(r) for r in await cursor.fetchall()]
+    finally:
+        await db.close()
+    return jsonify({"messages": rows})
+
+
+@admin_web_bp.route("/messages/<int:msg_id>/dismiss", methods=["POST"])
+async def dismiss_message(msg_id):
+    """Any logged-in user can dismiss a message that's targeted at them or a broadcast."""
+    from quart import session as _session
+    uid = _session.get("user_id")
+    if not uid:
+        return jsonify({"ok": False, "error": "auth"}), 401
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "UPDATE admin_messages SET dismissed_at = CURRENT_TIMESTAMP "
+            "WHERE id = ? AND dismissed_at IS NULL "
+            "AND (user_id = ? OR user_id IS NULL)",
+            (msg_id, uid),
+        )
+        await db.commit()
+        ok = cursor.rowcount > 0
+    finally:
+        await db.close()
+    return jsonify({"ok": ok})

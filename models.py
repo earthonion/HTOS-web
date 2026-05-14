@@ -98,6 +98,35 @@ CREATE TABLE IF NOT EXISTS entitlements (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS admin_messages (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    sender_id INTEGER REFERENCES users(id),
+    message TEXT NOT NULL,
+    level TEXT DEFAULT 'info',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    dismissed_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_messages_user_undismissed
+    ON admin_messages(user_id, dismissed_at);
+
+CREATE TABLE IF NOT EXISTS worker_instances (
+    id INTEGER PRIMARY KEY,
+    worker_key_id INTEGER NOT NULL REFERENCES worker_keys(id),
+    ip TEXT NOT NULL,
+    user_agent TEXT DEFAULT '',
+    first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    online_since TIMESTAMP,
+    last_platform TEXT DEFAULT 'ps4',
+    jobs_done INTEGER DEFAULT 0,
+    jobs_failed INTEGER DEFAULT 0,
+    UNIQUE(worker_key_id, ip)
+);
+
+CREATE INDEX IF NOT EXISTS idx_worker_instances_key ON worker_instances(worker_key_id);
+
 CREATE TABLE IF NOT EXISTS sample_saves (
     id INTEGER PRIMARY KEY,
     title_id TEXT NOT NULL,
@@ -137,6 +166,19 @@ MIGRATIONS = [
     "ALTER TABLE sample_saves ADD COLUMN xxd_output TEXT DEFAULT ''",
     "ALTER TABLE sample_saves ADD COLUMN entropy_output TEXT DEFAULT ''",
     "ALTER TABLE users ADD COLUMN banned BOOLEAN DEFAULT 0",
+    "ALTER TABLE jobs ADD COLUMN worker_instance_id INTEGER",
+    # Per-instance platform capability flags. Set whenever an instance polls
+    # the matching ?platform=X queue. Backfill from current last_platform so
+    # existing rows don't look non-capable immediately after migration.
+    "ALTER TABLE worker_instances ADD COLUMN is_ps4_capable INTEGER DEFAULT 0",
+    "ALTER TABLE worker_instances ADD COLUMN is_ps5_capable INTEGER DEFAULT 0",
+    "UPDATE worker_instances SET is_ps4_capable = 1 WHERE last_platform = 'ps4'",
+    "UPDATE worker_instances SET is_ps5_capable = 1 WHERE last_platform = 'ps5'",
+    # Per-instance suspension. Lets us isolate a single buggy PS5 on the
+    # shared global key without suspending every other user sharing it.
+    "ALTER TABLE worker_instances ADD COLUMN suspended_until TIMESTAMP",
+    # Failure-retry: requeue a failed job up to N times before final-failing.
+    "ALTER TABLE jobs ADD COLUMN retry_count INTEGER DEFAULT 0",
 ]
 
 

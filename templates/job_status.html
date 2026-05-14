@@ -3,7 +3,7 @@
 {% block footer_text %}
 {% if job.status == 'done' %}
 <p style="margin-bottom: 0.3rem; font-size: 0.85rem; color: var(--text-2);">If you find this website useful, consider sponsoring!</p>
-<iframe src="https://github.com/sponsors/earthonion/button" title="Sponsor earthonion" height="32" width="114" style="border: 0; border-radius: 6px;"></iframe>
+<code class="xmr-copy" onclick="navigator.clipboard.writeText(this.textContent.trim());this.dataset.copied='1';setTimeout(()=>delete this.dataset.copied,1500);" title="click to copy XMR address" style="display:inline-block; font-family:'Fira Code', monospace; font-size:0.65rem; word-break:break-all; max-width:480px; cursor:pointer; color:var(--accent, #fbd308); padding:6px 10px; border:1px solid var(--border, #30363d); border-radius:6px; background:var(--surface, #161b22);">XMR: 8AabfCR2u5qcMiiuzxvTixgchH18fptGJcTCNFbpkBJxBaNf46aDRTTUFTxyGRETvRB6cFKrRRGXRU7EHEvCNFPEA3ubgXR</code>
 {% else %}
 <p>garlicsaves</p>
 {% endif %}

@@ -88,7 +88,15 @@ function copyEl(id) {
                 </td>
                 <td>
                     {% if k.is_online %}
-                    <span class="status-done">{{ k.last_platform | upper }}</span>
+                      {% if k.ps4_online and k.ps5_online %}
+                      <span class="status-done">PS4+PS5</span>
+                      {% elif k.ps5_online %}
+                      <span class="status-done">PS5</span>
+                      {% elif k.ps4_online %}
+                      <span class="status-done">PS4</span>
+                      {% else %}
+                      <span class="status-done">{{ k.last_platform | upper }}</span>
+                      {% endif %}
                     {% else %}
                     <span style="color: var(--text-2);">offline</span>
                     {% endif %}

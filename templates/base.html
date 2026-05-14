@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=14">
+    <link rel="pgpkey" href="/.well-known/pgp.asc">
     {% block extra_head %}{% endblock %}
     {% if not session.get('is_admin') and not no_ads and adsense_client %}
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
@@ -38,12 +39,11 @@
                 <a href="{{ url_for('decrypt.decrypt') }}">Decrypt</a>
                 <a href="{{ url_for('encrypt.encrypt') }}">Encrypt</a>
                 <a href="{{ url_for('resign.resign') }}">Resign</a>
-                <a href="{{ url_for('reregion.reregion') }}">Re-region</a>
                 <a href="{{ url_for('createsave.createsave') }}">Create Save</a>
                 <a href="{{ url_for('convert.convert') }}">Convert</a>
 
                 {% endif %}
-                <a href="{{ url_for('savedb.browse') }}">Save DB <span style="font-size:0.6rem; color:var(--amber); vertical-align:super;">BETA</span></a>
+                <a href="{{ url_for('savedb.browse') }}">Save DB </a>
                 <div class="nav-submenu">
                     <a href="#" class="nav-submenu-toggle" onclick="event.preventDefault();this.parentElement.classList.toggle('open')">Tools <span class="nav-chevron"></span></a>
                     <div class="nav-submenu-items">
@@ -58,6 +58,7 @@
                     </div>
                 </div>
                 <a href="{{ url_for('contribute.contribute') }}">Contribute</a>
+		<a href="https://grr.llc/lobby{% if session.get("username") %}?nick={{ session.get("username") | urlencode }}{% endif %}">Chat <span style="font-size:0.6rem; color:var(--amber); vertical-align:super;">NEW</span></a>
                 <a href="{{ url_for('main.about') }}">About</a>
                 {% if session.get('is_admin') %}
                 <a href="{{ url_for('admin_web.dashboard') }}">Admin</a>
@@ -105,6 +106,17 @@
         </div>
         {% endif %}
         {% endwith %}
+
+        {% if admin_messages %}
+        <div class="admin-messages">
+            {% for m in admin_messages %}
+            <div class="flash flash-{{ m.level }}" data-msg-id="{{ m.id }}" style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.75rem">
+                <div style="flex:1; white-space: pre-wrap; word-break: break-word">{{ m.message | linkify }}</div>
+                <button onclick="fetch('/messages/{{ m.id }}/dismiss',{method:'POST'}).then(()=>this.closest('.flash').remove())" style="background:transparent;border:0;color:inherit;cursor:pointer;font-size:1.1rem;line-height:1;padding:0 0.25rem" title="Dismiss" aria-label="Dismiss">×</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
 
         {% if workers_online == 0 and session.get('user_id') %}
         <div class="flash flash-warning">No workers available. <a href="{{ url_for('contribute.contribute') }}">Consider contributing!</a></div>
@@ -244,5 +256,6 @@
         });
     });
     </script>
+<footer style="margin:40px 0 16px;color:#888;font-family:ui-monospace,monospace;font-size:11px;text-align:center">PGP: <a href="/.well-known/pgp.asc" style="color:#888">25F9 762D 2597 2627 15B9 9200 71AE 4A88 D93C C98A</a></footer>
 </body>
 </html>

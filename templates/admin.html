@@ -21,6 +21,10 @@ tr.new-row { animation: flashRow 1.5s ease-out; }
     background: rgba(6, 182, 212, 0.15);
     color: var(--cyan);
 }
+.platform-badge.dual {
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.18), rgba(6, 182, 212, 0.18));
+    color: var(--cyan);
+}
 
 th.sortable {
     cursor: pointer;
@@ -49,6 +53,20 @@ th.sortable:hover {
 }
 th[data-sort="asc"] .sort-arrow.up { color: #ffffff; }
 th[data-sort="desc"] .sort-arrow.down { color: #ffffff; }
+
+tr.has-instances { background: rgba(99, 102, 241, 0.04); }
+body.hide-offline-instances .instance-panel tr.offline-instance { display: none; }
+tr.instance-row > td { padding: 0; }
+.instance-panel {
+    padding: 0.75rem 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-left: 2px solid var(--indigo-light);
+}
+.instance-panel table { width: 100%; font-size: 0.78rem; }
+.instance-panel th { color: var(--text-2); font-weight: 500; text-align: left; padding: 0.25rem 0.5rem; }
+.instance-panel td { padding: 0.25rem 0.5rem; font-family: 'Fira Code', monospace; }
+.instance-panel .ua { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); }
+button.toggle-instances { font-family: inherit; cursor: pointer; }
 </style>
 {% endblock %}
 {% block content %}
@@ -64,7 +82,7 @@ th[data-sort="desc"] .sort-arrow.down { color: #ffffff; }
         <div style="color: var(--text-2); font-size: 0.85rem;">Queued</div>
     </div>
     <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
-        <div id="workers-online" style="font-size: 2rem; font-weight: 700;">{{ workers | selectattr('is_online') | list | length }}</div>
+        <div id="workers-online" style="font-size: 2rem; font-weight: 700;">{{ workers_online }}</div>
         <div style="color: var(--text-2); font-size: 0.85rem;">Workers Online</div>
     </div>
     <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
@@ -108,23 +126,31 @@ th[data-sort="desc"] .sort-arrow.down { color: #ffffff; }
 </section>
 
 <section class="panel">
-    <h2>Worker Stats</h2>
+    <h2 style="display:flex;align-items:center;gap:0.75rem">Worker Stats
+        <button id="toggle-offline" class="btn-small" style="font-size:0.7rem;padding:0.2rem 0.6rem;font-weight:500" onclick="toggleOfflineWorkers()">Hide offline</button>
+    </h2>
     <div style="overflow-x: auto;">
     <table id="worker-stats-table">
         <thead>
             <tr>
                 <th>ID</th><th>Name</th><th>Plat</th><th>Status</th><th>Uptime</th>
-                <th>Done</th><th>Fail</th><th>Total</th><th>Rate</th><th>Active</th>
+                <th>Done</th><th>Fail</th><th>Total</th><th>Rate</th><th>Active</th><th>Instances</th>
             </tr>
         </thead>
         <tbody>
             {% for w in workers %}
-            {% if w.is_online or w.total > 0 %}
-            <tr>
+            {% if w.is_online or w.total > 0 or w.instances > 0 %}
+            <tr data-key-id="{{ w.id }}" {% if w.instances > 1 %}class="has-instances"{% endif %}>
                 <td>{{ w.id }}</td>
                 <td>{{ w.name }}</td>
                 <td>
-                    {% if w.last_platform %}
+                    {% if w.ps4_online and w.ps5_online %}
+                    <span class="platform-badge dual">PS4+PS5</span>
+                    {% elif w.ps5_online %}
+                    <span class="platform-badge ps5">PS5</span>
+                    {% elif w.ps4_online %}
+                    <span class="platform-badge ps4">PS4</span>
+                    {% elif w.last_platform %}
                     <span class="platform-badge {{ w.last_platform | lower }}">{{ w.last_platform | upper }}</span>
                     {% else %}
                     -
@@ -162,6 +188,11 @@ th[data-sort="desc"] .sort-arrow.down { color: #ffffff; }
                     <span class="status-done">yes</span>
                     {% endif %}
                 </td>
+                <td>
+                    {% if w.instances > 0 %}
+                    <button class="btn-small toggle-instances" data-key-id="{{ w.id }}">{{ w.instances }} ▾</button>
+                    {% else %}-{% endif %}
+                </td>
             </tr>
             {% endif %}
             {% endfor %}
@@ -196,6 +227,33 @@ th[data-sort="desc"] .sort-arrow.down { color: #ffffff; }
         </tbody>
     </table>
     </div>
+</section>
+
+<section class="panel">
+    <h2>Send User Message</h2>
+    <p style="color: var(--text-2); font-size: 0.82rem; margin: 0 0 0.75rem;">Posts a banner at the top of every page for the target user (or <code>*</code> for everyone). Shown until they click the × dismiss button.</p>
+    <div style="display: flex; flex-direction: column; gap: 0.5rem; max-width: 540px;">
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <input type="text" id="msg-username" placeholder="Username (or * for all)" style="flex: 1; font-size: 0.82rem; padding: 0.3rem 0.5rem;">
+            <select id="msg-level" style="font-size: 0.82rem; padding: 0.3rem 0.5rem;">
+                <option value="info">info</option>
+                <option value="success">success</option>
+                <option value="warning">warning</option>
+                <option value="error">error</option>
+            </select>
+        </div>
+        <textarea id="msg-body" rows="3" placeholder="Message (max 2000 chars)" style="font-size: 0.82rem; padding: 0.4rem 0.5rem; resize: vertical;"></textarea>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button class="btn-small" onclick="sendUserMessage()">Send</button>
+            <span id="msg-result" style="font-size: 0.75rem;"></span>
+        </div>
+    </div>
+    <details style="margin-top: 1rem;">
+        <summary style="cursor: pointer; font-size: 0.82rem; color: var(--text-2);">Recent messages history</summary>
+        <div id="msg-history" style="margin-top: 0.5rem; font-size: 0.78rem;">
+            <button class="btn-small" onclick="loadMsgHistory()">Load history</button>
+        </div>
+    </details>
 </section>
 
 <section class="panel">
@@ -384,6 +442,86 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.toggle-instances');
+    if (!btn) return;
+    var keyId = btn.dataset.keyId;
+    var hostRow = btn.closest('tr');
+    var nextRow = hostRow.nextElementSibling;
+    if (nextRow && nextRow.classList.contains('instance-row') && nextRow.dataset.parent === keyId) {
+        nextRow.remove();
+        btn.textContent = btn.textContent.replace('▴', '▾');
+        return;
+    }
+    btn.textContent = btn.textContent.replace('▾', '▴');
+    var row = document.createElement('tr');
+    row.className = 'instance-row';
+    row.dataset.parent = keyId;
+    var td = document.createElement('td');
+    td.colSpan = hostRow.children.length;
+    td.innerHTML = '<div class="instance-panel">loading…</div>';
+    row.appendChild(td);
+    hostRow.parentNode.insertBefore(row, hostRow.nextSibling);
+    function fmtUA(ua) {
+        if (!ua) return '<span style="color:var(--text-3)">-</span>';
+        var sl = ua.match(/sonicloader-worker\/([0-9.]+)\s*\(([^)]+)\)/i);
+        if (sl) {
+            var ver = sl[1];
+            var mode = sl[2].replace(/^PS5;\s*/i, '').trim();
+            return '<span style="background:rgba(99,102,241,.18);color:var(--indigo-light);padding:1px 6px;border-radius:3px;font-weight:700;font-size:.65rem;margin-right:4px;letter-spacing:.04em">SL</span>' +
+                   '<span style="color:var(--text-2);font-size:.72rem">' + ver + ' · ' + mode + '</span>';
+        }
+        var gw = ua.match(/garlic-worker\/([0-9.]+)/i);
+        if (gw) {
+            return '<span style="background:rgba(251,211,8,.18);color:var(--accent,#fbd308);padding:1px 6px;border-radius:3px;font-weight:700;font-size:.65rem;margin-right:4px">GW</span>' +
+                   '<span style="color:var(--text-2);font-size:.72rem">' + gw[1] + '</span>';
+        }
+        return '<span style="color:var(--text-3);font-size:.72rem">' + ua.substring(0, 60) + '</span>';
+    }
+    fetch('/admin/worker-instances/' + keyId).then(function(r){return r.json();}).then(function(d) {
+        var panel = td.querySelector('.instance-panel');
+        if (!d.instances || !d.instances.length) {
+            panel.textContent = 'No instances yet.';
+            return;
+        }
+        var html = '<table><thead><tr><th>IP</th><th>Plat</th><th>Status</th>' +
+            '<th>First seen</th><th>Last seen</th><th>Done</th><th>Fail</th><th>Rate</th><th>Client</th></tr></thead><tbody>';
+        d.instances.forEach(function(i) {
+            var status = i.is_suspended
+                ? '<span class="status-failed" title="suspended until ' + (i.suspended_until || '') + '">SUSPENDED</span>'
+                : (i.is_online
+                    ? '<span class="status-done">ONLINE</span>'
+                    : '<span style="color:var(--text-2)">offline</span>');
+            var rowCls = i.is_online ? '' : ' class="offline-instance"';
+            var rateColor = 'inherit';
+            if (i.rate !== '-') {
+                var n = parseInt(i.rate);
+                rateColor = n >= 80 ? 'var(--green)' : (n >= 50 ? 'var(--yellow, #fa0)' : 'var(--red)');
+            }
+            var plat, platCls;
+            if (i.is_ps4_capable && i.is_ps5_capable) { plat = 'PS4+PS5'; platCls = 'dual'; }
+            else if (i.is_ps5_capable) { plat = 'PS5'; platCls = 'ps5'; }
+            else if (i.is_ps4_capable) { plat = 'PS4'; platCls = 'ps4'; }
+            else { plat = (i.last_platform || '-').toUpperCase(); platCls = (i.last_platform || '').toLowerCase(); }
+            html += '<tr' + rowCls + '>' +
+                '<td>' + i.ip + '</td>' +
+                '<td><span class="platform-badge ' + platCls + '">' + plat + '</span></td>' +
+                '<td>' + status + '</td>' +
+                '<td>' + (i.first_seen || '-') + '</td>' +
+                '<td>' + (i.last_seen || '-') + '</td>' +
+                '<td>' + i.jobs_done + '</td>' +
+                '<td>' + i.jobs_failed + '</td>' +
+                '<td><span style="color:' + rateColor + '">' + i.rate + '</span></td>' +
+                '<td class="ua" title="' + (i.user_agent || '').replace(/"/g, '&quot;') + '">' + fmtUA(i.user_agent) + '</td>' +
+            '</tr>';
+        });
+        html += '</tbody></table>';
+        panel.innerHTML = html;
+    }).catch(function() {
+        td.querySelector('.instance-panel').textContent = 'Failed to load.';
+    });
+});
+
 function updateUptimes() {
     document.querySelectorAll('.uptime[data-since]').forEach(function(el) {
         if (el.dataset.since === "0") return;
@@ -406,6 +544,83 @@ function copyResetUrl(el) {
         var hint = document.getElementById('reset-copy-hint');
         hint.textContent = 'copied!';
         setTimeout(function() { hint.textContent = 'click to copy'; }, 2000);
+    });
+}
+
+function toggleOfflineWorkers() {
+    var btn = document.getElementById('toggle-offline');
+    var hide = btn.dataset.state !== 'hidden';
+    var rows = document.querySelectorAll('#worker-stats-table tbody tr');
+    var hiddenCount = 0;
+    rows.forEach(function(r) {
+        if (r.classList.contains('instance-row')) return;
+        var statusCell = r.children[3];
+        if (!statusCell) return;
+        var isOffline = !statusCell.querySelector('.status-done');
+        if (isOffline) {
+            r.style.display = hide ? 'none' : '';
+            if (hide) hiddenCount++;
+        }
+    });
+    // Also hide offline instance rows inside any expanded instance panel.
+    document.body.classList.toggle('hide-offline-instances', hide);
+    btn.dataset.state = hide ? 'hidden' : 'shown';
+    btn.textContent = hide ? 'Show offline (' + hiddenCount + ')' : 'Hide offline';
+    try { localStorage.setItem('admin_hide_offline_workers', hide ? '1' : '0'); } catch(e){}
+}
+// Default: hidden, unless the user explicitly toggled to "shown" earlier.
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        if (localStorage.getItem('admin_hide_offline_workers') !== '0') {
+            toggleOfflineWorkers();
+        }
+    } catch(e){ toggleOfflineWorkers(); }
+});
+
+function sendUserMessage() {
+    var username = document.getElementById('msg-username').value.trim();
+    var message  = document.getElementById('msg-body').value.trim();
+    var level    = document.getElementById('msg-level').value;
+    var result   = document.getElementById('msg-result');
+    if (!username || !message) {
+        result.textContent = 'username + message required';
+        result.style.color = 'var(--red)';
+        return;
+    }
+    fetch('/admin/send-message', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username: username, message: message, level: level}),
+    }).then(function(r){return r.json();}).then(function(d){
+        if (d.ok) {
+            result.textContent = 'sent to ' + d.target + ' (' + d.level + ')';
+            result.style.color = 'var(--green)';
+            document.getElementById('msg-body').value = '';
+        } else {
+            result.textContent = d.error || 'failed';
+            result.style.color = 'var(--red)';
+        }
+    }).catch(function(){
+        result.textContent = 'request failed';
+        result.style.color = 'var(--red)';
+    });
+}
+
+function loadMsgHistory() {
+    var box = document.getElementById('msg-history');
+    box.innerHTML = 'loading…';
+    fetch('/admin/messages').then(function(r){return r.json();}).then(function(d){
+        if (!d.messages || d.messages.length === 0) {
+            box.innerHTML = '<em style="color:var(--text-2)">No messages sent yet.</em>';
+            return;
+        }
+        var html = '<table style="font-size:0.75rem; margin-top:0.5rem"><thead><tr><th>To</th><th>Level</th><th>Message</th><th>Sent</th><th>Dismissed</th></tr></thead><tbody>';
+        d.messages.forEach(function(m){
+            var to = m.target || '<em style="color:var(--text-3)">all</em>';
+            html += '<tr><td>' + to + '</td><td><span class="status-' + m.level + '">' + m.level + '</span></td><td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (m.message || '').replace(/"/g, '&quot;') + '">' + (m.message || '') + '</td><td>' + (m.created_at || '') + '</td><td>' + (m.dismissed_at || '<span style="color:var(--text-3)">—</span>') + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        box.innerHTML = html;
     });
 }
 

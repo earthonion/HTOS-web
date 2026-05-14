@@ -10,3 +10,6 @@ UserSaves/
 static/*.pkg
 static/*.elf
 titles.db
+*.bak.*
+=*
+prebuilt/

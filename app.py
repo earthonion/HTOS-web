@@ -1,7 +1,8 @@
 import os
 
 from dotenv import load_dotenv
-from quart import Quart, Response, render_template
+from markupsafe import Markup
+from quart import Quart, Response, render_template, session
 
 load_dotenv()
 
@@ -137,6 +138,31 @@ def create_app():
 
         return syscall_man_url(name)
 
+    import html, re as _re
+
+    _URL_RE = _re.compile(r"""https?://[^\s<>\"']+""")
+
+    def _linkify(text):
+        if not text:
+            return text
+        text = str(text)
+        out = []; last = 0
+        for m in _URL_RE.finditer(text):
+            out.append(html.escape(text[last:m.start()]))
+            raw = m.group(0)
+            # strip trailing punct that's almost certainly not part of the URL
+            stripped = raw.rstrip(".,;:)]}!?")
+            tail = raw[len(stripped):]
+            out.append(
+                f'<a href="{html.escape(stripped, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(stripped)}</a>'
+                + html.escape(tail)
+            )
+            last = m.end()
+        out.append(html.escape(text[last:]))
+        return Markup("".join(out))
+
+    app.jinja_env.filters["linkify"] = _linkify
+
     @app.context_processor
     async def inject_worker_count():
         from models import get_db
@@ -146,29 +172,69 @@ def create_app():
         try:
             db = await get_db()
             try:
+                # Count online INSTANCES via the sticky capability flags. A
+                # dual-platform PS5 worker (which alternates ps4/ps5 polls)
+                # counts in BOTH ps4 and ps5 totals — its is_ps5_capable and
+                # is_ps4_capable flags both stay set across polls.
                 cursor = await db.execute(
-                    "SELECT last_platform, COUNT(*) as cnt FROM worker_keys "
-                    "WHERE is_active = 1 AND last_used IS NOT NULL "
-                    "AND last_used > datetime('now', '-300 seconds') "
+                    "SELECT "
+                    "  SUM(CASE WHEN wi.is_ps5_capable = 1 THEN 1 ELSE 0 END) AS ps5, "
+                    "  SUM(CASE WHEN wi.is_ps4_capable = 1 THEN 1 ELSE 0 END) AS ps4 "
+                    "FROM worker_instances wi "
+                    "JOIN worker_keys wk ON wk.id = wi.worker_key_id "
+                    "WHERE wi.last_seen > datetime('now', '-300 seconds') "
+                    "AND wk.is_active = 1 "
+                    "AND (wk.suspended_until IS NULL OR wk.suspended_until <= datetime('now'))"
+                )
+                row = await cursor.fetchone()
+                if row:
+                    ps5_count = row["ps5"] or 0
+                    ps4_count = row["ps4"] or 0
+                # Plus active keys with recent heartbeat that have no instance row yet
+                # (legacy / pre-instance-tracking workers — keep counts in sync).
+                cursor = await db.execute(
+                    "SELECT last_platform, COUNT(*) as cnt FROM worker_keys wk "
+                    "WHERE last_used IS NOT NULL AND last_used > datetime('now', '-300 seconds') "
+                    "AND is_active = 1 "
                     "AND (suspended_until IS NULL OR suspended_until <= datetime('now')) "
+                    "AND NOT EXISTS (SELECT 1 FROM worker_instances wi WHERE wi.worker_key_id = wk.id "
+                    "  AND wi.last_seen > datetime('now', '-300 seconds')) "
                     "GROUP BY last_platform"
                 )
-                rows = await cursor.fetchall()
-                for row in rows:
+                for row in await cursor.fetchall():
                     if row["last_platform"] == "ps5":
-                        ps5_count = row["cnt"]
+                        ps5_count += row["cnt"]
                     else:
-                        ps4_count = row["cnt"]
+                        ps4_count += row["cnt"]
             finally:
                 await db.close()
         except Exception:
             pass
+        # Undismissed admin messages for current user (and broadcasts)
+        admin_msgs = []
+        uid = session.get("user_id")
+        if uid:
+            try:
+                db = await get_db()
+                try:
+                    cursor = await db.execute(
+                        "SELECT id, message, level FROM admin_messages "
+                        "WHERE dismissed_at IS NULL AND (user_id = ? OR user_id IS NULL) "
+                        "ORDER BY created_at DESC LIMIT 5",
+                        (uid,),
+                    )
+                    admin_msgs = [dict(r) for r in await cursor.fetchall()]
+                finally:
+                    await db.close()
+            except Exception:
+                pass
         return dict(
             workers_online=ps4_count + ps5_count,
             ps4_workers=ps4_count,
             ps5_workers=ps5_count,
             ps5_workers_online=ps5_count > 0,
             adsense_client=os.getenv("ADSENSE_CLIENT_ID", ""),
+            admin_messages=admin_msgs,
         )
 
     @app.before_serving

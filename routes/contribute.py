@@ -70,12 +70,20 @@ async def contribute():
             "CASE WHEN wk.suspended_until IS NOT NULL AND wk.suspended_until > datetime('now') THEN 1 ELSE 0 END as is_suspended, "
             "COALESCE(ps.hist_done, 0) as stats_done, "
             "COALESCE(ps.hist_failed, 0) as stats_failed, "
-            "COALESCE(ps.hist_total, 0) as stats_total "
+            "COALESCE(ps.hist_total, 0) as stats_total, "
+            "COALESCE(ic.ps4_online, 0) as ps4_online, "
+            "COALESCE(ic.ps5_online, 0) as ps5_online "
             "FROM worker_keys wk "
             "LEFT JOIN ("
             "  SELECT worker_key_id, SUM(done) as hist_done, SUM(failed) as hist_failed, "
             "  SUM(total) as hist_total FROM job_stats GROUP BY worker_key_id"
             ") ps ON ps.worker_key_id = wk.id "
+            "LEFT JOIN ("
+            "  SELECT worker_key_id, "
+            "    SUM(CASE WHEN last_seen > datetime('now','-300 seconds') AND is_ps4_capable=1 THEN 1 ELSE 0 END) as ps4_online, "
+            "    SUM(CASE WHEN last_seen > datetime('now','-300 seconds') AND is_ps5_capable=1 THEN 1 ELSE 0 END) as ps5_online "
+            "  FROM worker_instances GROUP BY worker_key_id"
+            ") ic ON ic.worker_key_id = wk.id "
             "WHERE wk.user_id = ? ORDER BY wk.created_at DESC",
             (user_id,),
         )

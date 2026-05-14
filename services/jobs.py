@@ -145,15 +145,61 @@ async def create_job(
 
     # Notify TCP workers that a job is available
     if ready:
+        dispatched = False
         try:
-            from services.tcp_worker import notify_job_available
+            from services.tcp_worker import _idle_workers, notify_job_available
 
             platform = (params or {}).get("platform", "ps4")
-            asyncio.ensure_future(notify_job_available(platform))
+            if _idle_workers.get(platform):
+                asyncio.ensure_future(notify_job_available(platform))
+                dispatched = True
         except Exception:
             pass
 
+        # Fallback to bridge if no workers and operation is supported
+        if not dispatched and operation in ("decrypt", "encrypt"):
+            platform = (params or {}).get("platform", "ps4")
+            if platform == "ps4":
+                try:
+                    from services.worker_bridge import (
+                        check_available,
+                        is_configured,
+                    )
+
+                    if is_configured():
+                        asyncio.ensure_future(_try_worker_bridge(job))
+                except Exception:
+                    pass
+
     return job
+
+
+async def _try_worker_bridge(job: Job):
+    """Attempt to process a job via bridge fallback."""
+    from services.worker_bridge import check_available, process_decrypt, process_encrypt
+
+    if not await check_available():
+        job.logger.info("No workers or fallback available, waiting for a worker...")
+        return
+
+    try:
+        await job.set_status("running")
+        job.logger.info("Using fallback processor (no workers online)...")
+
+        if job.operation == "decrypt":
+            result_path = await process_decrypt(job)
+        elif job.operation == "encrypt":
+            result_path = await process_encrypt(job)
+        else:
+            return
+
+        await job.set_status("done", result_path=result_path)
+        job.logger.info("Done!")
+        job.logger._broadcast({"level": "STATUS", "msg": "done"})
+    except Exception as e:
+        job.logger.error(f"Fallback failed: {e}")
+        await job.set_status("failed", error=str(e))
+        job.logger._broadcast({"level": "STATUS", "msg": "failed"})
 
 
 def get_job(job_id: str) -> Job | None:
