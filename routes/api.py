@@ -1,10 +1,23 @@
 import hmac
 import json
 import os
+import re
 import shutil
 import uuid
 import zipfile
 from functools import wraps
+
+# Minimum garlic-worker version required to pull PS4 jobs. v1.1.1 and below
+# had a hardcoded PS5 SFO_AID_OFFSET (0x1B8) that silently mis-patched
+# account_id on PS4 saves. Fixed in v1.1.2 by selecting the offset per save
+# type. Outdated workers polling ?platform=ps4 get 426 until they update.
+MIN_PS4_WORKER_VERSION = (1, 1, 2)
+
+
+def parse_worker_version(ua: str):
+    """Pull (major, minor, patch) from sonicloader-worker/vX.Y.Z UA. None if absent."""
+    m = re.search(r"worker/v?(\d+)\.(\d+)\.(\d+)", ua or "")
+    return tuple(int(x) for x in m.groups()) if m else None
 
 from quart import Blueprint, Response, abort, request, send_file
 
@@ -198,6 +211,30 @@ async def next_job():
     """Return the next queued job, or 204 if none.
     Workers can pass ?platform=ps5 to only receive jobs for that platform."""
     worker_platform = request.args.get("platform", "ps4")
+
+    # Block outdated workers from pulling PS4 jobs. v1.1.1 and below silently
+    # mis-patched account_id on PS4 saves. PS5 jobs are unaffected — leave
+    # those open so the old workers still drain the PS5 queue.
+    if worker_platform == "ps4":
+        ver = parse_worker_version(request.headers.get("User-Agent", ""))
+        if ver is None or ver < MIN_PS4_WORKER_VERSION:
+            min_str = ".".join(str(x) for x in MIN_PS4_WORKER_VERSION)
+            cur_str = ".".join(str(x) for x in ver) if ver else "unknown"
+            return Response(
+                json.dumps({
+                    "error": "outdated_worker",
+                    "min_version": min_str,
+                    "detected_version": cur_str,
+                    "message": (
+                        f"garlic-worker {cur_str} cannot process PS4 jobs — "
+                        f"v{min_str}+ required (PS4 SFO offset bug). "
+                        f"Update via sonicloader or rebuild from "
+                        f"git.earthonion.com/earthonion/garlic-worker."
+                    ),
+                }),
+                status=426,
+                content_type="application/json",
+            )
 
     # Track worker platform on heartbeat
     worker_key = request.headers.get("X-Worker-Key", "")
@@ -418,6 +455,16 @@ async def update_status(job_id):
             if os.path.realpath(rp).startswith(allowed_prefix + os.sep):
                 fields.append("result_path = ?")
                 values.append(rp)
+        # Per-job duration timestamps for passive worker-speed measurement.
+        # started_at gets stamped on the first running transition (or refreshed
+        # when a requeued job restarts on a different worker — we want the
+        # current attempt's elapsed time, not the original). completed_at on
+        # the terminal status.
+        if status == "running":
+            fields.append("started_at = CURRENT_TIMESTAMP")
+        elif status in ("done", "failed") and not requeued:
+            fields.append("completed_at = CURRENT_TIMESTAMP")
+
         # Track which worker handled this job
         key_id = await _resolve_key_id(db, worker_key) if worker_key else None
         if status == "running" and key_id:

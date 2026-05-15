@@ -266,6 +266,15 @@ def create_app():
                     "TCP worker server failed to start: %s", e
                 )
 
+        # Start bridge fallback poller — hands stuck queued PS4
+        # decrypt/encrypt jobs to the external bridge worker when it
+        # has capacity. Worker pulls still win via atomic try_claim().
+        import asyncio as _asyncio
+
+        from services.jobs import bridge_fallback_poller
+
+        app.bridge_poller_task = _asyncio.create_task(bridge_fallback_poller())
+
     return app
 
 

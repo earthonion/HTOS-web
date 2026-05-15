@@ -118,6 +118,19 @@ async def dashboard():
         op_completed = op["done"] + op["failed"]
         op["rate"] = f"{100 * op['done'] // op_completed}%" if op_completed > 0 else "-"
 
+    # Saves per minute — rolling 10-minute window for stability
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM jobs "
+            "WHERE status = 'done' "
+            "  AND created_at > datetime('now', '-10 minutes')"
+        )
+        done_10m = (await cursor.fetchone())[0]
+    finally:
+        await db.close()
+    stats["spm"] = f"{done_10m / 10:.1f}"
+
     # Workers Online = sum of online instances per key, falling back to is_online
     # for keys with no instance rows yet (legacy / pre-migration heartbeat).
     workers_online = sum(
@@ -205,6 +218,19 @@ async def stats_json():
         op_completed = op["done"] + op["failed"]
         op["rate"] = f"{100 * op['done'] // op_completed}%" if op_completed > 0 else "-"
 
+    # Saves per minute — rolling 10-minute window
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM jobs "
+            "WHERE status = 'done' "
+            "  AND created_at > datetime('now', '-10 minutes')"
+        )
+        done_10m = (await cursor.fetchone())[0]
+    finally:
+        await db.close()
+    stats["spm"] = f"{done_10m / 10:.1f}"
+
     return {
         "queued": queued,
         "total_users": total_users,
@@ -223,10 +249,21 @@ async def worker_instances(key_id):
         cursor = await db.execute(
             "SELECT wi.id, wi.ip, wi.user_agent, wi.first_seen, wi.last_seen, "
             "wi.online_since, wi.last_platform, wi.is_ps4_capable, wi.is_ps5_capable, "
-            "wi.jobs_done, wi.jobs_failed, wi.suspended_until, "
+            "wi.jobs_done, wi.jobs_failed, wi.suspended_until, wk.name as key_name, "
             "CASE WHEN wi.last_seen > datetime('now', '-300 seconds') THEN 1 ELSE 0 END as is_online, "
-            "CASE WHEN wi.suspended_until IS NOT NULL AND wi.suspended_until > datetime('now') THEN 1 ELSE 0 END as is_suspended "
-            "FROM worker_instances wi WHERE wi.worker_key_id = ? "
+            "CASE WHEN wi.suspended_until IS NOT NULL AND wi.suspended_until > datetime('now') THEN 1 ELSE 0 END as is_suspended, "
+            # Avg job duration in seconds over this instance's last 20 done jobs
+            # (jobs that have both started_at and completed_at — pre-migration
+            # rows are excluded). Proxy for combined network + processing speed.
+            "(SELECT AVG(strftime('%s', j.completed_at) - strftime('%s', j.started_at)) "
+            " FROM (SELECT completed_at, started_at FROM jobs "
+            "       WHERE worker_instance_id = wi.id "
+            "         AND status = 'done' "
+            "         AND started_at IS NOT NULL AND completed_at IS NOT NULL "
+            "       ORDER BY completed_at DESC LIMIT 20) AS j) AS avg_duration_s "
+            "FROM worker_instances wi "
+            "JOIN worker_keys wk ON wk.id = wi.worker_key_id "
+            "WHERE wi.worker_key_id = ? "
             "ORDER BY wi.last_seen DESC",
             (key_id,),
         )

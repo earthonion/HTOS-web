@@ -96,7 +96,7 @@ async def contribute():
     if any(k["is_suspended"] for k in keys):
         await flash(
             "Oops! Your worker has been suspended! This isn't your fault. Your console just needs to be rebooted "
-            'and make sure you are running the <a href="https://github.com/earthonion/garlicsaves-worker/releases" target="_blank">latest worker ELF</a>, '
+            'and make sure you are running the <a href="https://git.earthonion.com/earthonion/garlic-worker/releases" target="_blank">latest worker ELF</a>, '
             "then simply click the Reactivate button. Suspension happens after 10 failed jobs in a row.",
             "error",
         )

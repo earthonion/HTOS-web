@@ -179,6 +179,11 @@ MIGRATIONS = [
     "ALTER TABLE worker_instances ADD COLUMN suspended_until TIMESTAMP",
     # Failure-retry: requeue a failed job up to N times before final-failing.
     "ALTER TABLE jobs ADD COLUMN retry_count INTEGER DEFAULT 0",
+    # Per-job duration timestamps for passive worker-speed measurement.
+    # started_at  → stamped when worker first transitions to status=running
+    # completed_at → stamped on status=done or status=failed (final-failed only)
+    "ALTER TABLE jobs ADD COLUMN started_at TIMESTAMP",
+    "ALTER TABLE jobs ADD COLUMN completed_at TIMESTAMP",
 ]
 
 

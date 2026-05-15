@@ -122,6 +122,25 @@ class Job:
         finally:
             await db.close()
 
+    async def try_claim(self) -> bool:
+        """Atomically transition queued → running. Returns True if we got it,
+        False if another worker / fallback beat us. Used by the save-tool
+        fallback so it doesn't race a worker about to /next-pull the same job."""
+        db = await get_db()
+        try:
+            cursor = await db.execute(
+                "UPDATE jobs SET status = 'running' "
+                "WHERE id = ? AND status = 'queued'",
+                (self.job_id,),
+            )
+            await db.commit()
+            if cursor.rowcount > 0:
+                self.status = "running"
+                return True
+            return False
+        finally:
+            await db.close()
+
 
 async def create_job(
     user_id: int, operation: str, params: dict | None = None, ready: bool = True
@@ -182,15 +201,20 @@ async def _try_worker_bridge(job: Job):
         job.logger.info("No workers or fallback available, waiting for a worker...")
         return
 
+    # Atomic claim — bail silently if a worker has already grabbed this job.
+    if not await job.try_claim():
+        return
+
     try:
-        await job.set_status("running")
-        job.logger.info("Using fallback processor (no workers online)...")
+        job.logger.info("Using fallback processor (queue backlog / high load)...")
 
         if job.operation == "decrypt":
             result_path = await process_decrypt(job)
         elif job.operation == "encrypt":
             result_path = await process_encrypt(job)
         else:
+            # We claimed it but can't handle it — release back to queued.
+            await job.set_status("queued")
             return
 
         await job.set_status("done", result_path=result_path)
@@ -198,6 +222,8 @@ async def _try_worker_bridge(job: Job):
         job.logger._broadcast({"level": "STATUS", "msg": "done"})
     except Exception as e:
         job.logger.error(f"Fallback failed: {e}")
+        # Release back to queue so a real worker can retry it.
+        await job.set_status("queued", error=None)
         await job.set_status("failed", error=str(e))
         job.logger._broadcast({"level": "STATUS", "msg": "failed"})
 
@@ -252,3 +278,63 @@ def start_job(job: Job, coro):
 
     job.task = asyncio.create_task(_runner())
     return job
+
+
+async def bridge_fallback_poller():
+    """Background loop: every ~20s, find queued PS4 decrypt/encrypt jobs that
+    have been stuck for >60s and hand them to the bridge fallback if it
+    has capacity. The fallback's try_claim() ensures no race with workers."""
+    import logging as _logging
+    import json as _json
+
+    from services.worker_bridge import (
+        check_available,
+        is_configured,
+    )
+    from models import get_db as _get_db
+
+    POLL_INTERVAL = 20
+    MIN_QUEUED_AGE = 60   # seconds — only consider jobs that have waited
+    MAX_BATCH = 3         # how many to hand off per tick (don't flood bridge)
+    log = _logging.getLogger("bridge_fallback_poller")
+
+    if not is_configured():
+        log.info("bridge not configured; poller disabled")
+        return
+
+    while True:
+        try:
+            await asyncio.sleep(POLL_INTERVAL)
+            if not await check_available():
+                continue
+            db = await _get_db()
+            try:
+                cursor = await db.execute(
+                    "SELECT id, user_id, operation, params FROM jobs "
+                    "WHERE status = 'queued' "
+                    "  AND operation IN ('decrypt', 'encrypt') "
+                    "  AND created_at < datetime('now', '-' || ? || ' seconds') "
+                    "ORDER BY created_at ASC LIMIT ?",
+                    (MIN_QUEUED_AGE, MAX_BATCH),
+                )
+                rows = [dict(r) for r in await cursor.fetchall()]
+            finally:
+                await db.close()
+
+            for row in rows:
+                # PS4 platform check (fallback only supports PS4)
+                params = _json.loads(row["params"]) if row["params"] else {}
+                if params.get("platform", "ps4") != "ps4":
+                    continue
+                job = _jobs.get(row["id"])
+                if not job:
+                    # Reconstruct from DB so the fallback path has a Job object
+                    job = Job(row["id"], row["user_id"], row["operation"], params)
+                    _jobs[row["id"]] = job
+                log.info(
+                    "handing off %s (%s, queued > %ds) to bridge",
+                    row["id"][:8], row["operation"], MIN_QUEUED_AGE,
+                )
+                asyncio.ensure_future(_try_worker_bridge(job))
+        except Exception as e:
+            log.warning("poller tick error: %s", e)
