@@ -184,6 +184,9 @@ MIGRATIONS = [
     # completed_at → stamped on status=done or status=failed (final-failed only)
     "ALTER TABLE jobs ADD COLUMN started_at TIMESTAMP",
     "ALTER TABLE jobs ADD COLUMN completed_at TIMESTAMP",
+    # users.last_seen for the "Online now" admin stat. Bumped by a
+    # before_request hook (throttled to one write per 60s per user).
+    "ALTER TABLE users ADD COLUMN last_seen TIMESTAMP",
 ]
 
 

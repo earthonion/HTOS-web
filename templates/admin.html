@@ -102,6 +102,10 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
         <div style="color: var(--text-2); font-size: 0.85rem;">Users</div>
     </div>
     <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
+        <div id="online-now" style="font-size: 2rem; font-weight: 700;">{{ online_now }}</div>
+        <div style="color: var(--text-2); font-size: 0.85rem;" title="Signed-in users with a request in the last 5 minutes">Online Now</div>
+    </div>
+    <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
         <div id="total-jobs" style="font-size: 2rem; font-weight: 700;">{{ stats.total }}</div>
         <div style="color: var(--text-2); font-size: 0.85rem;">Total Jobs</div>
     </div>
@@ -328,6 +332,7 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
             document.getElementById('queued-count').textContent = d.queued;
             document.getElementById('workers-online').textContent = d.workers_online;
             document.getElementById('total-users').textContent = d.total_users;
+            document.getElementById('online-now').textContent = d.online_now;
             document.getElementById('total-jobs').textContent = d.stats.total;
             document.getElementById('saves-per-min').textContent = d.stats.spm;
             var rateEl = document.getElementById('success-rate');

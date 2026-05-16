@@ -77,6 +77,13 @@ async def dashboard():
         cursor = await db.execute("SELECT COUNT(*) FROM users")
         total_users = (await cursor.fetchone())[0]
 
+        # Online now — signed-in users with a request in the last 5 min
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM users "
+            "WHERE last_seen > datetime('now', '-300 seconds')"
+        )
+        online_now = (await cursor.fetchone())[0]
+
         # Total job stats (current + persisted)
         cursor = await db.execute(
             "SELECT "
@@ -145,6 +152,7 @@ async def dashboard():
         jobs=jobs,
         queued=queued,
         total_users=total_users,
+        online_now=online_now,
         stats=stats,
         op_stats=op_stats,
         workers_online=workers_online,
@@ -173,6 +181,11 @@ async def stats_json():
 
         cursor = await db.execute("SELECT COUNT(*) FROM users")
         total_users = (await cursor.fetchone())[0]
+
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM users WHERE last_seen > datetime('now', '-300 seconds')"
+        )
+        online_now = (await cursor.fetchone())[0]
 
         # Online instances under active, non-suspended keys
         cursor = await db.execute(
@@ -234,6 +247,7 @@ async def stats_json():
     return {
         "queued": queued,
         "total_users": total_users,
+        "online_now": online_now,
         "workers_online": workers_online,
         "stats": stats,
         "op_stats": op_stats,

@@ -163,6 +163,34 @@ def create_app():
 
     app.jinja_env.filters["linkify"] = _linkify
 
+    @app.before_request
+    async def _bump_user_last_seen():
+        # Bump users.last_seen for the signed-in viewer so the admin's
+        # "Online now" stat is accurate. Throttled to at most one write
+        # per 60s per user via the WHERE clause; skips static + healthcheck.
+        from quart import session as _session, request as _request
+        uid = _session.get("user_id")
+        if not uid:
+            return
+        ep = _request.endpoint or ""
+        if ep == "static" or ep.startswith("api.next_job"):
+            return
+        from models import get_db
+        try:
+            db = await get_db()
+            try:
+                await db.execute(
+                    "UPDATE users SET last_seen = CURRENT_TIMESTAMP "
+                    "WHERE id = ? AND (last_seen IS NULL "
+                    "                   OR last_seen < datetime('now','-60 seconds'))",
+                    (uid,),
+                )
+                await db.commit()
+            finally:
+                await db.close()
+        except Exception:
+            pass
+
     @app.context_processor
     async def inject_worker_count():
         from models import get_db
@@ -228,6 +256,19 @@ def create_app():
                     await db.close()
             except Exception:
                 pass
+        # Maintenance banner — written by /usr/local/bin/maint-banner-check
+        # ~15 min before the auto-update window if security patches are pending.
+        # File is removed post-upgrade. Cheap stat per request; no parse if absent.
+        maint = None
+        try:
+            import json as _json
+            with open("/var/lib/maint-banner/active.json") as _mf:
+                maint = _json.load(_mf)
+                if not maint.get("active"):
+                    maint = None
+        except (OSError, ValueError):
+            pass
+
         return dict(
             workers_online=ps4_count + ps5_count,
             ps4_workers=ps4_count,
@@ -235,6 +276,7 @@ def create_app():
             ps5_workers_online=ps5_count > 0,
             adsense_client=os.getenv("ADSENSE_CLIENT_ID", ""),
             admin_messages=admin_msgs,
+            maintenance=maint,
         )
 
     @app.before_serving

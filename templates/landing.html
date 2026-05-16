@@ -187,7 +187,7 @@
     <div class="landing-cta">
         <a href="{{ url_for('auth.register') }}" class="btn">Get Started</a>
         <a href="{{ url_for('auth.login') }}" class="btn btn-outline">Sign In</a>
-        <a href="https://grr.llc/lobby{% if session.get('username') %}?nick={{ session.get('username') | urlencode }}{% endif %}" class="btn btn-outline">Join Chat</a>
+        <a href="https://etawen.dev/lobby{% if session.get('username') %}?nick={{ session.get('username') | urlencode }}{% endif %}" class="btn btn-outline">Join Chat</a>
     </div>
 </div>
 

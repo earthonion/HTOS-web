@@ -58,7 +58,7 @@
                     </div>
                 </div>
                 <a href="{{ url_for('contribute.contribute') }}">Contribute</a>
-		<a href="https://grr.llc/lobby{% if session.get("username") %}?nick={{ session.get("username") | urlencode }}{% endif %}">Chat <span style="font-size:0.6rem; color:var(--amber); vertical-align:super;">NEW</span></a>
+		<a href="https://etawen.dev/lobby{% if session.get("username") %}?nick={{ session.get("username") | urlencode }}{% endif %}">Chat <span style="font-size:0.6rem; color:var(--amber); vertical-align:super;">NEW</span></a>
                 <a href="{{ url_for('main.about') }}">About</a>
                 {% if session.get('is_admin') %}
                 <a href="{{ url_for('admin_web.dashboard') }}">Admin</a>
@@ -116,6 +116,29 @@
             </div>
             {% endfor %}
         </div>
+        {% endif %}
+
+        {% if maintenance %}
+        <div class="flash flash-info" style="background:linear-gradient(90deg,rgba(99,102,241,0.18),rgba(6,182,212,0.18));border-left:4px solid var(--cyan, #06b6d4);padding:0.7rem 1rem;margin:0 0 0.75rem;border-radius:6px;display:flex;align-items:center;gap:0.7rem">
+            
+            <div style="flex:1">
+                <strong>Scheduled maintenance</strong>
+                {% if maintenance.scheduled_at %}
+                at <span class="maint-time" data-utc="{{ maintenance.scheduled_at }}">{{ maintenance.scheduled_at }}</span>
+                {% endif %}
+                — expect ~{{ maintenance.duration_min or 15 }} min of downtime. Thank you for your patience!
+            </div>
+        </div>
+        <script>
+        // Localize the scheduled time for the viewer's tz.
+        (function(){
+            var el = document.querySelector('.maint-time');
+            if (!el) return;
+            var d = new Date(el.dataset.utc);
+            if (isNaN(d)) return;
+            el.textContent = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZoneName:'short'});
+        })();
+        </script>
         {% endif %}
 
         {% if workers_online == 0 and session.get('user_id') %}
