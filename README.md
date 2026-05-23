@@ -19,7 +19,7 @@ All PS4/PS5 operations communicate with a jailbroken console via the garlic-work
 ## Requirements
 
 - Python 3.12+
-- A jailbroken PS4/PS5 running the [garlic-worker](https://github.com/earthonion/garlic-worker) agent
+- A jailbroken PS4/PS5 running the [garlic-worker](https://git.etawen.dev/earthonion/garlic-worker) agent
 
 ## Setup
 
