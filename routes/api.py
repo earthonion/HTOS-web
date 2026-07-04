@@ -7,11 +7,14 @@ import uuid
 import zipfile
 from functools import wraps
 
-# Minimum garlic-worker version required to pull PS4 jobs. v1.1.1 and below
-# had a hardcoded PS5 SFO_AID_OFFSET (0x1B8) that silently mis-patched
-# account_id on PS4 saves. Fixed in v1.1.2 by selecting the offset per save
-# type. Outdated workers polling ?platform=ps4 get 426 until they update.
-MIN_PS4_WORKER_VERSION = (1, 1, 2)
+# Minimum garlic-worker version required to pull ANY job. v1.1.5 and below
+# ran with default umask (022), which stripped the world-write bit from every
+# file written into a mounted PFS save (0777 requested, 0775 landed). The
+# game reads the save back and flags 0775 files as corrupt. Fixed in v1.1.6
+# via umask(0) + explicit fchmod(0777) in copy_dir_pfs/copy_dir_recursive.
+# This gate also covers the older v1.1.2 SFO_AID_OFFSET fix (PS4-only).
+# Outdated workers polling /next get 426 until they update.
+MIN_WORKER_VERSION = (1, 1, 6)
 
 
 def parse_worker_version(ua: str):
@@ -212,29 +215,27 @@ async def next_job():
     Workers can pass ?platform=ps5 to only receive jobs for that platform."""
     worker_platform = request.args.get("platform", "ps4")
 
-    # Block outdated workers from pulling PS4 jobs. v1.1.1 and below silently
-    # mis-patched account_id on PS4 saves. PS5 jobs are unaffected — leave
-    # those open so the old workers still drain the PS5 queue.
-    if worker_platform == "ps4":
-        ver = parse_worker_version(request.headers.get("User-Agent", ""))
-        if ver is None or ver < MIN_PS4_WORKER_VERSION:
-            min_str = ".".join(str(x) for x in MIN_PS4_WORKER_VERSION)
-            cur_str = ".".join(str(x) for x in ver) if ver else "unknown"
-            return Response(
-                json.dumps({
-                    "error": "outdated_worker",
-                    "min_version": min_str,
-                    "detected_version": cur_str,
-                    "message": (
-                        f"garlic-worker {cur_str} cannot process PS4 jobs — "
-                        f"v{min_str}+ required (PS4 SFO offset bug). "
-                        f"Update via sonicloader or rebuild from "
-                        f"git.earthonion.com/earthonion/garlic-worker."
-                    ),
-                }),
-                status=426,
-                content_type="application/json",
-            )
+    # Block outdated workers from pulling ANY job. See MIN_WORKER_VERSION
+    # comment for the umask/chmod corruption fixed in v1.1.6.
+    ver = parse_worker_version(request.headers.get("User-Agent", ""))
+    if ver is None or ver < MIN_WORKER_VERSION:
+        min_str = ".".join(str(x) for x in MIN_WORKER_VERSION)
+        cur_str = ".".join(str(x) for x in ver) if ver else "unknown"
+        return Response(
+            json.dumps({
+                "error": "outdated_worker",
+                "min_version": min_str,
+                "detected_version": cur_str,
+                "message": (
+                    f"garlic-worker {cur_str} produces corrupt saves — "
+                    f"v{min_str}+ required (PFS chmod 0775 bug). "
+                    f"Update via elf-arsenal or rebuild from "
+                    f"git.etawen.dev/soniciso/elf-arsenal."
+                ),
+            }),
+            status=426,
+            content_type="application/json",
+        )
 
     # Track worker platform on heartbeat
     worker_key = request.headers.get("X-Worker-Key", "")
