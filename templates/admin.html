@@ -527,21 +527,22 @@ document.addEventListener('click', function(e) {
             else if (i.is_ps5_capable) { plat = 'PS5'; platCls = 'ps5'; }
             else if (i.is_ps4_capable) { plat = 'PS4'; platCls = 'ps4'; }
             else { plat = (i.last_platform || '-').toUpperCase(); platCls = (i.last_platform || '').toLowerCase(); }
-            // "Outdated" only applies to PS5-capable workers on the GLOBAL key.
-            // Real PS4-only workers have no UA and aren't affected by the bug
-            // (only PS5-worker-doing-PS4-jobs hit the v1.1.1 SFO offset issue).
-            // User-owned keys aren't shared, so they're a private update problem.
+            // "Outdated" = worker below MIN_WORKER_VERSION on the server (v1.1.6).
+            // v1.1.5 and below ran with default umask (022), producing saves with
+            // mode 0775 that the game flags as corrupt at load. Every worker below
+            // that threshold is blocked from ALL job pulls until it updates —
+            // regardless of platform or key ownership.
             var verMatch = /worker\/v?(\d+)\.(\d+)\.(\d+)/.exec(i.user_agent || '');
             var versionTooLow = !verMatch || (function() {
                 var maj = +verMatch[1], min = +verMatch[2], pat = +verMatch[3];
                 if (maj !== 1) return maj < 1;
                 if (min !== 1) return min < 1;
-                return pat < 2;
+                return pat < 6;
             })();
-            var outdated = versionTooLow && i.is_ps5_capable && i.key_name === 'global';
+            var outdated = versionTooLow;
             var outdatedTitle = verMatch
-                ? 'v' + verMatch[1] + '.' + verMatch[2] + '.' + verMatch[3] + ' — < v1.1.2 (PS4 SFO offset bug, blocked from PS4 jobs)'
-                : 'no version reported — blocked from PS4 jobs';
+                ? 'v' + verMatch[1] + '.' + verMatch[2] + '.' + verMatch[3] + ' — < v1.1.6 (PFS chmod 0775 corruption, all jobs blocked)'
+                : 'no version reported — all jobs blocked';
             var outdatedBadge = outdated
                 ? ' <span class="outdated-badge" title="' + outdatedTitle + '">⚠ OUTDATED</span>'
                 : '';
