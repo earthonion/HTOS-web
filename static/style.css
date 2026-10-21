@@ -103,6 +103,14 @@ body::before {
     height: 52px;
     display: flex;
     align-items: center;
+    justify-content: space-between;
+}
+
+.topbar-btns{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 16rem;
 }
 
 /* Sidebar */
@@ -135,7 +143,7 @@ body::before {
     white-space: nowrap;
     text-transform: uppercase;
     padding: 0.25rem 0.5rem;
-    margin-bottom: 1rem;
+    /* margin-bottom: 1rem; */
 }
 
 /* Hamburger — hidden on desktop */
@@ -275,6 +283,7 @@ body::before {
 /* Topbar dropdown (signed-out) */
 .topbar-dropdown {
     position: relative;
+    white-space: nowrap;
 }
 
 .topbar-dropdown-toggle {
@@ -323,7 +332,6 @@ body::before {
     font-size: 0.82rem;
     font-weight: 600;
     padding: 0.35rem 0.85rem;
-    margin-left: 1.5rem;
     border-radius: var(--r-sm);
     background: var(--indigo);
     color: #fff;
@@ -979,8 +987,10 @@ main > *:nth-child(6) { animation-delay: 0.2s; }
         border-bottom: 1px solid var(--border);
         gap: 0;
     }
+    .topbar{ padding: 0 0.5rem; }
+    .topbar-btns{ width: 13rem; }
     .nav-header { margin-bottom: 0; }
-    .nav-brand { margin-bottom: 0; font-size: 0.9rem; }
+    .nav-brand { margin-bottom: 0; font-size: 0.9rem; padding: 0; }
     .hamburger { display: flex; }
     .nav-collapse {
         display: none;
@@ -999,6 +1009,12 @@ main > *:nth-child(6) { animation-delay: 0.2s; }
     h1 { font-size: 1.25rem; }
     .auth-form { margin-top: 2.5rem; }
     .file-drop { padding: 1.25rem 1rem; }
+}
+
+@media screen and (max-width: 350px) {
+    .topbar-dropdown { display: none; }
+    .btn-about { display: none; }
+    .topbar-btns { justify-content: end; }
 }
 
 /* Footer */

@@ -78,20 +78,22 @@
     {% else %}
     <nav class="topbar">
         <div class="nav-brand"><img src="{{ url_for('static', filename='favicon.svg') }}" alt="" style="height:1.4em;vertical-align:middle;margin-right:0.3em;">garlicsaves</div>
-        <div class="topbar-dropdown" style="margin-left:auto;">
-            <a href="#" class="topbar-dropdown-toggle" onclick="event.preventDefault();this.parentElement.classList.toggle('open')" style="font-size:0.85rem; color:var(--text-2); text-decoration:none;">Tools <span class="nav-chevron"></span></a>
-            <div class="topbar-dropdown-menu">
-                <a href="{{ url_for('tools.title_lookup') }}">Title ID Lookup</a>
-                <a href="{{ url_for('tools.fs_browser') }}">Filesystem Browser</a>
-                <a href="{{ url_for('tools.sfo_viewer') }}">param.sfo Viewer</a>
-                <a href="{{ url_for('tools.function_lookup') }}">Function Lookup</a>
-                <a href="{{ url_for('tools.entitlements') }}">Entitlement Dumper</a>
-                <a href="{{ url_for('tools.syscall_lookup') }}">Syscall Reference</a>
-                <a href="{{ url_for('tools.sample_saves') }}">Sample Saves</a>
+        <div class="topbar-btns">
+            <div class="topbar-dropdown" style="white-space: nowrap;">
+                <a href="#" class="topbar-dropdown-toggle" onclick="event.preventDefault();this.parentElement.classList.toggle('open')" style="font-size:0.85rem; color:var(--text-2); text-decoration:none;">Tools <span class="nav-chevron"></span></a>
+                <div class="topbar-dropdown-menu">
+                    <a href="{{ url_for('tools.title_lookup') }}">Title ID Lookup</a>
+                    <a href="{{ url_for('tools.fs_browser') }}">Filesystem Browser</a>
+                    <a href="{{ url_for('tools.sfo_viewer') }}">param.sfo Viewer</a>
+                    <a href="{{ url_for('tools.function_lookup') }}">Function Lookup</a>
+                    <a href="{{ url_for('tools.entitlements') }}">Entitlement Dumper</a>
+                    <a href="{{ url_for('tools.syscall_lookup') }}">Syscall Reference</a>
+                    <a href="{{ url_for('tools.sample_saves') }}">Sample Saves</a>
+                </div>
             </div>
+            <a href="{{ url_for('main.about') }}" class="btn-about" style="font-size:0.85rem; color:var(--text-2); text-decoration:none;">About</a>
+            {% if not hide_signin %}<a href="{{ url_for('auth.login') }}" class="btn-signin">Sign In</a>{% endif %}
         </div>
-        <a href="{{ url_for('main.about') }}" style="font-size:0.85rem; color:var(--text-2); text-decoration:none; margin-left:2rem;">About</a>
-        {% if not hide_signin %}<a href="{{ url_for('auth.login') }}" class="btn-signin">Sign In</a>{% endif %}
     </nav>
     {% endif %}
 
