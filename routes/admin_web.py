@@ -89,12 +89,10 @@ async def dashboard():
         # "weekly active users / 7" not strict DAU, but it's a stable
         # popularity signal.
         cursor = await db.execute(
-            "SELECT COUNT(*) FROM users "
-            "WHERE last_seen > datetime('now', '-7 days')"
+            "SELECT COUNT(*) FROM users WHERE last_seen > datetime('now', '-7 days')"
         )
         wau = (await cursor.fetchone())[0]
         users_per_day = round(wau / 7, 1)
-
 
         # Total job stats (current + persisted)
         cursor = await db.execute(
@@ -272,7 +270,6 @@ async def stats_json():
         return await _compute_stats(db)
     finally:
         await db.close()
-
 
 
 @admin_web_bp.route("/admin/worker-instances/<int:key_id>")
@@ -517,6 +514,7 @@ async def unban_user():
 async def send_message():
     """Post a banner message to a specific user, or to '*' for broadcast."""
     from quart import session as _session
+
     data = await request.get_json()
     if not data:
         return jsonify({"ok": False, "error": "JSON body required"}), 400
@@ -540,7 +538,9 @@ async def send_message():
             )
             row = await cursor.fetchone()
             if not row:
-                return jsonify({"ok": False, "error": f"User '{target}' not found"}), 404
+                return jsonify(
+                    {"ok": False, "error": f"User '{target}' not found"}
+                ), 404
             user_id = row["id"]
         await db.execute(
             "INSERT INTO admin_messages (user_id, sender_id, message, level) VALUES (?, ?, ?, ?)",
@@ -576,6 +576,7 @@ async def list_messages():
 async def dismiss_message(msg_id):
     """Any logged-in user can dismiss a message that's targeted at them or a broadcast."""
     from quart import session as _session
+
     uid = _session.get("user_id")
     if not uid:
         return jsonify({"ok": False, "error": "auth"}), 401

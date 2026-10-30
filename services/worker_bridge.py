@@ -65,7 +65,9 @@ async def process_decrypt(job: Job):
         bin_path = os.path.join(upload_dir, bin_name)
 
         if not os.path.isfile(save_path):
-            push_log(job.job_id, "WARNING", f"No matching save file for {bin_name}, skipping")
+            push_log(
+                job.job_id, "WARNING", f"No matching save file for {bin_name}, skipping"
+            )
             continue
 
         push_log(job.job_id, "INFO", f"Sending {save_name} to fallback decryptor...")
@@ -82,7 +84,11 @@ async def process_decrypt(job: Job):
                 )
 
             if r.status_code != 200:
-                err = r.json().get("error", r.text) if r.headers.get("content-type", "").startswith("application/json") else r.text
+                err = (
+                    r.json().get("error", r.text)
+                    if r.headers.get("content-type", "").startswith("application/json")
+                    else r.text
+                )
                 raise RuntimeError(f"Decrypt submit failed: {err}")
 
             st_job_id = r.json()["job_id"]
@@ -112,6 +118,7 @@ async def process_decrypt(job: Job):
         for save_name, data in results:
             # Result may be a zip — merge its contents
             import io
+
             try:
                 with zipfile.ZipFile(io.BytesIO(data), "r") as inner:
                     for entry in inner.infolist():
@@ -135,6 +142,7 @@ async def process_encrypt(job: Job):
 
     # Build a zip of the save directory
     import io
+
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_STORED) as zf:
         for root, _dirs, files in os.walk(upload_dir):
@@ -168,7 +176,11 @@ async def process_encrypt(job: Job):
         )
 
         if r.status_code != 200:
-            err = r.json().get("error", r.text) if r.headers.get("content-type", "").startswith("application/json") else r.text
+            err = (
+                r.json().get("error", r.text)
+                if r.headers.get("content-type", "").startswith("application/json")
+                else r.text
+            )
             raise RuntimeError(f"Encrypt submit failed: {err}")
 
         st_job_id = r.json()["job_id"]

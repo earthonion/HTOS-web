@@ -99,8 +99,11 @@ def check_zip_safety(zip_path):
                 # (a raw substring check false-positives on filenames like
                 # "Densetsu he... (J).gbc").
                 parts = info.filename.replace("\\", "/").split("/")
-                if ".." in parts or info.filename.startswith("/") \
-                   or (len(info.filename) > 1 and info.filename[1] == ":"):
+                if (
+                    ".." in parts
+                    or info.filename.startswith("/")
+                    or (len(info.filename) > 1 and info.filename[1] == ":")
+                ):
                     raise DangerousFileError(
                         f"Suspicious path in zip: {info.filename}. Upload rejected."
                     )

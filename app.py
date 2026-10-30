@@ -24,6 +24,7 @@ def create_app():
     from routes.admin_web import admin_web_bp
     from routes.api import api_bp
     from routes.api_v1 import api_v1_bp
+    from routes.bo1 import bo1_bp
     from routes.chunked import chunked_bp
     from routes.contribute import contribute_bp
     from routes.convert import convert_bp
@@ -31,8 +32,8 @@ def create_app():
     from routes.decrypt import decrypt_bp
     from routes.encrypt import encrypt_bp
     from routes.jobs import jobs_bp
+    from routes.kofi import kofi_bp
     from routes.luac0re import luac0re_bp
-    from routes.bo1 import bo1_bp
     from routes.main import main_bp
     from routes.quickcodes import quickcodes_bp
     from routes.reregion import reregion_bp
@@ -41,7 +42,6 @@ def create_app():
     from routes.savedb import savedb_bp
     from routes.saveeditor import saveeditor_bp
     from routes.tools import tools_bp
-    from routes.kofi import kofi_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -138,25 +138,29 @@ def create_app():
             return "".join(reversed([account_id[i : i + 2] for i in range(0, 16, 2)]))
         return account_id
 
-
     @app.template_filter("to_rp_id")
     def to_rp_id(account_id):
         """Convert hex account ID to base64 remote play format (little-endian)."""
         import base64
+
         if len(account_id) == 16:
             try:
-                usb_id = "".join(reversed([account_id[i:i+2] for i in range(0, 16, 2)]))
+                usb_id = "".join(
+                    reversed([account_id[i : i + 2] for i in range(0, 16, 2)])
+                )
                 return base64.b64encode(int(usb_id, 16).to_bytes(8, "little")).decode()
             except Exception:
                 pass
         return ""
+
     @app.template_filter("syscall_man_url")
     def _syscall_man_url_filter(name):
         from routes.tools import syscall_man_url
 
         return syscall_man_url(name)
 
-    import html, re as _re
+    import html
+    import re as _re
 
     _URL_RE = _re.compile(r"""https?://[^\s<>\"']+""")
 
@@ -164,13 +168,14 @@ def create_app():
         if not text:
             return text
         text = str(text)
-        out = []; last = 0
+        out = []
+        last = 0
         for m in _URL_RE.finditer(text):
-            out.append(html.escape(text[last:m.start()]))
+            out.append(html.escape(text[last : m.start()]))
             raw = m.group(0)
             # strip trailing punct that's almost certainly not part of the URL
             stripped = raw.rstrip(".,;:)]}!?")
-            tail = raw[len(stripped):]
+            tail = raw[len(stripped) :]
             out.append(
                 f'<a href="{html.escape(stripped, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(stripped)}</a>'
                 + html.escape(tail)
@@ -186,7 +191,9 @@ def create_app():
         # Bump users.last_seen for the signed-in viewer so the admin's
         # "Online now" stat is accurate. Throttled to at most one write
         # per 60s per user via the WHERE clause; skips static + healthcheck.
-        from quart import session as _session, request as _request
+        from quart import request as _request
+        from quart import session as _session
+
         uid = _session.get("user_id")
         if not uid:
             return
@@ -194,6 +201,7 @@ def create_app():
         if ep == "static" or ep.startswith("api.next_job"):
             return
         from models import get_db
+
         try:
             db = await get_db()
             try:
@@ -280,6 +288,7 @@ def create_app():
         maint = None
         try:
             import json as _json
+
             with open("/var/lib/maint-banner/active.json") as _mf:
                 maint = _json.load(_mf)
                 if not maint.get("active"):
@@ -298,7 +307,9 @@ def create_app():
                     "WHERE LOWER(COALESCE(from_name, '')) != 'anonymous' "
                     "ORDER BY created_at DESC LIMIT 60"
                 )
-                footer_supporters = group_supporters([dict(r) for r in await cursor.fetchall()])
+                footer_supporters = group_supporters(
+                    [dict(r) for r in await cursor.fetchall()]
+                )
                 cursor = await db.execute(
                     "SELECT COUNT(*) FROM kofi_supporters "
                     "WHERE LOWER(COALESCE(from_name, '')) = 'anonymous'"

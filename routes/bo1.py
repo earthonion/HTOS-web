@@ -15,19 +15,29 @@ Flow:
   5. POST /bo1/edit/<job_id>/encrypt        — queue the encrypt job and
                                               redirect to its status page.
 """
+
 import json
 import os
 from pathlib import Path
 
 from quart import (
-    Blueprint, abort, flash, jsonify, redirect, render_template, request,
-    session, url_for,
+    Blueprint,
+    abort,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
 )
 
 from auth import login_required
 from models import get_db
 from services.bo1 import (
-    decrypt_prf_bytes, list_prf_files, queue_encrypt_from_stage,
+    decrypt_prf_bytes,
+    list_prf_files,
+    queue_encrypt_from_stage,
     write_prf_from_text,
 )
 from services.files import (
@@ -52,11 +62,13 @@ def _list_presets():
     out = []
     if PRESETS_DIR.is_dir():
         for p in sorted(PRESETS_DIR.glob("*.txt")):
-            out.append({
-                "slug": p.stem,
-                "name": p.stem.replace("_", " ").replace("-", " ").title(),
-                "size": p.stat().st_size,
-            })
+            out.append(
+                {
+                    "slug": p.stem,
+                    "name": p.stem.replace("_", " ").replace("-", " ").title(),
+                    "size": p.stat().st_size,
+                }
+            )
     return out
 
 
@@ -159,6 +171,7 @@ async def bo1():
         try:
             if upload_ids_json:
                 import json as _json
+
                 upload_ids = _json.loads(upload_ids_json)
                 upload_dir = await resolve_chunked_uploads(
                     upload_ids, user_id, job.job_id
@@ -256,11 +269,13 @@ async def bo1_edit_load(job_id):
     if not target:
         abort(404)
     blob = target.read_bytes()
-    return jsonify({
-        "rel": rel,
-        "size": len(blob),
-        "text": decrypt_prf_bytes(blob),
-    })
+    return jsonify(
+        {
+            "rel": rel,
+            "size": len(blob),
+            "text": decrypt_prf_bytes(blob),
+        }
+    )
 
 
 @bo1_bp.route("/bo1/edit/<job_id>/preset")

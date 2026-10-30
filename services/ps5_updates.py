@@ -22,16 +22,17 @@ PS5_UPDATE_HOSTS = {
 }
 
 _VERSION_XML_RE = re.compile(r"-version\.xml$", re.I)
-_SC_PKG_RE     = re.compile(r"_sc\.pkg$", re.I)
-
+_SC_PKG_RE = re.compile(r"_sc\.pkg$", re.I)
 
 
 def _urlstr(u):
     """Library sometimes returns a urllib.parse.ParseResult; flatten to str."""
-    if u is None: return None
+    if u is None:
+        return None
     if hasattr(u, "geturl"):
         return u.geturl()
     return str(u)
+
 
 def _serialize_pkg(pkg) -> Dict[str, Any]:
     """Turn a ps5_updates.pkg.PKG into a JSON-safe dict."""
@@ -71,10 +72,11 @@ def _lookup_sync(url: str) -> Dict[str, Any]:
     """Run the synchronous lookup. Called inside asyncio.to_thread."""
     # Suppress the InsecureRequestWarning the lib emits on every PS5 host.
     import urllib3
+
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-    from ps5_updates import title as ps5up
     from ps5_updates import pkg as ps5pkg
+    from ps5_updates import title as ps5up
 
     if _SC_PKG_RE.search(url):
         # Direct _sc.pkg URL → PKG object only (no title-level multi-package list)
@@ -100,13 +102,17 @@ def _lookup_sync(url: str) -> Dict[str, Any]:
 
     additional = []
     for ac in getattr(title, "additional_content", []) or []:
-        additional.append({
-            "title_id": getattr(ac, "title_id", None),
-            "content_id": getattr(ac, "content_id", None),
-            "name": getattr(ac, "name", None),
-            "latest": _serialize_package(getattr(ac, "latest", None)),
-            "packages": [_serialize_package(p) for p in (getattr(ac, "packages", []) or [])],
-        })
+        additional.append(
+            {
+                "title_id": getattr(ac, "title_id", None),
+                "content_id": getattr(ac, "content_id", None),
+                "name": getattr(ac, "name", None),
+                "latest": _serialize_package(getattr(ac, "latest", None)),
+                "packages": [
+                    _serialize_package(p) for p in (getattr(ac, "packages", []) or [])
+                ],
+            }
+        )
 
     return {
         "mode": "title",

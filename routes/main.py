@@ -36,13 +36,13 @@ async def index():
             "SELECT from_name, message, type, is_public, "
             "is_subscription_payment, tier_name, is_manual "
             "FROM kofi_supporters "
-            "WHERE LOWER(COALESCE(from_name, \"\")) != \"anonymous\" "
+            'WHERE LOWER(COALESCE(from_name, "")) != "anonymous" '
             "ORDER BY created_at DESC LIMIT 40"
         )
         supporters = [dict(r) for r in await cursor.fetchall()]
         cursor = await db.execute(
             "SELECT COUNT(*) FROM kofi_supporters "
-            "WHERE LOWER(COALESCE(from_name, \"\")) = \"anonymous\""
+            'WHERE LOWER(COALESCE(from_name, "")) = "anonymous"'
         )
         anonymous_count = (await cursor.fetchone())[0]
     finally:
@@ -89,6 +89,7 @@ async def dashboard():
 async def about():
     return await render_template("about.html")
 
+
 @main_bp.route("/donate")
 async def donate():
     supporters = []
@@ -115,6 +116,7 @@ async def donate():
         supporters=supporters,
         anonymous_count=anonymous_count,
     )
+
 
 @main_bp.route("/profiles", methods=["POST"])
 @login_required

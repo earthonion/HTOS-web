@@ -4,7 +4,7 @@ import json
 import os
 from functools import wraps
 
-from quart import Blueprint, jsonify, request, send_file
+from quart import Blueprint, jsonify, request
 
 from models import get_db
 from routes.api import validate_worker_key
@@ -229,6 +229,7 @@ async def get_result(user_id, job_id):
     # Delegate byte-streaming to nginx via X-Accel-Redirect. See
     # /_result_files/ internal alias in the nginx site config.
     from quart import Response
+
     filename = os.path.basename(row["result_path"])
     resp = Response(b"", status=200)
     resp.headers["X-Accel-Redirect"] = f"/_result_files/{filename}"

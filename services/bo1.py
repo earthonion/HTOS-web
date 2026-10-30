@@ -7,9 +7,14 @@ Editor path (bo1_editor=True): decrypt job completes, chain unpacks the
 result zip into a stage dir and stops. User edits individual PRFs via
 /bo1/edit/<job_id>, then clicks Encrypt which queues the follow-up job.
 """
+
 from __future__ import annotations
-import json, os, re, zipfile
+
+import json
+import re
+import zipfile
 from pathlib import Path
+
 from Crypto.Cipher import DES3
 
 from models import get_db
@@ -84,15 +89,19 @@ def list_prf_files(root: Path) -> list[dict]:
     out = []
     for p in sorted(root.rglob("*")):
         if p.is_file() and p.suffix.lower() == ".prf":
-            out.append({
-                "rel": str(p.relative_to(root)),
-                "name": p.name,
-                "size": p.stat().st_size,
-            })
+            out.append(
+                {
+                    "rel": str(p.relative_to(root)),
+                    "name": p.name,
+                    "size": p.stat().st_size,
+                }
+            )
     return out
 
 
-async def _stage_decrypted_zip(user_id: int, decrypt_job_id: str, result_zip: str) -> Path:
+async def _stage_decrypted_zip(
+    user_id: int, decrypt_job_id: str, result_zip: str
+) -> Path:
     """Extract the decrypted result zip into a per-decrypt-job stage dir the
     editor can walk. Returns the stage dir path."""
     stage = Path("workspace/uploads") / str(user_id) / f"bo1-edit-{decrypt_job_id}"
@@ -102,7 +111,9 @@ async def _stage_decrypted_zip(user_id: int, decrypt_job_id: str, result_zip: st
     return stage
 
 
-async def chain_stage_only(*, decrypt_job_id: str, user_id: int, result_zip: str) -> str:
+async def chain_stage_only(
+    *, decrypt_job_id: str, user_id: int, result_zip: str
+) -> str:
     """Editor-mode chain: extract the decrypted zip to a stage dir and record
     its path in the decrypt job's params so /bo1/edit/<id> can find it.
 

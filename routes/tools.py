@@ -7,11 +7,12 @@ from quart import Blueprint, Response, jsonify, render_template, request, sessio
 
 from auth import login_required
 from models import get_db
+from services import error_codes as _ec
 from services.filesystem import search_filesystem
 from services.functions import search_functions
-from services.ps5_updates import PS5_UPDATE_HOSTS, lookup as ps5_updates_lookup
+from services.ps5_updates import PS5_UPDATE_HOSTS
+from services.ps5_updates import lookup as ps5_updates_lookup
 from services.titles import search_titles
-from services import error_codes as _ec
 
 VALID_URL_HOSTS = {
     "gs2.ww.prod.dl.playstation.net",
@@ -55,6 +56,7 @@ async def ps5_updates():
     error = None
     if url:
         from urllib.parse import urlparse
+
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https"):
             error = "URL must start with http:// or https://"
@@ -162,7 +164,9 @@ async def error_lookup():
     counts = _ec.total_by_platform()
     return await render_template(
         "tools_error_lookup.html",
-        q=q, platform=platform, results=results,
+        q=q,
+        platform=platform,
+        results=results,
         total=_ec.total(),
         counts_all=_ec.total(),
         counts_ps4=counts.get("ps4", 0),
@@ -963,11 +967,13 @@ async def entitlements_csv():
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
+
 import json as _json
 import struct as _struct
 import subprocess as _subprocess
 import tempfile as _tempfile
 from pathlib import Path as _Path
+
 from PIL import Image as _PILImage
 from quart import send_file as _send_file
 
@@ -978,32 +984,35 @@ _WEBKIT_BUILD_DIR = "/var/lib/htos/ps5builds"
 
 def _generate_bc7_dds(png_path, dds_path):
     import etcpak
+
     img = _PILImage.open(png_path).convert("RGBA")
     w, h = img.size
     bc7 = etcpak.compress_bc7(img.tobytes(), w, h)
     # DDS header: 4 magic + 124 header + 20 DX10 ext = 148 bytes
     hdr = bytearray(148)
     _struct.pack_into("<4s", hdr, 0, b"DDS ")
-    _struct.pack_into("<I", hdr, 4, 124)          # dwSize
-    _struct.pack_into("<I", hdr, 8, 0x81007)      # dwFlags: CAPS|HEIGHT|WIDTH|PIXELFORMAT|LINEARSIZE
-    _struct.pack_into("<I", hdr, 12, h)            # dwHeight
-    _struct.pack_into("<I", hdr, 16, w)            # dwWidth
-    _struct.pack_into("<I", hdr, 20, len(bc7))     # dwPitchOrLinearSize
+    _struct.pack_into("<I", hdr, 4, 124)  # dwSize
+    _struct.pack_into(
+        "<I", hdr, 8, 0x81007
+    )  # dwFlags: CAPS|HEIGHT|WIDTH|PIXELFORMAT|LINEARSIZE
+    _struct.pack_into("<I", hdr, 12, h)  # dwHeight
+    _struct.pack_into("<I", hdr, 16, w)  # dwWidth
+    _struct.pack_into("<I", hdr, 20, len(bc7))  # dwPitchOrLinearSize
     # 24: dwDepth = 0
-    _struct.pack_into("<I", hdr, 28, 1)            # dwMipMapCount
+    _struct.pack_into("<I", hdr, 28, 1)  # dwMipMapCount
     # 32-75: dwReserved1[11] = zeros
-    _struct.pack_into("<I", hdr, 76, 32)           # ddspf.dwSize
-    _struct.pack_into("<I", hdr, 80, 0x4)          # ddspf.dwFlags: FOURCC
-    _struct.pack_into("<4s", hdr, 84, b"DX10")     # ddspf.dwFourCC
+    _struct.pack_into("<I", hdr, 76, 32)  # ddspf.dwSize
+    _struct.pack_into("<I", hdr, 80, 0x4)  # ddspf.dwFlags: FOURCC
+    _struct.pack_into("<4s", hdr, 84, b"DX10")  # ddspf.dwFourCC
     # 88-104: ddspf remainder = zeros
-    _struct.pack_into("<I", hdr, 108, 0x1000)      # dwCaps: TEXTURE
+    _struct.pack_into("<I", hdr, 108, 0x1000)  # dwCaps: TEXTURE
     # 112-124: dwCaps2..dwReserved2 = zeros
     # DX10 extended header at offset 128
-    _struct.pack_into("<I", hdr, 128, 98)          # dxgiFormat: BC7_UNORM
-    _struct.pack_into("<I", hdr, 132, 3)           # resourceDimension: TEXTURE2D
-    _struct.pack_into("<I", hdr, 136, 0)           # miscFlag
-    _struct.pack_into("<I", hdr, 140, 1)           # arraySize
-    _struct.pack_into("<I", hdr, 144, 0)           # miscFlags2
+    _struct.pack_into("<I", hdr, 128, 98)  # dxgiFormat: BC7_UNORM
+    _struct.pack_into("<I", hdr, 132, 3)  # resourceDimension: TEXTURE2D
+    _struct.pack_into("<I", hdr, 136, 0)  # miscFlag
+    _struct.pack_into("<I", hdr, 140, 1)  # arraySize
+    _struct.pack_into("<I", hdr, 144, 0)  # miscFlags2
     with open(dds_path, "wb") as f:
         f.write(hdr)
         f.write(bc7)
@@ -1024,7 +1033,9 @@ def _strip_asset(src, asset_name):
             skip -= 1
             continue
         dotted = asset_name.replace("_", ".")
-        if (asset_name in line or dotted in line) and ("INCASSET" in line or "install_file" in line):
+        if (asset_name in line or dotted in line) and (
+            "INCASSET" in line or "install_file" in line
+        ):
             if "install_file" in line:
                 skip = 4
             continue
@@ -1073,15 +1084,16 @@ async def webkit_shortcut_build():
         sd = os.path.join(bd, "sce_sys")
         os.makedirs(sd)
 
-        if icon_svg_data.startswith('data:'):
+        if icon_svg_data.startswith("data:"):
             import base64 as _b64
-            _header, _b64data = icon_svg_data.split(',', 1)
-            icon_tmp = os.path.join(bd, 'icon_upload')
-            with open(icon_tmp, 'wb') as _f:
+
+            _header, _b64data = icon_svg_data.split(",", 1)
+            icon_tmp = os.path.join(bd, "icon_upload")
+            with open(icon_tmp, "wb") as _f:
                 _f.write(_b64.b64decode(_b64data))
-            log.append('Using picked icon...')
+            log.append("Using picked icon...")
         elif has_custom_icon:
-            icon_tmp = os.path.join(bd, 'icon_upload')
+            icon_tmp = os.path.join(bd, "icon_upload")
             await icon_file.save(icon_tmp)
         else:
             icon_tmp = _default_icon
@@ -1092,11 +1104,15 @@ async def webkit_shortcut_build():
             pic1_tmp = _default_pic1
 
         import time as _time_mod
+
         os.makedirs(_WEBKIT_BUILD_DIR, exist_ok=True)
         for _old in os.listdir(_WEBKIT_BUILD_DIR):
             _p = os.path.join(_WEBKIT_BUILD_DIR, _old)
             try:
-                if os.path.isfile(_p) and _time_mod.time() - os.path.getmtime(_p) > 3600:
+                if (
+                    os.path.isfile(_p)
+                    and _time_mod.time() - os.path.getmtime(_p) > 3600
+                ):
                     os.remove(_p)
             except OSError:
                 pass
@@ -1147,7 +1163,9 @@ async def webkit_shortcut_build():
             has_pic0 = True
             if gen_dds:
                 log.append("Generating BC7 DDS...")
-                _generate_bc7_dds(os.path.join(sd, "pic0.png"), os.path.join(sd, "pic0.dds"))
+                _generate_bc7_dds(
+                    os.path.join(sd, "pic0.png"), os.path.join(sd, "pic0.dds")
+                )
                 has_dds = True
                 dds_sz = os.path.getsize(os.path.join(sd, "pic0.dds"))
                 log.append(f"DDS generated ({dds_sz / 1024 / 1024:.1f} MB)")
@@ -1159,9 +1177,17 @@ async def webkit_shortcut_build():
                 await bgm_file.save(bgm_tmp)
                 log.append("Converting audio to AT9...")
                 at9_proc = _subprocess.run(
-                    ["python3", "/opt/ps5-at9-converter/ps5_at9.py",
-                     "-i", bgm_tmp, "-o", os.path.join(sd, "snd0.at9")],
-                    capture_output=True, text=True, timeout=120,
+                    [
+                        "python3",
+                        "/opt/ps5-at9-converter/ps5_at9.py",
+                        "-i",
+                        bgm_tmp,
+                        "-o",
+                        os.path.join(sd, "snd0.at9"),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
                 )
                 if at9_proc.returncode != 0:
                     log.append(f"ERROR: AT9 conversion failed")
@@ -1172,7 +1198,10 @@ async def webkit_shortcut_build():
                 log.append(f"AT9 generated ({at9_sz / 1024:.0f} KB)")
             else:
                 import shutil as _shutil
-                _shutil.copy2("/opt/htos/static/default_snd0.at9", os.path.join(sd, "snd0.at9"))
+
+                _shutil.copy2(
+                    "/opt/htos/static/default_snd0.at9", os.path.join(sd, "snd0.at9")
+                )
                 log.append("Using default BGM chime")
             has_bgm = True
 
@@ -1203,7 +1232,7 @@ async def webkit_shortcut_build():
             "    $(error PS5_PAYLOAD_SDK is undefined)\n"
             "endif\n\n"
             f"ELF := {elf_name}\n"
-            f'CFLAGS := -Wall -Werror -g -DTITLE_ID=\'\"{title_id}\"\'\n'
+            f"CFLAGS := -Wall -Werror -g -DTITLE_ID='\"{title_id}\"'\n"
             "LDADD  := -lSceIpmi -lSceAppInstUtil\n\n"
             "all: $(ELF)\n\n"
             "$(ELF): main.c\n"
@@ -1219,8 +1248,12 @@ async def webkit_shortcut_build():
         env = os.environ.copy()
         env["PS5_PAYLOAD_SDK"] = _PS5_SDK
         proc = _subprocess.run(
-            ["make", "clean", "all"], cwd=bd, env=env,
-            capture_output=True, text=True, timeout=120,
+            ["make", "clean", "all"],
+            cwd=bd,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
         if proc.stdout.strip():
             log.append(proc.stdout.strip())
@@ -1239,10 +1272,12 @@ async def webkit_shortcut_build():
         log.append(f"SUCCESS: {elf_name} ({size_kb:.0f} KB)")
         os.makedirs(_WEBKIT_BUILD_DIR, exist_ok=True)
         import shutil as _shutil_mod
+
         dest = os.path.join(_WEBKIT_BUILD_DIR, elf_name)
         _shutil_mod.copy2(elf_path, dest)
         src_zip = os.path.join(bd, "source.zip")
         import zipfile as _zf_mod
+
         with _zf_mod.ZipFile(src_zip, "w", _zf_mod.ZIP_DEFLATED) as zf:
             for name in ("main.c", "Makefile"):
                 p = os.path.join(bd, name)
@@ -1252,7 +1287,9 @@ async def webkit_shortcut_build():
             if os.path.isdir(sd2):
                 for fname in os.listdir(sd2):
                     zf.write(os.path.join(sd2, fname), f"sce_sys/{fname}")
-        src_dest = os.path.join(_WEBKIT_BUILD_DIR, elf_name.replace(".elf", "") + "-source.zip")
+        src_dest = os.path.join(
+            _WEBKIT_BUILD_DIR, elf_name.replace(".elf", "") + "-source.zip"
+        )
         _shutil_mod.copy2(src_zip, src_dest)
         return jsonify(ok=True, log=log, elf=elf_name)
 

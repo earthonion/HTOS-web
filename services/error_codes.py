@@ -4,13 +4,18 @@ Data source: /opt/htos/data/error_codes.json produced from the community
 error_codes_ps4.csv (4-line records) + error_codesps5.csv (CSV). ~27k entries,
 loaded once into memory; linear scan is trivially fast at this size.
 """
+
 import json
 import logging
 import os
 
 log = logging.getLogger("error_codes")
 
-_DATA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "error_codes.json")
+_DATA_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "data",
+    "error_codes.json",
+)
 _ALL: list[dict] = []
 
 
@@ -51,7 +56,7 @@ def search(q: str, platform: str | None = None, limit: int = 50) -> list[dict]:
             continue
         code = r.get("code", "").lower()
         hex_ = r.get("hex", "").lower()
-        sce  = r.get("sce", "").lower()
+        sce = r.get("sce", "").lower()
         desc = r.get("desc", "").lower()
         if q == code or q == hex_:
             exact.append(r)

@@ -22,6 +22,7 @@ def parse_worker_version(ua: str):
     m = re.search(r"worker/v?(\d+)\.(\d+)\.(\d+)", ua or "")
     return tuple(int(x) for x in m.groups()) if m else None
 
+
 from quart import Blueprint, Response, abort, request, send_file
 
 from config import CHUNK_DIR, WORKER_KEY
@@ -222,17 +223,19 @@ async def next_job():
         min_str = ".".join(str(x) for x in MIN_WORKER_VERSION)
         cur_str = ".".join(str(x) for x in ver) if ver else "unknown"
         return Response(
-            json.dumps({
-                "error": "outdated_worker",
-                "min_version": min_str,
-                "detected_version": cur_str,
-                "message": (
-                    f"garlic-worker {cur_str} produces corrupt saves — "
-                    f"v{min_str}+ required (PFS chmod 0775 bug). "
-                    f"Update via elf-arsenal or rebuild from "
-                    f"git.etawen.dev/soniciso/elf-arsenal."
-                ),
-            }),
+            json.dumps(
+                {
+                    "error": "outdated_worker",
+                    "min_version": min_str,
+                    "detected_version": cur_str,
+                    "message": (
+                        f"garlic-worker {cur_str} produces corrupt saves — "
+                        f"v{min_str}+ required (PFS chmod 0775 bug). "
+                        f"Update via elf-arsenal or rebuild from "
+                        f"git.etawen.dev/soniciso/elf-arsenal."
+                    ),
+                }
+            ),
             status=426,
             content_type="application/json",
         )
@@ -285,8 +288,12 @@ async def next_job():
                     check = await cursor2.fetchone()
                     if check and check["is_suspended"]:
                         return Response(
-                            json.dumps({"suspended_until": wi["suspended_until"],
-                                        "scope": "instance"}),
+                            json.dumps(
+                                {
+                                    "suspended_until": wi["suspended_until"],
+                                    "scope": "instance",
+                                }
+                            ),
                             status=429,
                             content_type="application/json",
                         )
@@ -475,7 +482,9 @@ async def job_files(job_id):
     # causing hypercorn to drop the connection ~1.7 GB in. A plain async
     # generator + explicit Content-Length reads chunked from disk.
     import aiofiles
+
     size = os.path.getsize(tmp_path)
+
     async def _stream():
         async with aiofiles.open(tmp_path, "rb") as fh:
             while True:
@@ -483,6 +492,7 @@ async def job_files(job_id):
                 if not chunk:
                     break
                 yield chunk
+
     return Response(
         _stream(),
         mimetype="application/zip",
@@ -646,7 +656,9 @@ async def update_status(job_id):
                         (wk["id"],),
                     )
                     recent = await cursor2.fetchall()
-                    if len(recent) >= 10 and all(r["status"] == "failed" for r in recent):
+                    if len(recent) >= 10 and all(
+                        r["status"] == "failed" for r in recent
+                    ):
                         await db.execute(
                             "UPDATE worker_keys SET suspended_until = "
                             "datetime('now', '+24 hours') WHERE id = ?",
@@ -694,7 +706,6 @@ async def update_status(job_id):
         except Exception:
             pass
 
-
     # BO1 chain: when a decrypt job carrying bo1_patch completes, extract
     # its result zip, overwrite .PRF files with the encrypted patch blob,
     # and queue a follow-up encrypt job that re-signs to the target account.
@@ -713,6 +724,7 @@ async def update_status(job_id):
                 jp = json.loads(jrow["params"] or "{}")
                 if jp.get("bo1_patch") and jp.get("bo1_account_id"):
                     from services.bo1 import chain_after_decrypt
+
                     await chain_after_decrypt(
                         decrypt_job_id=job_id,
                         user_id=jrow["user_id"],
@@ -722,6 +734,7 @@ async def update_status(job_id):
                     )
                 elif jp.get("bo1_editor"):
                     from services.bo1 import chain_stage_only
+
                     await chain_stage_only(
                         decrypt_job_id=job_id,
                         user_id=jrow["user_id"],
@@ -946,8 +959,8 @@ async def complete_result_upload(job_id):
 # ---------------------------------------------------------------------------
 
 import time as _time
-import urllib.request as _urllib_request
 import urllib.error as _urllib_error
+import urllib.request as _urllib_request
 
 _UPDATE_CACHE_DIR = "/var/cache/htos/worker-update"
 _UPDATE_CACHE_TTL = 300  # 5 minutes
@@ -969,8 +982,12 @@ def _cached_worker_elf(platform):
 
     # Forgejo has no /releases/latest/download/ shortcut - hit the API for
     # the latest release, then download the matching asset URL from it.
-    api_url = "https://git.etawen.dev/api/v1/repos/earthonion/garlic-worker/releases?limit=1"
-    api_req = _urllib_request.Request(api_url, headers={"User-Agent": "htos-worker-update-proxy"})
+    api_url = (
+        "https://git.etawen.dev/api/v1/repos/earthonion/garlic-worker/releases?limit=1"
+    )
+    api_req = _urllib_request.Request(
+        api_url, headers={"User-Agent": "htos-worker-update-proxy"}
+    )
     with _urllib_request.urlopen(api_req, timeout=15) as r:
         rel = json.loads(r.read())[0]
     asset_url = None
@@ -979,9 +996,13 @@ def _cached_worker_elf(platform):
             asset_url = a["browser_download_url"]
             break
     if not asset_url:
-        raise _urllib_error.URLError(f"asset {fname} not in latest release {rel.get('tag_name')}")
+        raise _urllib_error.URLError(
+            f"asset {fname} not in latest release {rel.get('tag_name')}"
+        )
     tmp = dest + ".tmp"
-    req = _urllib_request.Request(asset_url, headers={"User-Agent": "htos-worker-update-proxy"})
+    req = _urllib_request.Request(
+        asset_url, headers={"User-Agent": "htos-worker-update-proxy"}
+    )
     with _urllib_request.urlopen(req, timeout=30) as r:
         with open(tmp, "wb") as f:
             shutil.copyfileobj(r, f, length=64 * 1024)

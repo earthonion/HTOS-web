@@ -129,8 +129,7 @@ class Job:
         db = await get_db()
         try:
             cursor = await db.execute(
-                "UPDATE jobs SET status = 'running' "
-                "WHERE id = ? AND status = 'queued'",
+                "UPDATE jobs SET status = 'running' WHERE id = ? AND status = 'queued'",
                 (self.job_id,),
             )
             await db.commit()
@@ -181,7 +180,6 @@ async def create_job(
             if platform == "ps4":
                 try:
                     from services.worker_bridge import (
-                        check_available,
                         is_configured,
                     )
 
@@ -284,18 +282,18 @@ async def bridge_fallback_poller():
     """Background loop: every ~20s, find queued PS4 decrypt/encrypt jobs that
     have been stuck for >60s and hand them to the bridge fallback if it
     has capacity. The fallback's try_claim() ensures no race with workers."""
-    import logging as _logging
     import json as _json
+    import logging as _logging
 
+    from models import get_db as _get_db
     from services.worker_bridge import (
         check_available,
         is_configured,
     )
-    from models import get_db as _get_db
 
     POLL_INTERVAL = 20
-    MIN_QUEUED_AGE = 60   # seconds — only consider jobs that have waited
-    MAX_BATCH = 3         # how many to hand off per tick (don't flood bridge)
+    MIN_QUEUED_AGE = 60  # seconds — only consider jobs that have waited
+    MAX_BATCH = 3  # how many to hand off per tick (don't flood bridge)
     log = _logging.getLogger("bridge_fallback_poller")
 
     if not is_configured():
@@ -333,7 +331,9 @@ async def bridge_fallback_poller():
                     _jobs[row["id"]] = job
                 log.info(
                     "handing off %s (%s, queued > %ds) to bridge",
-                    row["id"][:8], row["operation"], MIN_QUEUED_AGE,
+                    row["id"][:8],
+                    row["operation"],
+                    MIN_QUEUED_AGE,
                 )
                 asyncio.ensure_future(_try_bridge_fallback(job))
         except Exception as e:

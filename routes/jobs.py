@@ -5,14 +5,22 @@ import re
 import zipfile
 from datetime import datetime, timedelta, timezone
 
-from quart import Blueprint, Response, abort, redirect, render_template, send_file, session, url_for
+from quart import (
+    Blueprint,
+    Response,
+    abort,
+    redirect,
+    render_template,
+    session,
+    url_for,
+)
 
 from auth import login_required
+from config_throttles import throttle_delay
 from models import get_db
 from services.files import extract_account_id_from_zip
 from services.jobs import get_or_create_job_logger
 from services.titles import lookup_title
-from config_throttles import throttle_delay
 from utils.extras import group_supporters
 
 jobs_bp = Blueprint("jobs", __name__)
@@ -61,8 +69,6 @@ async def _load_job_from_db(job_id, user_id):
     return job
 
 
-
-
 def _throttle_available_at(job, sfo=None):
     """Return the datetime the download unlocks, or None if not throttled.
 
@@ -72,7 +78,9 @@ def _throttle_available_at(job, sfo=None):
     """
     if not getattr(job, "completed_at", None):
         return None
-    tid = (job.params.get("title_id", "") if job.params else "") or ((sfo or {}).get("TITLE_ID", ""))
+    tid = (job.params.get("title_id", "") if job.params else "") or (
+        (sfo or {}).get("TITLE_ID", "")
+    )
     delay = throttle_delay(tid, job.operation or "")
     if delay <= 0:
         return None
@@ -103,7 +111,9 @@ async def job_status(job_id):
     # location.reload() on status=done, so users land here right when the
     # follow-up exists.
     if job.status == "done" and job.params and job.params.get("bo1_encrypt_job"):
-        return redirect(url_for("jobs.job_status", job_id=job.params["bo1_encrypt_job"]))
+        return redirect(
+            url_for("jobs.job_status", job_id=job.params["bo1_encrypt_job"])
+        )
 
     # BO1 editor mode: decrypt just finished, stage dir was populated by the
     # chain hook — jump the user into the PRF browser.
@@ -117,13 +127,20 @@ async def job_status(job_id):
     if job.status == "done":
         _avail = _throttle_available_at(job)
         if _avail:
-            from datetime import datetime as _dt, timezone as _tz
+            from datetime import datetime as _dt
+            from datetime import timezone as _tz
+
             if _avail > _dt.now(_tz.utc):
                 _throttle_pending = True
                 job.status = "running"
 
     # Extract account ID and title from result zip if not already in params
-    if job.status == "done" and job.result_path and os.path.exists(job.result_path) and not _throttle_pending:
+    if (
+        job.status == "done"
+        and job.result_path
+        and os.path.exists(job.result_path)
+        and not _throttle_pending
+    ):
         updates = {}
         if not job.params.get("sfo_account_id"):
             platform = job.params.get("platform", "ps4")
@@ -170,13 +187,13 @@ async def job_status(job_id):
             cursor = await db.execute(
                 "SELECT from_name, is_subscription_payment, tier_name "
                 "FROM kofi_supporters "
-                "WHERE LOWER(COALESCE(from_name, \"\")) != \"anonymous\" "
+                'WHERE LOWER(COALESCE(from_name, "")) != "anonymous" '
                 "ORDER BY created_at DESC LIMIT 40"
             )
             supporters = group_supporters([dict(r) for r in await cursor.fetchall()])
             cursor = await db.execute(
                 "SELECT COUNT(*) FROM kofi_supporters "
-                "WHERE LOWER(COALESCE(from_name, \"\")) = \"anonymous\""
+                'WHERE LOWER(COALESCE(from_name, "")) = "anonymous"'
             )
             anonymous_count = (await cursor.fetchone())[0]
         finally:
@@ -283,7 +300,8 @@ async def job_stream(job_id):
                             _dbc = await get_db()
                             try:
                                 _cc = await _dbc.execute(
-                                    "SELECT completed_at FROM jobs WHERE id = ?", (job_id,)
+                                    "SELECT completed_at FROM jobs WHERE id = ?",
+                                    (job_id,),
                                 )
                                 _rr = await _cc.fetchone()
                                 if _rr:
@@ -315,13 +333,13 @@ async def job_stream(job_id):
     )
 
 
-
 def _xaccel(path, filename):
     """Return a Response that hands the download off to nginx via
     X-Accel-Redirect. Backing files live under
     /opt/htos/workspace/results/ and are served by the internal
     location /_result_files/ in the nginx config."""
     from quart import Response
+
     resp = Response(b"", status=200)
     resp.headers["X-Accel-Redirect"] = f"/_result_files/{os.path.basename(path)}"
     resp.headers["Content-Type"] = "application/zip"
@@ -449,13 +467,17 @@ def _sanitize_result_zip(src_zip, dst_zip):
     Same atomic-write pattern as _restructure_ps4_zip — concurrent
     /download calls must never truncate dst mid-serve.
     """
-    if os.path.exists(dst_zip) and os.path.getmtime(dst_zip) >= os.path.getmtime(src_zip):
+    if os.path.exists(dst_zip) and os.path.getmtime(dst_zip) >= os.path.getmtime(
+        src_zip
+    ):
         return
     tmp_zip = f"{dst_zip}.tmp.{os.getpid()}"
     try:
         with (
             zipfile.ZipFile(src_zip, "r") as zin,
-            zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zout,
+            zipfile.ZipFile(
+                tmp_zip, "w", zipfile.ZIP_DEFLATED, compresslevel=9
+            ) as zout,
         ):
             for info in zin.infolist():
                 if info.is_dir():
@@ -489,7 +511,9 @@ def _restructure_ps4_zip(src_zip, dst_zip, account_id, title_id):
     sees a truncated dst — the second caller replaces the inode; nginx's
     open fd on the old inode keeps working until it closes.
     """
-    if os.path.exists(dst_zip) and os.path.getmtime(dst_zip) >= os.path.getmtime(src_zip):
+    if os.path.exists(dst_zip) and os.path.getmtime(dst_zip) >= os.path.getmtime(
+        src_zip
+    ):
         return  # already fresh
     if len(account_id) == 16:
         usb_id = "".join(reversed([account_id[i : i + 2] for i in range(0, 16, 2)]))
@@ -500,7 +524,9 @@ def _restructure_ps4_zip(src_zip, dst_zip, account_id, title_id):
     try:
         with (
             zipfile.ZipFile(src_zip, "r") as zin,
-            zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zout,
+            zipfile.ZipFile(
+                tmp_zip, "w", zipfile.ZIP_DEFLATED, compresslevel=9
+            ) as zout,
         ):
             for info in zin.infolist():
                 if info.is_dir():

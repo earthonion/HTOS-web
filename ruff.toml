@@ -1,0 +1,34 @@
+[lint]
+ignore = [
+    "BLE001",    # blind except Exception — deliberate in web handlers
+    "S110",      # try-except-pass — deliberate fallbacks
+    "ASYNC230",  # async-function-with-timeout — false positives with Quart/httpx
+    "ASYNC221",  # async-function-with-timeout
+    "UP024",     # os.environ style
+    "RUF012",    # mutable-class-default
+    "UP041",     # timeout-error-alias
+    "UP018",     # native-literals
+    "UP017",     # datetime-timezone-utc
+    "UP012",     # unnecessary-encode-utf8
+    "UP006",     # non-pep585-annotation
+    "UP035",     # deprecated-import
+    "B023",      # function-uses-loop-variable
+    "B008",      # function-call-in-default-argument
+    "EXE001",    # shebang-missing-executable-permission
+    "PLW1510",   # subprocess-run-without-check
+    "PLR1730",   # if-stmt-min-max
+    "PIE810",    # unnecessary-spread
+    "SIM103",    # needless-bool
+    "SIM102",    # collapsible-if
+    "SIM117",    # multiple-with-statements
+    "SIM118",    # in-dict-keys
+    "TRY002",    # raise-vanilla-class
+    "RUF010",    # explicit-f-string-type-conversion
+    "PERF102",   # incorrect-dict-iterator
+    "FURB188",   # slice-to-remove-prefix-or-suffix
+    "FURB167",   # regular-expression-unnecessary-escape
+    "FURB162",   # simplify-readlines
+    "C408",      # unnecessary-collection-call
+    "PLC0206",   # dict-index-missing-items
+    "F541",      # f-string-missing-placeholders
+]

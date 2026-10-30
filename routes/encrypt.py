@@ -137,6 +137,7 @@ async def encrypt():
             # Chunked folder upload: files land assembled in the chunked_dir,
             # keeping their relative paths from the original folder pick.
             import json as _json
+
             upload_ids = _json.loads(folder_upload_ids_json)
             chunked_dir = await resolve_chunked_uploads(
                 upload_ids, user_id, temp_job_id
@@ -146,6 +147,7 @@ async def encrypt():
             # extract_dir — snapshot the names first so we don't observe the
             # newly-created extract_dir during our own listing.
             import shutil as _shutil
+
             names = os.listdir(chunked_dir)
             os.makedirs(extract_dir, exist_ok=True)
             for name in names:
@@ -211,6 +213,7 @@ async def encrypt():
         # the previous heuristic-based derivation.
         import re
         import struct
+
         savename = None
         try:
             sfo_probe = os.path.join(save_dir, SCE_SYS_NAME, PARAM_NAME)
@@ -258,7 +261,9 @@ async def encrypt():
             savename = re.sub(r"_CUSA\d{5}$", "", savename)
             savename = re.sub(r"_dec$", "", savename)
             if not savename or savename == "extracted":
-                savename = os.path.splitext(upload_filename)[0] if upload_filename else "save"
+                savename = (
+                    os.path.splitext(upload_filename)[0] if upload_filename else "save"
+                )
                 if "-" in savename:
                     parts = savename.split("-", 1)
                     savename = parts[1] if len(parts) > 1 else savename
@@ -295,7 +300,9 @@ async def encrypt():
             for fname in fnames:
                 total_size += os.path.getsize(os.path.join(root, fname))
         headroom = max(total_size * 130 // 100, total_size + 4 * 1024 * 1024)
-        needed_blocks = (headroom + 32767) // 32768  # 30% overhead OR +4MB, whichever larger
+        needed_blocks = (
+            headroom + 32767
+        ) // 32768  # 30% overhead OR +4MB, whichever larger
         if needed_blocks > saveblocks:
             saveblocks = needed_blocks
             patch_sfo_saveblocks(sfo_path, saveblocks)
