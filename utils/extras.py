@@ -13,6 +13,33 @@ from utils.constants import (
 from utils.exceptions import FileError
 
 
+def group_supporters(rows: list[dict]) -> list[dict]:
+    # Collapse duplicates by lower(from_name), preserving newest-first order
+    # (rows arrive ORDER BY created_at DESC). Subscription flag ORs across
+    # occurrences; first non-null tier_name wins.
+    grouped: dict[str, dict] = {}
+    for r in rows:
+        name = (r.get("from_name") or "").strip()
+        if not name:
+            continue
+        key = name.lower()
+        if key in grouped:
+            e = grouped[key]
+            e["count"] += 1
+            if r.get("is_subscription_payment"):
+                e["is_subscription_payment"] = 1
+                if r.get("tier_name") and not e.get("tier_name"):
+                    e["tier_name"] = r["tier_name"]
+        else:
+            grouped[key] = {
+                **r,
+                "from_name": name,
+                "is_subscription_payment": r.get("is_subscription_payment") or 0,
+                "count": 1,
+            }
+    return list(grouped.values())
+
+
 def zipfiles(directory_to_zip: str, zip_file_name: str) -> None:
 
     def get_all_file_paths(directory: str) -> list[tuple[str, str]]:

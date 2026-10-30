@@ -15,13 +15,14 @@
     {% if profiles %}
     <table>
         <thead>
-            <tr><th>Name</th><th>Account ID</th><th></th></tr>
+            <tr><th>Name</th><th>Account ID</th><th>Remote Play ID</th><th></th></tr>
         </thead>
         <tbody>
             {% for p in profiles %}
             <tr>
                 <td>{{ p.name }}</td>
                 <td><code>{{ p.account_id | to_usb_id }}</code></td>
+                <td><code class="rp-copy" style="font-size:0.8rem; cursor:pointer" title="Click to copy">{{ p.account_id | to_rp_id }}</code></td>
                 <td style="position: relative;">
                     <span class="dots-menu-btn" onclick="var m=this.nextElementSibling;document.querySelectorAll('.dots-menu').forEach(function(x){if(x!==m)x.style.display='none'});m.style.display=m.style.display==='block'?'none':'block'" style="cursor:pointer; font-size:1.2rem; padding:0 0.5rem;">&#8942;</span>
                     <div class="dots-menu" style="display:none; position:absolute; right:0; top:1.8rem; background:#12161f; border:1px solid #1a1f2b; border-radius:6px; z-index:20; min-width:160px; box-shadow:0 4px 12px rgba(0,0,0,0.5);">

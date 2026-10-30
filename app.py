@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 from markupsafe import Markup
 from quart import Quart, Response, render_template, session
 
+from utils.extras import group_supporters
+
 load_dotenv()
 
 
@@ -11,7 +13,7 @@ def create_app():
     app = Quart(__name__)
     app.secret_key = os.getenv("SECRET_KEY") or os.urandom(32).hex()
     app.config["MAX_CONTENT_LENGTH"] = int(
-        os.getenv("MAX_UPLOAD_SIZE", str(2 * 1024 * 1024 * 1024))
+        os.getenv("MAX_UPLOAD_SIZE", str(11 * 1024 * 1024 * 1024))
     )
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
@@ -30,6 +32,7 @@ def create_app():
     from routes.encrypt import encrypt_bp
     from routes.jobs import jobs_bp
     from routes.luac0re import luac0re_bp
+    from routes.bo1 import bo1_bp
     from routes.main import main_bp
     from routes.quickcodes import quickcodes_bp
     from routes.reregion import reregion_bp
@@ -38,6 +41,7 @@ def create_app():
     from routes.savedb import savedb_bp
     from routes.saveeditor import saveeditor_bp
     from routes.tools import tools_bp
+    from routes.kofi import kofi_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -56,9 +60,11 @@ def create_app():
     app.register_blueprint(chunked_bp)
     app.register_blueprint(admin_web_bp)
     app.register_blueprint(luac0re_bp)
+    app.register_blueprint(bo1_bp)
     app.register_blueprint(savedb_bp)
     app.register_blueprint(saveeditor_bp)
     app.register_blueprint(tools_bp)
+    app.register_blueprint(kofi_bp)
 
     @app.errorhandler(400)
     async def bad_request(e):
@@ -132,6 +138,18 @@ def create_app():
             return "".join(reversed([account_id[i : i + 2] for i in range(0, 16, 2)]))
         return account_id
 
+
+    @app.template_filter("to_rp_id")
+    def to_rp_id(account_id):
+        """Convert hex account ID to base64 remote play format (little-endian)."""
+        import base64
+        if len(account_id) == 16:
+            try:
+                usb_id = "".join(reversed([account_id[i:i+2] for i in range(0, 16, 2)]))
+                return base64.b64encode(int(usb_id, 16).to_bytes(8, "little")).decode()
+            except Exception:
+                pass
+        return ""
     @app.template_filter("syscall_man_url")
     def _syscall_man_url_filter(name):
         from routes.tools import syscall_man_url
@@ -269,6 +287,28 @@ def create_app():
         except (OSError, ValueError):
             pass
 
+        footer_supporters = []
+        footer_anonymous_count = 0
+        try:
+            db = await get_db()
+            try:
+                cursor = await db.execute(
+                    "SELECT from_name, is_subscription_payment, tier_name "
+                    "FROM kofi_supporters "
+                    "WHERE LOWER(COALESCE(from_name, '')) != 'anonymous' "
+                    "ORDER BY created_at DESC LIMIT 60"
+                )
+                footer_supporters = group_supporters([dict(r) for r in await cursor.fetchall()])
+                cursor = await db.execute(
+                    "SELECT COUNT(*) FROM kofi_supporters "
+                    "WHERE LOWER(COALESCE(from_name, '')) = 'anonymous'"
+                )
+                footer_anonymous_count = (await cursor.fetchone())[0]
+            finally:
+                await db.close()
+        except Exception:
+            pass
+
         return dict(
             workers_online=ps4_count + ps5_count,
             ps4_workers=ps4_count,
@@ -277,6 +317,8 @@ def create_app():
             adsense_client=os.getenv("ADSENSE_CLIENT_ID", ""),
             admin_messages=admin_msgs,
             maintenance=maint,
+            footer_supporters=footer_supporters,
+            footer_anonymous_count=footer_anonymous_count,
         )
 
     @app.before_serving
@@ -309,7 +351,7 @@ def create_app():
                 )
 
         # Start bridge fallback poller — hands stuck queued PS4
-        # decrypt/encrypt jobs to the external bridge worker when it
+        # decrypt/encrypt jobs to the bridge worker when
         # has capacity. Worker pulls still win via atomic try_claim().
         import asyncio as _asyncio
 

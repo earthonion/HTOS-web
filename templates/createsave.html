@@ -15,6 +15,7 @@
                 <span class="profile-card-info">
                     <span class="profile-card-name">{{ p.name }}</span>
                     <span class="profile-card-id">{{ p.account_id | to_usb_id }}</span>
+                    <span class="profile-card-id rp-copy" style="font-size:0.7rem; opacity:0.6; cursor:pointer" title="Click to copy">RP: {{ p.account_id | to_rp_id }}</span>
                 </span>
             </label>
             {% endfor %}
@@ -33,13 +34,15 @@
         <input type="text" name="savename" required placeholder="e.g. YOURSAVENAME">
     </label>
 
-    <label>Save Size (saveblocks, priority)
-        <input type="text" name="saveblocks" placeholder="e.g. 96 or 0x60">
+    <label>Save Size &mdash; blocks (1 block = 32 KB, 32 blocks = 1 MB)
+        <input type="text" name="saveblocks" id="cs-saveblocks" placeholder="e.g. 96 or 0x60">
     </label>
 
-    <label>Save Size (MB, alternative)
-        <input type="text" name="savesize_mb" placeholder="e.g. 3">
+    <label>Save Size &mdash; MB
+        <input type="text" name="savesize_mb" id="cs-savesize-mb" placeholder="e.g. 3">
     </label>
+
+    <div id="cs-size-preview" style="min-height:1.4em;margin:-6px 0 8px;font-weight:600"></div>
 
     <label class="checkbox-label">
         <input type="checkbox" name="ignore_secondlayer">
@@ -63,6 +66,63 @@
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.querySelector('form.operation-form');
     if (form) setupChunkedForm(form, { files: 'upload_ids' });
+
+    const SB_MIN = 32, SB_MAX = 327680;
+    const blocksIn = document.getElementById('cs-saveblocks');
+    const mbIn     = document.getElementById('cs-savesize-mb');
+    const preview  = document.getElementById('cs-size-preview');
+
+    const parseIntFlex = s => {
+        s = (s || '').trim();
+        if (!s) return null;
+        const n = /^0x/i.test(s) ? parseInt(s, 16) : parseInt(s, 10);
+        return Number.isFinite(n) ? n : null;
+    };
+
+    // Only one of the two inputs is usable at a time. Typing in one disables
+    // the other; clearing it re-enables both.
+    const setDisabled = (el, disabled) => {
+        el.disabled = disabled;
+        el.style.opacity  = disabled ? '0.5' : '';
+        el.style.cursor   = disabled ? 'not-allowed' : '';
+    };
+    const syncGate = () => {
+        const bFilled = (blocksIn.value || '').trim() !== '';
+        const mFilled = (mbIn.value || '').trim() !== '';
+        setDisabled(mbIn, bFilled);
+        setDisabled(blocksIn, mFilled);
+    };
+
+    const update = () => {
+        syncGate();
+        let blocks = parseIntFlex(blocksIn.value);
+        let source = 'blocks';
+        if (blocks === null) {
+            const mb = parseIntFlex(mbIn.value);
+            if (mb !== null) { blocks = mb * 32; source = 'mb'; }
+        }
+        if (blocks === null) { preview.textContent = ''; return; }
+
+        if (blocks < SB_MIN) {
+            preview.style.color = 'var(--red)';
+            preview.textContent = source === 'blocks'
+                ? `⚠ ${blocks} blocks is under the ${SB_MIN}-block minimum (= ${(blocks/32).toFixed(2)} MB). Use the MB field below instead.`
+                : `⚠ ${blocks/32} MB is under the minimum of ${SB_MIN/32} MB.`;
+            return;
+        }
+        if (blocks > SB_MAX) {
+            preview.style.color = 'var(--red)';
+            preview.textContent = `⚠ ${blocks} blocks exceeds the ${SB_MAX}-block max (${SB_MAX/32} MB).`;
+            return;
+        }
+        const mb = blocks / 32;
+        preview.style.color = 'var(--green)';
+        preview.textContent = `Your save will be ${mb % 1 === 0 ? mb : mb.toFixed(2)} MB (${blocks} blocks). Auto-grows if uploaded contents need more room.`;
+    };
+
+    if (blocksIn) blocksIn.addEventListener('input', update);
+    if (mbIn)     mbIn.addEventListener('input', update);
+    update();
 });
 </script>
 {% endblock %}

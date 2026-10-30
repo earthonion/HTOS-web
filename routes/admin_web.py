@@ -84,6 +84,18 @@ async def dashboard():
         )
         online_now = (await cursor.fetchone())[0]
 
+        # Active users in the last 7 days, divided by 7 — rolling DAU.
+        # last_seen is updated on every authenticated request, so this is
+        # "weekly active users / 7" not strict DAU, but it's a stable
+        # popularity signal.
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM users "
+            "WHERE last_seen > datetime('now', '-7 days')"
+        )
+        wau = (await cursor.fetchone())[0]
+        users_per_day = round(wau / 7, 1)
+
+
         # Total job stats (current + persisted)
         cursor = await db.execute(
             "SELECT "
@@ -153,105 +165,114 @@ async def dashboard():
         queued=queued,
         total_users=total_users,
         online_now=online_now,
+        users_per_day=users_per_day,
+        wau=wau,
         stats=stats,
         op_stats=op_stats,
         workers_online=workers_online,
     )
 
 
-@admin_web_bp.route("/admin/stats")
-@admin_required
-async def stats_json():
-    """JSON endpoint for refreshing dashboard stats."""
-    db = await get_db()
-    try:
-        cursor = await db.execute("SELECT COUNT(*) FROM jobs WHERE status = 'queued'")
-        queued = (await cursor.fetchone())[0]
+# --LIVE_STATS_HELPER--
+async def _compute_stats(db):
+    """Compute the full stats payload. Used by both /admin/stats (JSON
+    polling fallback) and the /admin/feed SSE stream so the admin
+    dashboard can update stats live rather than every 30s."""
+    cursor = await db.execute("SELECT COUNT(*) FROM jobs WHERE status = 'queued'")
+    queued = (await cursor.fetchone())[0]
 
-        cursor = await db.execute(
-            "SELECT "
-            "COUNT(*) + COALESCE((SELECT SUM(total) FROM job_stats), 0) as total, "
-            "COALESCE(SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END), 0) "
-            "  + COALESCE((SELECT SUM(done) FROM job_stats), 0) as done, "
-            "COALESCE(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END), 0) "
-            "  + COALESCE((SELECT SUM(failed) FROM job_stats), 0) as failed "
-            "FROM jobs"
-        )
-        stats = dict(await cursor.fetchone())
+    cursor = await db.execute(
+        "SELECT "
+        "COUNT(*) + COALESCE((SELECT SUM(total) FROM job_stats), 0) as total, "
+        "COALESCE(SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END), 0) "
+        "  + COALESCE((SELECT SUM(done) FROM job_stats), 0) as done, "
+        "COALESCE(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END), 0) "
+        "  + COALESCE((SELECT SUM(failed) FROM job_stats), 0) as failed "
+        "FROM jobs"
+    )
+    stats = dict(await cursor.fetchone())
 
-        cursor = await db.execute("SELECT COUNT(*) FROM users")
-        total_users = (await cursor.fetchone())[0]
+    cursor = await db.execute("SELECT COUNT(*) FROM users")
+    total_users = (await cursor.fetchone())[0]
+    cursor = await db.execute(
+        "SELECT COUNT(*) FROM users WHERE last_seen > datetime('now', '-300 seconds')"
+    )
+    online_now = (await cursor.fetchone())[0]
+    cursor = await db.execute(
+        "SELECT COUNT(*) FROM users WHERE last_seen > datetime('now', '-7 days')"
+    )
+    wau = (await cursor.fetchone())[0]
+    users_per_day = round(wau / 7, 1)
 
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM users WHERE last_seen > datetime('now', '-300 seconds')"
-        )
-        online_now = (await cursor.fetchone())[0]
+    cursor = await db.execute(
+        "SELECT COUNT(*) FROM worker_instances wi "
+        "JOIN worker_keys wk ON wk.id = wi.worker_key_id "
+        "WHERE wi.last_seen > datetime('now', '-300 seconds') "
+        "AND wk.is_active = 1 "
+        "AND (wk.suspended_until IS NULL OR wk.suspended_until <= datetime('now'))"
+    )
+    instance_online = (await cursor.fetchone())[0]
+    cursor = await db.execute(
+        "SELECT COUNT(*) FROM worker_keys wk "
+        "WHERE wk.last_used IS NOT NULL AND wk.last_used > datetime('now', '-300 seconds') "
+        "AND wk.is_active = 1 "
+        "AND (wk.suspended_until IS NULL OR wk.suspended_until <= datetime('now')) "
+        "AND NOT EXISTS ("
+        "  SELECT 1 FROM worker_instances wi WHERE wi.worker_key_id = wk.id "
+        "  AND wi.last_seen > datetime('now','-300 seconds')"
+        ")"
+    )
+    workers_online = instance_online + (await cursor.fetchone())[0]
 
-        # Online instances under active, non-suspended keys
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM worker_instances wi "
-            "JOIN worker_keys wk ON wk.id = wi.worker_key_id "
-            "WHERE wi.last_seen > datetime('now', '-300 seconds') "
-            "AND wk.is_active = 1 "
-            "AND (wk.suspended_until IS NULL OR wk.suspended_until <= datetime('now'))"
-        )
-        instance_online = (await cursor.fetchone())[0]
-        # Plus active keys with a recent heartbeat that have no online instance row yet
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM worker_keys wk "
-            "WHERE wk.last_used IS NOT NULL AND wk.last_used > datetime('now', '-300 seconds') "
-            "AND wk.is_active = 1 "
-            "AND (wk.suspended_until IS NULL OR wk.suspended_until <= datetime('now')) "
-            "AND NOT EXISTS ("
-            "  SELECT 1 FROM worker_instances wi WHERE wi.worker_key_id = wk.id "
-            "  AND wi.last_seen > datetime('now','-300 seconds')"
-            ")"
-        )
-        key_only_online = (await cursor.fetchone())[0]
-        workers_online = instance_online + key_only_online
-
-        cursor = await db.execute(
-            "SELECT operation, SUM(done) as done, SUM(failed) as failed, SUM(total) as total FROM ("
-            "  SELECT operation, "
-            "    SUM(CASE WHEN status='done' THEN 1 ELSE 0 END) as done, "
-            "    SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) as failed, "
-            "    COUNT(*) as total "
-            "  FROM jobs GROUP BY operation "
-            "  UNION ALL "
-            "  SELECT operation, done, failed, total FROM job_stats"
-            ") GROUP BY operation ORDER BY total DESC"
-        )
-        op_stats = [dict(r) for r in await cursor.fetchall()]
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "SELECT operation, SUM(done) as done, SUM(failed) as failed, SUM(total) as total FROM ("
+        "  SELECT operation, "
+        "    SUM(CASE WHEN status='done' THEN 1 ELSE 0 END) as done, "
+        "    SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) as failed, "
+        "    COUNT(*) as total "
+        "  FROM jobs GROUP BY operation "
+        "  UNION ALL "
+        "  SELECT operation, done, failed, total FROM job_stats"
+        ") GROUP BY operation ORDER BY total DESC"
+    )
+    op_stats = [dict(r) for r in await cursor.fetchall()]
 
     completed = stats["done"] + stats["failed"]
     stats["rate"] = f"{100 * stats['done'] // completed}%" if completed > 0 else "-"
     for op in op_stats:
-        op_completed = op["done"] + op["failed"]
-        op["rate"] = f"{100 * op['done'] // op_completed}%" if op_completed > 0 else "-"
+        oc = op["done"] + op["failed"]
+        op["rate"] = f"{100 * op['done'] // oc}%" if oc > 0 else "-"
 
-    # Saves per minute — rolling 10-minute window
-    db = await get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM jobs "
-            "WHERE status = 'done' "
-            "  AND created_at > datetime('now', '-10 minutes')"
-        )
-        done_10m = (await cursor.fetchone())[0]
-    finally:
-        await db.close()
-    stats["spm"] = f"{done_10m / 10:.1f}"
+    cursor = await db.execute(
+        "SELECT COUNT(*) FROM jobs "
+        "WHERE status = 'done' AND created_at > datetime('now', '-10 minutes')"
+    )
+    done_10m = (await cursor.fetchone())[0]
+    stats["spm"] = round(done_10m / 10.0, 1)
 
     return {
         "queued": queued,
+        "workers_online": workers_online,
         "total_users": total_users,
         "online_now": online_now,
-        "workers_online": workers_online,
+        "users_per_day": users_per_day,
+        "wau": wau,
         "stats": stats,
         "op_stats": op_stats,
     }
+
+
+@admin_web_bp.route("/admin/stats")
+@admin_required
+async def stats_json():
+    """JSON endpoint used as polling fallback. Same payload as SSE 'stats'
+    event so front-end can consume either."""
+    db = await get_db()
+    try:
+        return await _compute_stats(db)
+    finally:
+        await db.close()
+
 
 
 @admin_web_bp.route("/admin/worker-instances/<int:key_id>")
@@ -359,6 +380,18 @@ async def feed():
                     yield f"data: {json.dumps({'type': 'new_jobs', 'jobs': new_jobs, 'queued': queued})}\n\n"
                 elif updates:
                     yield f"data: {json.dumps({'type': 'updates', 'updates': updates, 'queued': queued})}\n\n"
+
+                # Live stats piggyback: compute + emit on every tick so the
+                # dashboard's counters update in real time (was 30s polling).
+                try:
+                    db_stats = await get_db()
+                    try:
+                        stats_payload = await _compute_stats(db_stats)
+                    finally:
+                        await db_stats.close()
+                    yield f"data: {json.dumps({'type': 'stats', **stats_payload})}\n\n"
+                except Exception:
+                    pass
 
             except Exception:
                 pass

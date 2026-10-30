@@ -5,10 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <title>garlicsaves - {% block title %}Home{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}PS4 & PS5 save manager: decrypt, resign, convert and browse saves. Free and ad-free.{% endblock %}">
+    <meta property="og:site_name" content="garlicsaves">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{% block og_title %}garlicsaves — PS4 & PS5 save manager and more{% endblock %}">
+    <meta property="og:description" content="{{ self.meta_description() }}">
+    <meta property="og:image" content="{% block og_image %}https://garlicsaves.com{{ url_for('static', filename='og-card.png') }}?v=1{% endblock %}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="garlicsaves — PS4 & PS5 save manager and more">
+    <meta property="og:url" content="{% block og_url %}https://garlicsaves.com{{ request.path }}{% endblock %}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ self.og_title() }}">
+    <meta name="twitter:description" content="{{ self.meta_description() }}">
+    <meta name="twitter:image" content="{{ self.og_image() }}">
+    <meta name="twitter:image:alt" content="garlicsaves — PS4 & PS5 save manager and more">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=14">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=progress1">
     <link rel="pgpkey" href="/.well-known/pgp.asc">
     {% block extra_head %}{% endblock %}
     {% if not session.get('is_admin') and not no_ads and adsense_client %}
@@ -24,6 +39,13 @@
     </style>
 </head>
 <body>
+<div id="kofi-banner" style="display:none; position:sticky; top:0; z-index:9999; background:#161b22; border-bottom:1px solid #30363d; color:#c9d1d9; padding:0.55rem 1rem; font-size:0.85rem; text-align:center;">
+  garlicsaves is free and ad-free. Consider
+  <a href="https://ko-fi.com/earthonion" target="_blank" rel="noopener" style="color:#fbd308; text-decoration:none; font-weight:600;">donating ☕</a> to help keep the server up.
+  <button onclick="document.getElementById('kofi-banner').style.display='none';localStorage.setItem('kofi-banner-dismissed-at',Date.now());" aria-label="dismiss" style="margin-left:0.6rem; background:none; border:0; color:#8b949e; cursor:pointer; font-size:1rem; line-height:1; padding:0 0.3rem;">&times;</button>
+</div>
+<script>(function(){var ts=parseInt(localStorage.getItem('kofi-banner-dismissed-at')||'0',10);if(!ts||Date.now()-ts>3*86400000){var b=document.getElementById('kofi-banner');if(b)b.style.display='block';}})();</script>
+
     {% if session.get('user_id') %}
     <nav class="sidebar">
         <div class="nav-header">
@@ -43,6 +65,8 @@
                 <a href="{{ url_for('convert.convert') }}">Convert</a>
 
                 {% endif %}
+                <a href="https://m2k7m.github.io/re-region-web/" target="_blank" rel="noopener">Reregion &#8599;</a>
+                <a href="https://bucanero.github.io/apollo-patcher/" target="_blank" rel="noopener">Patch Save &#8599;</a>
                 <a href="{{ url_for('savedb.browse') }}">Save DB </a>
                 <div class="nav-submenu">
                     <a href="#" class="nav-submenu-toggle" onclick="event.preventDefault();this.parentElement.classList.toggle('open')">Tools <span class="nav-chevron"></span></a>
@@ -53,8 +77,10 @@
                         <a href="{{ url_for('tools.function_lookup') }}">Function Lookup</a>
                         <a href="{{ url_for('tools.entitlements') }}">Entitlement Dumper</a>
                         <a href="{{ url_for('tools.syscall_lookup') }}">Syscall Reference</a>
+                        <a href="{{ url_for('tools.error_lookup') }}">Error Code Lookup</a>
                         <a href="{{ url_for('tools.sample_saves') }}">Sample Saves</a>
                         <a href="{{ url_for('saveeditor.saveeditor') }}">UE4/UE5 Save Editor</a>
+                        <a href="{{ url_for('tools.webkit_shortcut') }}">WebKit Shortcut ELF</a>
                     </div>
                 </div>
                 <a href="{{ url_for('contribute.contribute') }}">Contribute</a>
@@ -66,9 +92,6 @@
             <div class="nav-social">
                 <a href="https://discord.gg/WAjsqN5FUb" target="_blank" rel="noopener" title="Discord" aria-label="Discord">
                     <svg width="22" height="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>
-                </a>
-                <a rel="me" href="https://etawen.dev/@earthonion" target="_blank" rel="noopener" title="Mastodon" aria-label="Mastodon">
-                    <svg width="22" height="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true"><path d="M23.268 5.313c-.35-2.578-2.617-4.61-5.304-5.004C17.51.242 15.792 0 11.813 0h-.03c-3.98 0-4.835.242-5.288.309C3.882.692 1.496 2.518.917 5.127.64 6.412.61 7.837.661 9.143c.074 1.874.088 3.745.26 5.611.118 1.24.325 2.47.62 3.68.55 2.237 2.777 4.098 4.96 4.857 2.336.792 4.849.923 7.256.38.265-.061.527-.132.786-.213.585-.184 1.27-.39 1.774-.753a.057.057 0 0 0 .023-.043v-1.809a.052.052 0 0 0-.02-.041.053.053 0 0 0-.046-.01 20.282 20.282 0 0 1-4.709.545c-2.73 0-3.463-1.284-3.674-1.818a5.593 5.593 0 0 1-.319-1.433.053.053 0 0 1 .066-.054c1.517.363 3.072.546 4.632.546.376 0 .75 0 1.125-.01 1.57-.044 3.224-.124 4.768-.422.038-.008.077-.015.11-.024 2.435-.464 4.753-1.92 4.989-5.604.008-.145.03-1.52.03-1.67.002-.512.167-3.63-.024-5.545zm-3.748 9.195h-2.561V8.29c0-1.309-.55-1.976-1.67-1.976-1.23 0-1.846.79-1.846 2.35v3.403h-2.546V8.663c0-1.56-.617-2.35-1.848-2.35-1.112 0-1.668.668-1.67 1.977v6.218H4.822V8.102c0-1.31.337-2.35 1.011-3.12.696-.77 1.608-1.164 2.74-1.164 1.311 0 2.302.5 2.962 1.498l.638 1.06.638-1.06c.66-.999 1.65-1.498 2.96-1.498 1.13 0 2.043.395 2.74 1.164.675.77 1.012 1.81 1.012 3.12z"/></svg>
                 </a>
             </div>
             <div class="nav-workers">
@@ -97,6 +120,7 @@
                     <a href="{{ url_for('tools.entitlements') }}">Entitlement Dumper</a>
                     <a href="{{ url_for('tools.syscall_lookup') }}">Syscall Reference</a>
                     <a href="{{ url_for('tools.sample_saves') }}">Sample Saves</a>
+                    <a href="{{ url_for('tools.webkit_shortcut') }}">WebKit Shortcut ELF</a>
                 </div>
             </div>
             <a href="{{ url_for('main.about') }}" class="btn-about" style="font-size:0.85rem; color:var(--text-2); text-decoration:none;">About</a>
@@ -162,7 +186,7 @@
         {% block footer_text %}<p>garlicsaves</p>{% endblock %}
     </footer>
 
-    <script src="{{ url_for('static', filename='chunked-upload.js') }}"></script>
+    <script src="{{ url_for('static', filename='chunked-upload.js') }}?v=folderpath"></script>
     <script>
     const hamburger = document.getElementById('hamburger');
     const navCollapse = document.getElementById('nav-collapse');
@@ -288,6 +312,30 @@
         });
     });
     </script>
+{% block supporters_footer %}
+{% if footer_supporters or footer_anonymous_count %}
+<div style="max-width:640px; margin:40px auto 8px; padding:0 16px; text-align:center;">
+    <p style="font-size:0.75rem; color:var(--text-3, #6e7681); margin-bottom:0.5rem; font-family:ui-monospace,monospace;">supporters keeping the lights on · <a href="/donate" style="color:var(--accent, #fbd308); text-decoration:none;">☕ join them</a></p>
+    <div style="display:flex; flex-wrap:wrap; gap:0.25rem 0.35rem; justify-content:center;">
+        {% for s in footer_supporters %}<span style="font-size:0.72rem; padding:0.08rem 0.45rem; border:1px solid var(--border, #30363d); border-radius:999px; color:var(--text-2);{% if s.is_subscription_payment %} border-color:var(--accent, #fbd308); color:var(--accent, #fbd308);{% endif %}"{% if s.is_subscription_payment and s.tier_name %} title="{{ s.tier_name }}"{% endif %}>{{ s.from_name }}{% if s.count and s.count > 1 %} <span style="opacity:0.7; font-size:0.85em;">×{{ s.count }}</span>{% endif %}</span>{% endfor %}
+        {% if footer_anonymous_count %}<span style="font-size:0.72rem; color:var(--text-3, #6e7681); align-self:center;">+ {{ footer_anonymous_count }} anonymous</span>{% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
 <footer style="margin:40px 0 16px;color:#888;font-family:ui-monospace,monospace;font-size:11px;text-align:center">PGP: <a href="/.well-known/pgp.asc" style="color:#888">25F9 762D 2597 2627 15B9 9200 71AE 4A88 D93C C98A</a></footer>
+<script>
+document.addEventListener('click', function(e) {
+    var el = e.target.closest('.rp-copy');
+    if (!el) return;
+    var text = el.textContent.replace(/^RP:\s*/, '').replace(/^Copied!$/, '');
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(function() {
+        var orig = el.textContent;
+        el.textContent = 'Copied!';
+        setTimeout(function() { el.textContent = orig; }, 1000);
+    });
+});
+</script>
 </body>
 </html>

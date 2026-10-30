@@ -9,6 +9,10 @@
         <h3 style="margin:0 0 0.4rem;">Title ID Lookup</h3>
         <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Search 67,000+ PlayStation titles by game name or title ID (CUSA/PPSA).</p>
     </a>
+    <a href="{{ url_for('tools.ps5_updates') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:360px; padding:1.25rem;">
+        <h3 style="margin:0 0 0.4rem;">PS5 Update Lookup</h3>
+        <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Look up the latest update for a PS5 title from its version XML or _sc.pkg URL — version, system req, size, pkg URL.</p>
+    </a>
     <a href="{{ url_for('tools.fs_browser') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:360px; padding:1.25rem;">
         <h3 style="margin:0 0 0.4rem;">Filesystem Browser</h3>
         <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Search PS4 and PS5 filesystem paths — find files, directories, and system binaries.</p>
@@ -29,9 +33,17 @@
         <h3 style="margin:0 0 0.4rem;">Syscall Reference</h3>
         <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Browse PS4 and PS5 system calls — search by name or number. 600+ PS4 and 700+ PS5 syscalls.</p>
     </a>
+    <a href="{{ url_for('tools.error_lookup') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:360px; padding:1.25rem;">
+        <h3 style="margin:0 0 0.4rem;">Error Code Lookup</h3>
+        <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Search 27,000+ PS4 and PS5 error codes — CE-number, hex, SCE_ constant, or description.</p>
+    </a>
     <a href="{{ url_for('tools.sample_saves') }}" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:360px; padding:1.25rem;">
         <h3 style="margin:0 0 0.4rem;">Sample Saves</h3>
         <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Browse decrypted sample saves auto-collected from community usage. Search by game or title ID.</p>
+    </a>
+    <a href="https://bucanero.github.io/apollo-patcher/" target="_blank" rel="noopener" class="card" style="text-decoration:none; flex:1; min-width:240px; max-width:360px; padding:1.25rem;">
+        <h3 style="margin:0 0 0.4rem;">Patch Save <span style="font-size:0.7em; color:var(--text-2); vertical-align:super;">&#8599;</span></h3>
+        <p style="font-size:0.82rem; color:var(--text-2); margin:0;">Apply cheats and patches to a decrypted PS4/PS5 save with Apollo Patcher — browser-based tool by bucanero. Opens in a new tab.</p>
     </a>
 </div>
 {% endblock %}

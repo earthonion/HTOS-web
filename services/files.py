@@ -26,8 +26,8 @@ BLOCKED_EXTENSIONS = {
     ".rpm",
 }
 
-# Max total decompressed size for zips (2GB)
-MAX_ZIP_DECOMPRESSED = 2 * 1024 * 1024 * 1024
+# Max total decompressed size for zips (matches MAX_UPLOAD_SIZE = 11GB)
+MAX_ZIP_DECOMPRESSED = 11 * 1024 * 1024 * 1024
 # Max compression ratio (zip bomb detection)
 MAX_ZIP_RATIO = 1000
 
@@ -94,8 +94,13 @@ def check_zip_safety(zip_path):
 
             # Check for blocked files and path traversal inside zip
             for info in zf.infolist():
-                # Block path traversal in zip member names
-                if ".." in info.filename or info.filename.startswith("/"):
+                # Block path traversal in zip member names. Split on both
+                # separators so ".." only matches as a whole path COMPONENT
+                # (a raw substring check false-positives on filenames like
+                # "Densetsu he... (J).gbc").
+                parts = info.filename.replace("\\", "/").split("/")
+                if ".." in parts or info.filename.startswith("/") \
+                   or (len(info.filename) > 1 and info.filename[1] == ":"):
                     raise DangerousFileError(
                         f"Suspicious path in zip: {info.filename}. Upload rejected."
                     )
@@ -245,6 +250,9 @@ async def resolve_chunked_uploads(upload_ids: list, user_id: int, job_id: str) -
         src = _safe_join(chunk_dir, filename)
         dst = _safe_join(upload_dir, filename)
         if os.path.isfile(src):
+            # Folder uploads carry relative paths (webkitRelativePath) —
+            # the destination's parent may not exist yet.
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
             shutil.move(src, dst)
         # Clean up chunk dir
         shutil.rmtree(chunk_dir, ignore_errors=True)

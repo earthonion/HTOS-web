@@ -3,14 +3,17 @@ import json
 import os
 import re
 import zipfile
+from datetime import datetime, timedelta, timezone
 
-from quart import Blueprint, Response, abort, render_template, send_file, session
+from quart import Blueprint, Response, abort, redirect, render_template, send_file, session, url_for
 
 from auth import login_required
 from models import get_db
 from services.files import extract_account_id_from_zip
 from services.jobs import get_or_create_job_logger
 from services.titles import lookup_title
+from config_throttles import throttle_delay
+from utils.extras import group_supporters
 
 jobs_bp = Blueprint("jobs", __name__)
 
@@ -22,12 +25,12 @@ async def _load_job_from_db(job_id, user_id):
     try:
         if user_id is None:
             cursor = await db.execute(
-                "SELECT id, user_id, operation, status, result_path, error, params, logs FROM jobs WHERE id = ?",
+                "SELECT id, user_id, operation, status, result_path, error, params, logs, completed_at FROM jobs WHERE id = ?",
                 (job_id,),
             )
         else:
             cursor = await db.execute(
-                "SELECT id, user_id, operation, status, result_path, error, params, logs FROM jobs WHERE id = ? AND user_id = ?",
+                "SELECT id, user_id, operation, status, result_path, error, params, logs, completed_at FROM jobs WHERE id = ? AND user_id = ?",
                 (job_id, user_id),
             )
         row = await cursor.fetchone()
@@ -44,6 +47,7 @@ async def _load_job_from_db(job_id, user_id):
     job.status = row["status"]
     job.result_path = row["result_path"]
     job.error = row["error"]
+    job.completed_at = row["completed_at"] if "completed_at" in row.keys() else None
     if row["params"]:
         job.params = json.loads(row["params"])
     # Load persisted logs into in-memory logger if empty
@@ -57,6 +61,35 @@ async def _load_job_from_db(job_id, user_id):
     return job
 
 
+
+
+def _throttle_available_at(job, sfo=None):
+    """Return the datetime the download unlocks, or None if not throttled.
+
+    Reads config_throttles.throttle_delay for the (title_id, operation) pair.
+    title_id comes from job.params if present, else from the SFO extracted
+    from the result zip (passed by the caller to avoid double-extract).
+    """
+    if not getattr(job, "completed_at", None):
+        return None
+    tid = (job.params.get("title_id", "") if job.params else "") or ((sfo or {}).get("TITLE_ID", ""))
+    delay = throttle_delay(tid, job.operation or "")
+    if delay <= 0:
+        return None
+    completed = job.completed_at
+    if isinstance(completed, str):
+        try:
+            completed = datetime.strptime(completed, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            try:
+                completed = datetime.fromisoformat(completed.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+    if completed.tzinfo is None:
+        completed = completed.replace(tzinfo=timezone.utc)
+    return completed + timedelta(seconds=delay)
+
+
 @jobs_bp.route("/jobs/<job_id>")
 @login_required
 async def job_status(job_id):
@@ -65,8 +98,32 @@ async def job_status(job_id):
     if not job:
         abort(404)
 
+    # BO1 chain: if this decrypt job spawned a follow-up encrypt job, hop the
+    # user over to it once the decrypt is done. The SSE handler triggers
+    # location.reload() on status=done, so users land here right when the
+    # follow-up exists.
+    if job.status == "done" and job.params and job.params.get("bo1_encrypt_job"):
+        return redirect(url_for("jobs.job_status", job_id=job.params["bo1_encrypt_job"]))
+
+    # BO1 editor mode: decrypt just finished, stage dir was populated by the
+    # chain hook — jump the user into the PRF browser.
+    if job.status == "done" and job.params and job.params.get("bo1_editor"):
+        return redirect(url_for("bo1.bo1_edit", job_id=job_id))
+
+    # Throttle: if a per-(title_id, op) delay is in force and hasn't
+    # elapsed, present the job as still running so the user sees no
+    # download UI and no signal that anything different is happening.
+    _throttle_pending = False
+    if job.status == "done":
+        _avail = _throttle_available_at(job)
+        if _avail:
+            from datetime import datetime as _dt, timezone as _tz
+            if _avail > _dt.now(_tz.utc):
+                _throttle_pending = True
+                job.status = "running"
+
     # Extract account ID and title from result zip if not already in params
-    if job.status == "done" and job.result_path and os.path.exists(job.result_path):
+    if job.status == "done" and job.result_path and os.path.exists(job.result_path) and not _throttle_pending:
         updates = {}
         if not job.params.get("sfo_account_id"):
             platform = job.params.get("platform", "ps4")
@@ -105,11 +162,34 @@ async def job_status(job_id):
         finally:
             await db.close()
 
+    supporters = []
+    anonymous_count = 0
+    if job.status == "done":
+        db = await get_db()
+        try:
+            cursor = await db.execute(
+                "SELECT from_name, is_subscription_payment, tier_name "
+                "FROM kofi_supporters "
+                "WHERE LOWER(COALESCE(from_name, \"\")) != \"anonymous\" "
+                "ORDER BY created_at DESC LIMIT 40"
+            )
+            supporters = group_supporters([dict(r) for r in await cursor.fetchall()])
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM kofi_supporters "
+                "WHERE LOWER(COALESCE(from_name, \"\")) = \"anonymous\""
+            )
+            anonymous_count = (await cursor.fetchone())[0]
+        finally:
+            await db.close()
+
     return await render_template(
         "job_status.html",
         job=job,
         queue_position=queue_position,
         queue_total=queue_total,
+        supporters=supporters,
+        anonymous_count=anonymous_count,
+        throttle_pending=_throttle_pending,
     )
 
 
@@ -147,7 +227,21 @@ async def job_stream(job_id):
             for msg in job.logger.messages:
                 yield f"data: {json.dumps(msg)}\n\n"
 
-            # If job is already finished, send final status and stop
+            # If job is already finished, send final status and stop.
+            # Throttled done jobs get presented as still-running and the SSE
+            # connection is held open (keepalives) until unlock time.
+            if job.status == "done":
+                _avail = _throttle_available_at(job)
+                if _avail:
+                    _now = datetime.now(timezone.utc)
+                    if _avail > _now:
+                        yield f"data: {json.dumps({'level': 'STATUS', 'msg': 'running'})}\n\n"
+                        _wait = int((_avail - _now).total_seconds())
+                        for _ in range(_wait):
+                            await asyncio.sleep(1)
+                            yield ": keepalive\n\n"
+                        yield f"data: {json.dumps({'level': 'STATUS', 'msg': 'done'})}\n\n"
+                        return
             if job.status in ("done", "failed"):
                 yield f"data: {json.dumps({'level': 'STATUS', 'msg': job.status})}\n\n"
                 return
@@ -185,6 +279,26 @@ async def job_stream(job_id):
                             db_log_count = len(db_entries)
                     if row and row["status"] in ("done", "failed"):
                         job.status = row["status"]
+                        if row["status"] == "done":
+                            _dbc = await get_db()
+                            try:
+                                _cc = await _dbc.execute(
+                                    "SELECT completed_at FROM jobs WHERE id = ?", (job_id,)
+                                )
+                                _rr = await _cc.fetchone()
+                                if _rr:
+                                    job.completed_at = _rr["completed_at"]
+                            finally:
+                                await _dbc.close()
+                            _avail = _throttle_available_at(job)
+                            if _avail:
+                                _now = datetime.now(timezone.utc)
+                                if _avail > _now:
+                                    yield f"data: {json.dumps({'level': 'STATUS', 'msg': 'running'})}\n\n"
+                                    _wait = int((_avail - _now).total_seconds())
+                                    for _ in range(_wait):
+                                        await asyncio.sleep(1)
+                                        yield ": keepalive\n\n"
                         yield f"data: {json.dumps({'level': 'STATUS', 'msg': row['status']})}\n\n"
                         break
                     yield ": keepalive\n\n"
@@ -201,10 +315,26 @@ async def job_stream(job_id):
     )
 
 
+
+def _xaccel(path, filename):
+    """Return a Response that hands the download off to nginx via
+    X-Accel-Redirect. Backing files live under
+    /opt/htos/workspace/results/ and are served by the internal
+    location /_result_files/ in the nginx config."""
+    from quart import Response
+    resp = Response(b"", status=200)
+    resp.headers["X-Accel-Redirect"] = f"/_result_files/{os.path.basename(path)}"
+    resp.headers["Content-Type"] = "application/zip"
+    resp.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return resp
+
+
 @jobs_bp.route("/jobs/<job_id>/download")
 @login_required
 async def job_download(job_id):
-    job = await _load_job_from_db(job_id, session["user_id"])
+    # Admins can pull any users result; regular users only their own
+    user_id = None if session.get("is_admin") else session["user_id"]
+    job = await _load_job_from_db(job_id, user_id)
     if not job:
         abort(404)
     if not job.result_path or not os.path.exists(job.result_path):
@@ -212,6 +342,15 @@ async def job_download(job_id):
 
     # Extract SFO fields from result zip for filename and PS4 structure
     sfo = _extract_sfo_fields_from_zip(job.result_path)
+
+    # Throttle: (title_id, operation) may be gated behind a download-delay.
+    # Admins bypass. Everyone else 404s silently to match the fake
+    # still-running narrative the job status page presents; no hint that
+    # the result exists and is being withheld.
+    if not session.get("is_admin"):
+        avail = _throttle_available_at(job, sfo=sfo)
+        if avail and avail > datetime.now(timezone.utc):
+            abort(404)
     title_id = (job.params.get("title_id", "") if job.params else "") or sfo.get(
         "TITLE_ID", ""
     )
@@ -239,9 +378,7 @@ async def job_download(job_id):
                 _restructure_ps4_zip(
                     job.result_path, structured_path, account_id, title_id
                 )
-                return await send_file(
-                    structured_path, as_attachment=True, attachment_filename=filename
-                )
+                return _xaccel(structured_path, filename)
             except Exception:
                 pass  # Fall through to serve original zip
 
@@ -255,7 +392,7 @@ async def job_download(job_id):
         except Exception:
             pass
 
-    return await send_file(serve_path, as_attachment=True, attachment_filename=filename)
+    return _xaccel(serve_path, filename)
 
 
 def _extract_sfo_fields_from_zip(zip_path):
@@ -307,16 +444,29 @@ def _sanitize_zip_filename(name):
 
 
 def _sanitize_result_zip(src_zip, dst_zip):
-    """Rewrite zip with sanitized filenames for Windows compatibility."""
-    with (
-        zipfile.ZipFile(src_zip, "r") as zin,
-        zipfile.ZipFile(dst_zip, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zout,
-    ):
-        for info in zin.infolist():
-            if info.is_dir():
-                continue
-            data = zin.read(info.filename)
-            zout.writestr(_sanitize_zip_filename(info.filename), data)
+    """Rewrite zip with sanitized filenames for Windows compatibility.
+
+    Same atomic-write pattern as _restructure_ps4_zip — concurrent
+    /download calls must never truncate dst mid-serve.
+    """
+    if os.path.exists(dst_zip) and os.path.getmtime(dst_zip) >= os.path.getmtime(src_zip):
+        return
+    tmp_zip = f"{dst_zip}.tmp.{os.getpid()}"
+    try:
+        with (
+            zipfile.ZipFile(src_zip, "r") as zin,
+            zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zout,
+        ):
+            for info in zin.infolist():
+                if info.is_dir():
+                    continue
+                data = zin.read(info.filename)
+                zout.writestr(_sanitize_zip_filename(info.filename), data)
+        os.replace(tmp_zip, dst_zip)
+    except Exception:
+        if os.path.exists(tmp_zip):
+            os.remove(tmp_zip)
+        raise
 
 
 def _zip_needs_sanitizing(zip_path):
@@ -332,22 +482,36 @@ def _zip_needs_sanitizing(zip_path):
 
 
 def _restructure_ps4_zip(src_zip, dst_zip, account_id, title_id):
-    """Repack zip with PS4 USB structure: PS4/SAVEDATA/<account_id>/<title_id>/"""
-    # account_id is stored big-endian, USB folder needs little-endian
+    """Repack zip with PS4 USB structure: PS4/SAVEDATA/<account_id>/<title_id>/
+
+    Writes to a temp file and atomically renames into place, so a concurrent
+    download call (retry from the same user, or nginx still mid-serve) never
+    sees a truncated dst — the second caller replaces the inode; nginx's
+    open fd on the old inode keeps working until it closes.
+    """
+    if os.path.exists(dst_zip) and os.path.getmtime(dst_zip) >= os.path.getmtime(src_zip):
+        return  # already fresh
     if len(account_id) == 16:
         usb_id = "".join(reversed([account_id[i : i + 2] for i in range(0, 16, 2)]))
     else:
         usb_id = account_id
     prefix = f"PS4/SAVEDATA/{usb_id}/{title_id}/"
-    with (
-        zipfile.ZipFile(src_zip, "r") as zin,
-        zipfile.ZipFile(dst_zip, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zout,
-    ):
-        for info in zin.infolist():
-            if info.is_dir():
-                continue
-            data = zin.read(info.filename)
-            zout.writestr(prefix + _sanitize_zip_filename(info.filename), data)
+    tmp_zip = f"{dst_zip}.tmp.{os.getpid()}"
+    try:
+        with (
+            zipfile.ZipFile(src_zip, "r") as zin,
+            zipfile.ZipFile(tmp_zip, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zout,
+        ):
+            for info in zin.infolist():
+                if info.is_dir():
+                    continue
+                data = zin.read(info.filename)
+                zout.writestr(prefix + _sanitize_zip_filename(info.filename), data)
+        os.replace(tmp_zip, dst_zip)
+    except Exception:
+        if os.path.exists(tmp_zip):
+            os.remove(tmp_zip)
+        raise
 
 
 @jobs_bp.route("/jobs/<job_id>/files")

@@ -124,7 +124,7 @@ class Job:
 
     async def try_claim(self) -> bool:
         """Atomically transition queued → running. Returns True if we got it,
-        False if another worker / fallback beat us. Used by the save-tool
+        False if another worker / fallback beat us. Used by the bridge
         fallback so it doesn't race a worker about to /next-pull the same job."""
         db = await get_db()
         try:
@@ -186,14 +186,14 @@ async def create_job(
                     )
 
                     if is_configured():
-                        asyncio.ensure_future(_try_worker_bridge(job))
+                        asyncio.ensure_future(_try_bridge_fallback(job))
                 except Exception:
                     pass
 
     return job
 
 
-async def _try_worker_bridge(job: Job):
+async def _try_bridge_fallback(job: Job):
     """Attempt to process a job via bridge fallback."""
     from services.worker_bridge import check_available, process_decrypt, process_encrypt
 
@@ -335,6 +335,6 @@ async def bridge_fallback_poller():
                     "handing off %s (%s, queued > %ds) to bridge",
                     row["id"][:8], row["operation"], MIN_QUEUED_AGE,
                 )
-                asyncio.ensure_future(_try_worker_bridge(job))
+                asyncio.ensure_future(_try_bridge_fallback(job))
         except Exception as e:
             log.warning("poller tick error: %s", e)

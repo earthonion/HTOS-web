@@ -365,6 +365,11 @@ body::before {
     color: var(--text-1);
     background: var(--bg-2);
 }
+.nav-social svg {
+    width: 0.85rem;
+    height: 0.85rem;
+    display: block;
+}
 
 .nav-workers {
     font-size: 0.72rem;
@@ -1074,3 +1079,18 @@ footer a:hover {
 .topbar ~ footer {
     padding-left: 0;
 }
+
+/* upload progress bars (chunked + non-chunked) */
+.chunked-progress-wrapper { margin-top: 8px; }
+.chunked-progress { margin: 6px 0; font-size: 13px; color: var(--tx); }
+.chunked-progress-label { margin-bottom: 4px; font-family: monospace; font-size: 12px; color: var(--dm); }
+.chunked-progress-track {
+    height: 8px; background: var(--bd); border-radius: 4px; overflow: hidden;
+}
+.chunked-progress-fill {
+    height: 100%; width: 0%; background: var(--green); border-radius: 4px;
+    transition: width 0.15s linear;
+}
+.upload-overall-progress { margin: 12px 0; }
+.upload-overall-progress .chunked-progress-label { font-weight: 700; color: var(--tx); font-size: 13px; }
+.upload-overall-progress .chunked-progress-track { height: 10px; }

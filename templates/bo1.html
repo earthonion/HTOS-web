@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}BO1 PRF Editor{% endblock %}
+{% block content %}
+<h1>Black Ops 1 &mdash; PRF Editor</h1>
+<p>Upload your <strong>encrypted PS4 Black Ops save</strong> (the save file <em>plus its <code>.bin</code> sealed key</em>). We decrypt it, open a PRF browser + editor for you, then re-encrypt to the profile you pick when you hit Save.</p>
+
+<form method="POST" enctype="multipart/form-data" class="operation-form">
+    <div class="profile-select-wrap">
+        <span>Target profile</span>
+        <div class="profile-cards">
+            {% for p in profiles %}
+            <label class="profile-card">
+                <input type="radio" name="profile_id" value="{{ p.id }}" required>
+                <span class="profile-card-dot"></span>
+                <span class="profile-card-info">
+                    <span class="profile-card-name">{{ p.name }}</span>
+                    <span class="profile-card-id">{{ p.account_id | to_usb_id }}</span>
+                    <span class="profile-card-id rp-copy" style="font-size:0.7rem; opacity:0.6; cursor:pointer" title="Click to copy">RP: {{ p.account_id | to_rp_id }}</span>
+                </span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="file-drop">
+        <input type="file" name="saves" multiple required>
+        <svg class="file-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <div class="file-drop-text">Drop files here, or <strong>browse files</strong></div>
+        <div class="file-drop-hint">Encrypted PS4 BO1 save + its .bin sealed key</div>
+        <div class="file-drop-selected"></div>
+    </div>
+
+    <button type="submit">Decrypt &amp; Open Editor</button>
+    <p class="hint" style="margin-top:0.75rem;">After decryption completes, you'll see a list of PRF files inside your save. Pick one to edit its <code>set key value</code> lines &mdash; presets available &mdash; then hit Encrypt when you're done.</p>
+</form>
+
+{% if not profiles %}
+<p class="hint">You need to <a href="{{ url_for('main.dashboard') }}">create a profile</a> first.</p>
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.querySelector('form.operation-form');
+    if (form) setupChunkedForm(form, { saves: 'upload_ids' });
+});
+</script>
+{% endblock %}

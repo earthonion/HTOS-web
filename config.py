@@ -17,7 +17,7 @@ PS5_WORKERS_ENABLED = os.getenv("PS5_WORKERS_ENABLED", "0").lower() in (
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
 DATABASE_PATH = os.getenv("DATABASE_PATH", "htos_web.db")
 MAX_UPLOAD_SIZE = int(
-    os.getenv("MAX_UPLOAD_SIZE", str(2 * 1024 * 1024 * 1024))
+    os.getenv("MAX_UPLOAD_SIZE", str(11 * 1024 * 1024 * 1024))
 )  # 2GB default
 MAX_SAVE_FILE_SIZE = int(
     os.getenv("MAX_SAVE_FILE_SIZE", str(64 * 1024 * 1024))

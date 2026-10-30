@@ -25,6 +25,17 @@ _RATE_LIMIT = 10
 _RATE_WINDOW = 900  # 15 minutes
 
 
+def _real_client_ip() -> str:
+    """Get the real caller IP even behind Cloudflare / X-Forwarded-For.
+    request.remote_addr sees the CF edge IP, so bucketing on it makes every
+    real user share a bucket with every other user hitting the same edge."""
+    cf = request.headers.get("CF-Connecting-IP") or request.headers.get("Cf-Connecting-Ip")
+    if cf: return cf.strip()
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff: return xff.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
 def _is_rate_limited(ip: str) -> bool:
     now = time.time()
     attempts = _login_attempts[ip]
@@ -98,7 +109,7 @@ async def register():
     invite_only = await is_invite_only()
 
     if request.method == "POST":
-        client_ip = request.remote_addr or "unknown"
+        client_ip = _real_client_ip()
         if _is_rate_limited(client_ip):
             await flash("Too many attempts. Please try again later.", "error")
             return await render_template("register.html", invite_only=invite_only)
@@ -181,7 +192,7 @@ async def login():
     if "user_id" in session:
         return redirect(url_for("main.dashboard"))
     if request.method == "POST":
-        client_ip = request.remote_addr or "unknown"
+        client_ip = _real_client_ip()
         if _is_rate_limited(client_ip):
             await flash("Too many login attempts. Please try again later.", "error")
             return await render_template("login.html")
@@ -239,7 +250,7 @@ async def reset_password(token):
         return redirect(url_for("auth.login"))
 
     if request.method == "POST":
-        client_ip = request.remote_addr or "unknown"
+        client_ip = _real_client_ip()
         if _is_rate_limited(client_ip):
             await flash("Too many attempts. Please try again later.", "error")
             return await render_template(

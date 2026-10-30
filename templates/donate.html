@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Support garlicsaves{% endblock %}
+{% block supporters_footer %}{% endblock %}
+{% block content %}
+<h1>Support garlicsaves</h1>
+<p>Workers are volunteer PS5 owners — nobody's paid. Donations cover hosting.</p>
+<p style="font-size:0.9rem; color:var(--text-2);">Got a jailbroken PS5? <a href="https://git.etawen.dev/soniciso/elf-arsenal" target="_blank" rel="noopener" style="color:var(--accent,#fbd308)">Volunteer it as a worker instead</a>.</p>
+
+<section class="panel">
+    <h2>Donate</h2>
+    <p style="margin-bottom:1rem;">Pick a tier or a one-time amount:</p>
+    <a href="https://ko-fi.com/earthonion" target="_blank" rel="noopener" class="btn btn-primary" style="font-size:1rem; display:inline-block; padding:0.6rem 1.25rem;">☕ ko-fi.com/earthonion</a>
+</section>
+
+<section class="panel">
+    <h2>Thanks to</h2>
+    {% if supporters %}
+    <p style="margin-bottom: 0.75rem; color: var(--text-2); font-size: 0.85rem;">Everyone who has kept the lights on. Subscription tiers show up in gold.</p>
+    <div style="display: flex; flex-wrap: wrap; gap: 0.35rem 0.5rem;">
+        {% for s in supporters %}
+        <span style="font-size: 0.85rem; padding: 0.15rem 0.6rem; border: 1px solid var(--border, #30363d); border-radius: 999px; color: var(--text-1);{% if s.is_subscription_payment %} border-color: var(--accent, #fbd308); color: var(--accent, #fbd308);{% endif %}"{% if s.is_subscription_payment and s.tier_name %} title="{{ s.tier_name }}"{% endif %}>{{ s.from_name }}{% if s.count and s.count > 1 %} <span style="opacity:0.7; font-size:0.85em;">×{{ s.count }}</span>{% endif %}</span>
+        {% endfor %}
+        {% if anonymous_count %}
+        <span style="font-size: 0.82rem; color: var(--text-3, #6e7681); align-self: center;">+ {{ anonymous_count }} anonymous</span>
+        {% endif %}
+    </div>
+    {% else %}
+    <p style="color: var(--text-2);">No supporters yet — be the first ★</p>
+    {% endif %}
+</section>
+{% endblock %}

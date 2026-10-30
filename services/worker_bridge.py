@@ -1,7 +1,4 @@
-"""Fallback to bridge worker API when no PS4 workers are online.
-
-Supports decrypt and encrypt operations only (PS4).
-"""
+"""Fallback bridge worker for PS4 decrypt/encrypt when no console workers are online."""
 
 import asyncio
 import json
@@ -73,8 +70,7 @@ async def process_decrypt(job: Job):
 
         push_log(job.job_id, "INFO", f"Sending {save_name} to fallback decryptor...")
 
-        # Submit to bridge
-        async with httpx.AsyncClient(timeout=300) as client:
+                async with httpx.AsyncClient(timeout=300) as client:
             with open(bin_path, "rb") as sk, open(save_path, "rb") as sf:
                 r = await client.post(
                     f"{BRIDGE_URL}/api/decrypt",
@@ -114,7 +110,7 @@ async def process_decrypt(job: Job):
     result_path = os.path.join(RESULT_DIR, f"{job.job_id}.zip")
     with zipfile.ZipFile(result_path, "w", zipfile.ZIP_DEFLATED) as out_zip:
         for save_name, data in results:
-            # The result from bridge is itself a zip — merge its contents
+            # Result may be a zip — merge its contents
             import io
             try:
                 with zipfile.ZipFile(io.BytesIO(data), "r") as inner:

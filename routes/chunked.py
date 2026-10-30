@@ -48,12 +48,16 @@ async def init_upload():
     chunk_dir = os.path.join(CHUNK_DIR, upload_id)
     os.makedirs(chunk_dir, exist_ok=True)
 
-    # Write metadata (sanitize filename)
+    # Write metadata. Preserve relative path components for folder uploads
+    # (webkitdirectory sends "foldername/sce_sys/param.sfo") but reject any
+    # traversal attempts — a plain basename() call flattens folder structure.
     import json
 
-    safe_name = os.path.basename(data["filename"])
-    if not safe_name:
+    raw_name = (data["filename"] or "").replace("\\", "/").lstrip("/")
+    parts = raw_name.split("/")
+    if not raw_name or ".." in parts or any(p in ("", ".") for p in parts):
         abort(400)
+    safe_name = "/".join(parts)
     meta = {
         "filename": safe_name,
         "total_size": data["total_size"],
@@ -109,11 +113,14 @@ async def complete_upload(upload_id):
     if not parts:
         abort(400)
 
-    # Assemble into final file (sanitize filename to prevent traversal)
-    filename = os.path.basename(meta["filename"])
+    # Assemble into final file. Preserve the relative path from meta —
+    # basename() would flatten folder uploads. init_upload already rejected
+    # traversal attempts, so the stored filename is safe.
+    filename = meta["filename"]
     if not filename:
         abort(400)
     final_path = os.path.join(chunk_dir, filename)
+    os.makedirs(os.path.dirname(final_path), exist_ok=True)
     with open(final_path, "wb") as out:
         for part in parts:
             part_path = os.path.join(chunk_dir, part)

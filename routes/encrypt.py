@@ -133,6 +133,27 @@ async def encrypt():
                 return await render_template("encrypt.html", profiles=profiles)
             with zipfile.ZipFile(zip_path, "r") as zf:
                 zf.extractall(extract_dir)
+        elif folder_upload_ids_json:
+            # Chunked folder upload: files land assembled in the chunked_dir,
+            # keeping their relative paths from the original folder pick.
+            import json as _json
+            upload_ids = _json.loads(folder_upload_ids_json)
+            chunked_dir = await resolve_chunked_uploads(
+                upload_ids, user_id, temp_job_id
+            )
+            # resolve_chunked_uploads lands files directly into
+            # user_id/job_id/, which IS upload_dir. Move each entry into
+            # extract_dir — snapshot the names first so we don't observe the
+            # newly-created extract_dir during our own listing.
+            import shutil as _shutil
+            names = os.listdir(chunked_dir)
+            os.makedirs(extract_dir, exist_ok=True)
+            for name in names:
+                if name == "extracted":
+                    continue  # already created; skip self-move
+                src = os.path.join(chunked_dir, name)
+                dst = os.path.join(extract_dir, name)
+                _shutil.move(src, dst)
         else:
             zip_path = os.path.join(upload_dir, zipfile_upload.filename)
             await zipfile_upload.save(zip_path)
@@ -183,33 +204,69 @@ async def encrypt():
             )
             return await render_template("encrypt.html", profiles=profiles)
 
-        savename = os.path.basename(save_dir)
-        # For folder uploads, use the top-level folder name
-        upload_filename = ""
-        if is_folder_upload and folder_files and folder_files[0].filename:
-            upload_filename = folder_files[0].filename.split("/")[0]
-        elif zipfile_upload and zipfile_upload.filename:
-            upload_filename = zipfile_upload.filename
-        if save_dir == extract_dir and upload_filename:
-            savename = os.path.splitext(upload_filename)[0]
-        # Strip decrypt prefix (dec_NAME_CUSAXXXXX -> NAME)
-        if savename.startswith("dec_"):
-            savename = savename[4:]
+        # --- savename-from-sfo v1 ---
+        # Authoritative source is sce_sys/param.sfo's SAVEDATA_DIRECTORY
+        # field. The zip filename is user-controlled junk (browser copy
+        # suffixes, timestamps, decrypt-tool prefixes) and made a mess of
+        # the previous heuristic-based derivation.
         import re
+        import struct
+        savename = None
+        try:
+            sfo_probe = os.path.join(save_dir, SCE_SYS_NAME, PARAM_NAME)
+            if os.path.isfile(sfo_probe):
+                with open(sfo_probe, "rb") as _fh:
+                    _d = _fh.read()
+                if len(_d) > 20 and _d[:4] == b"\x00PSF":
+                    _key_off = struct.unpack_from("<I", _d, 8)[0]
+                    _data_off = struct.unpack_from("<I", _d, 12)[0]
+                    _n = struct.unpack_from("<I", _d, 16)[0]
+                    for _i in range(_n):
+                        _base = 20 + _i * 16
+                        _k_off = struct.unpack_from("<H", _d, _base)[0]
+                        _fmt = struct.unpack_from("<H", _d, _base + 2)[0]
+                        _dl = struct.unpack_from("<I", _d, _base + 4)[0]
+                        _do = struct.unpack_from("<I", _d, _base + 12)[0]
+                        _end = _d.index(b"\x00", _key_off + _k_off)
+                        _key = _d[_key_off + _k_off : _end].decode()
+                        if _key == "SAVEDATA_DIRECTORY" and _fmt == 0x0204:
+                            savename = (
+                                _d[_data_off + _do : _data_off + _do + _dl]
+                                .rstrip(b"\x00")
+                                .decode()
+                            )
+                            break
+        except Exception:
+            savename = None
 
-        savename = re.sub(r"_CUSA\d{5}$", "", savename)
-        if not savename or savename == "extracted":
-            savename = (
-                os.path.splitext(upload_filename)[0] if upload_filename else "save"
-            )
-            if "-" in savename:
-                parts = savename.split("-", 1)
-                savename = parts[1] if len(parts) > 1 else savename
-            if "_20" in savename:
-                savename = savename[: savename.rfind("_20")]
+        # Fall back to the folder/zip name if the SFO couldn't provide one.
+        if not savename:
+            upload_filename = ""
+            if is_folder_upload and folder_files and folder_files[0].filename:
+                upload_filename = folder_files[0].filename.split("/")[0]
+            elif zipfile_upload and zipfile_upload.filename:
+                upload_filename = zipfile_upload.filename
+            savename = os.path.basename(save_dir)
+            if save_dir == extract_dir and upload_filename:
+                savename = os.path.splitext(upload_filename)[0]
+            # Strip browser copy-indicator suffix "foo(1).zip" -> "foo".
+            savename = re.sub(r"\s*\(\d+\)$", "", savename)
+            # Strip decrypt-tool prefix and suffix (dec_NAME, NAME_dec).
+            if savename.startswith("dec_"):
+                savename = savename[4:]
+            savename = re.sub(r"_dec$", "", savename)
+            savename = re.sub(r"_CUSA\d{5}$", "", savename)
+            savename = re.sub(r"_dec$", "", savename)
+            if not savename or savename == "extracted":
+                savename = os.path.splitext(upload_filename)[0] if upload_filename else "save"
+                if "-" in savename:
+                    parts = savename.split("-", 1)
+                    savename = parts[1] if len(parts) > 1 else savename
+                if "_20" in savename:
+                    savename = savename[: savename.rfind("_20")]
 
         if not validate_savedirname(savename):
-            await flash(f"Invalid save name derived from zip: {savename}", "error")
+            await flash(f"Invalid save name in param.sfo: {savename}", "error")
             return await render_template("encrypt.html", profiles=profiles)
 
         # Read saveblocks from param.sfo
@@ -237,7 +294,8 @@ async def encrypt():
         for root, _d, fnames in os.walk(save_dir):
             for fname in fnames:
                 total_size += os.path.getsize(os.path.join(root, fname))
-        needed_blocks = (total_size * 105 // 100 + 32767) // 32768  # ceil + 5% overhead
+        headroom = max(total_size * 130 // 100, total_size + 4 * 1024 * 1024)
+        needed_blocks = (headroom + 32767) // 32768  # 30% overhead OR +4MB, whichever larger
         if needed_blocks > saveblocks:
             saveblocks = needed_blocks
             patch_sfo_saveblocks(sfo_path, saveblocks)

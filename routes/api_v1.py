@@ -226,6 +226,12 @@ async def get_result(user_id, job_id):
     if not row["result_path"] or not os.path.exists(row["result_path"]):
         return jsonify({"error": "Result file not found"}), 404
 
-    return await send_file(
-        row["result_path"], as_attachment=True, attachment_filename=f"{job_id}.zip"
-    )
+    # Delegate byte-streaming to nginx via X-Accel-Redirect. See
+    # /_result_files/ internal alias in the nginx site config.
+    from quart import Response
+    filename = os.path.basename(row["result_path"])
+    resp = Response(b"", status=200)
+    resp.headers["X-Accel-Redirect"] = f"/_result_files/{filename}"
+    resp.headers["Content-Type"] = "application/zip"
+    resp.headers["Content-Disposition"] = f'attachment; filename="{job_id}.zip"'
+    return resp

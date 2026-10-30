@@ -106,6 +106,14 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
         <div style="color: var(--text-2); font-size: 0.85rem;" title="Signed-in users with a request in the last 5 minutes">Online Now</div>
     </div>
     <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
+        <div id="users-per-day" style="font-size: 2rem; font-weight: 700;">{{ users_per_day }}</div>
+        <div style="color: var(--text-2); font-size: 0.85rem;" title="7-day rolling average of unique active users per day">Users / day</div>
+    </div>
+    <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
+        <div id="wau" style="font-size: 2rem; font-weight: 700;">{{ wau }}</div>
+        <div style="color: var(--text-2); font-size: 0.85rem;" title="Unique users with a request in the last 7 days">Last 7 days</div>
+    </div>
+    <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
         <div id="total-jobs" style="font-size: 2rem; font-weight: 700;">{{ stats.total }}</div>
         <div style="color: var(--text-2); font-size: 0.85rem;">Total Jobs</div>
     </div>
@@ -327,18 +335,25 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
         return 'var(--red)';
     }
 
-    function refreshStats() {
-        fetch('/admin/stats').then(function(r) { return r.json(); }).then(function(d) {
-            document.getElementById('queued-count').textContent = d.queued;
-            document.getElementById('workers-online').textContent = d.workers_online;
-            document.getElementById('total-users').textContent = d.total_users;
-            document.getElementById('online-now').textContent = d.online_now;
+    /*LIVE_STATS_HANDLER*/
+    // Live stats now come via the SSE feed (see es.onmessage below). Kept
+    // as a fallback for connections that flap; called on load + every 60s
+    // if SSE hasn't delivered anything.
+    function applyStats(d) {
+        if (d.queued !== undefined) document.getElementById('queued-count').textContent = d.queued;
+        if (d.workers_online !== undefined) document.getElementById('workers-online').textContent = d.workers_online;
+        if (d.total_users !== undefined) document.getElementById('total-users').textContent = d.total_users;
+        if (d.online_now !== undefined) document.getElementById('online-now').textContent = d.online_now;
+        if (d.users_per_day !== undefined) document.getElementById('users-per-day').textContent = d.users_per_day;
+        if (d.wau !== undefined) document.getElementById('wau').textContent = d.wau;
+        if (d.stats) {
             document.getElementById('total-jobs').textContent = d.stats.total;
             document.getElementById('saves-per-min').textContent = d.stats.spm;
             var rateEl = document.getElementById('success-rate');
             rateEl.textContent = d.stats.rate;
             rateEl.style.color = rateColor(d.stats.rate);
-            // Update op stats table
+        }
+        if (d.op_stats) {
             var opTbody = document.querySelector('#op-stats-table tbody');
             opTbody.innerHTML = '';
             d.op_stats.forEach(function(op) {
@@ -347,19 +362,23 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
                     '<td><span style="color:' + rateColor(op.rate) + ';">' + op.rate + '</span></td>';
                 opTbody.appendChild(tr);
             });
-        }).catch(function(){});
-        remaining = refreshInterval;
+        }
+        lastStatsAt = Date.now();
+        countdownEl.textContent = 'live';
     }
-
+    function refreshStats() {
+        fetch('/admin/stats').then(function(r) { return r.json(); }).then(applyStats).catch(function(){});
+    }
+    var lastStatsAt = 0;
+    refreshStats();  // initial paint
+    // Fallback: if SSE is silent for 60s, poll once.
     setInterval(function() {
-        remaining--;
-        if (remaining <= 0) { refreshStats(); return; }
-        countdownEl.textContent = 'refresh in ' + remaining + 's';
-    }, 1000);
-    countdownEl.textContent = 'refresh in ' + remaining + 's';
+        if (Date.now() - lastStatsAt > 60000) refreshStats();
+    }, 5000);
 
     es.onmessage = function(e) {
         const data = JSON.parse(e.data);
+        if (data.type === 'stats') { applyStats(data); return; }
         if (data.queued !== undefined && queuedEl) queuedEl.textContent = data.queued;
         if (data.type === 'new_jobs' && data.jobs) {
             data.jobs.forEach(function(j) {

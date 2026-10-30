@@ -145,6 +145,24 @@ CREATE TABLE IF NOT EXISTS sample_saves (
     UNIQUE(title_id, save_dir_name)
 );
 
+
+CREATE TABLE IF NOT EXISTS kofi_supporters (
+    id INTEGER PRIMARY KEY,
+    kofi_message_id TEXT UNIQUE,
+    type TEXT,
+    from_name TEXT,
+    message TEXT,
+    amount TEXT,
+    currency TEXT,
+    is_public INTEGER DEFAULT 1,
+    is_subscription_payment INTEGER DEFAULT 0,
+    tier_name TEXT,
+    timestamp TEXT,
+    raw_data TEXT,
+    is_manual INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 INSERT OR IGNORE INTO settings (key, value) VALUES ('invite_only', '0');
 """
 
@@ -186,6 +204,8 @@ MIGRATIONS = [
     "ALTER TABLE jobs ADD COLUMN completed_at TIMESTAMP",
     # users.last_seen for the "Online now" admin stat. Bumped by a
     # before_request hook (throttled to one write per 60s per user).
+    "ALTER TABLE users ADD COLUMN kofi_claim_code TEXT",
+    "ALTER TABLE users ADD COLUMN supporter_until TIMESTAMP",
     "ALTER TABLE users ADD COLUMN last_seen TIMESTAMP",
 ]
 
@@ -213,6 +233,11 @@ async def init_db():
 
 
 async def get_db():
-    db = await aiosqlite.connect(DATABASE_PATH)
+    # WAL + tuned pragmas per-connection so writers dont block readers and
+    # brief contention is retried in-driver instead of raising OperationalError.
+    db = await aiosqlite.connect(DATABASE_PATH, timeout=30)
     db.row_factory = aiosqlite.Row
+    await db.execute("PRAGMA journal_mode=WAL")
+    await db.execute("PRAGMA synchronous=NORMAL")
+    await db.execute("PRAGMA busy_timeout=30000")
     return db

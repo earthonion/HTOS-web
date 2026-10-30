@@ -14,7 +14,7 @@ from functools import wraps
 # via umask(0) + explicit fchmod(0777) in copy_dir_pfs/copy_dir_recursive.
 # This gate also covers the older v1.1.2 SFO_AID_OFFSET fix (PS4-only).
 # Outdated workers polling /next get 426 until they update.
-MIN_WORKER_VERSION = (1, 1, 6)
+MIN_WORKER_VERSION = (1, 1, 7)
 
 
 def parse_worker_version(ua: str):
@@ -292,8 +292,8 @@ async def next_job():
                         )
                     else:
                         await db.execute(
-                            "UPDATE worker_instances wi SET suspended_until = NULL "
-                            "WHERE wi.id = (SELECT wi2.id FROM worker_instances wi2 "
+                            "UPDATE worker_instances SET suspended_until = NULL "
+                            "WHERE id = (SELECT wi2.id FROM worker_instances wi2 "
                             "  JOIN worker_keys wk ON wk.id = wi2.worker_key_id "
                             "  WHERE wk.key = ? AND wi2.ip = ?)",
                             (worker_key, client_ip),
@@ -323,33 +323,108 @@ async def next_job():
 
     db = await get_db()
     try:
-        cursor = await db.execute(
-            "SELECT id, user_id, operation, params, created_at FROM jobs "
-            "WHERE status = 'queued' ORDER BY created_at ASC LIMIT 20"
+        # Stale-worker requeue + slow-worker penalty.
+        # 1. Find running jobs whose assigned worker hasn't heartbeated in >300s.
+        # 2. Bump each abandoning instance's jobs_failed counter.
+        # 3. If the same instance has been requeued 3+ times in the last hour,
+        #    short-suspend it (15 min) — probably slow-uploader on flaky net.
+        # 4. Then requeue the jobs.
+        stale_cursor = await db.execute(
+            """
+            SELECT DISTINCT j.worker_instance_id
+            FROM jobs j
+            JOIN worker_instances wi ON wi.id = j.worker_instance_id
+            WHERE j.status = 'running'
+              AND j.worker_instance_id IS NOT NULL
+              AND (wi.last_seen IS NULL OR wi.last_seen < datetime('now', '-300 seconds'))
+            """
         )
-        rows = await cursor.fetchall()
-        if not rows:
+        stale_ids = [r[0] for r in await stale_cursor.fetchall()]
+
+        for iid in stale_ids:
+            # Bump failure counter (so admin dashboard shows it)
+            await db.execute(
+                "UPDATE worker_instances SET jobs_failed = jobs_failed + 1 WHERE id = ?",
+                (iid,),
+            )
+            # Count abandonments in the last hour for this instance
+            ac = await db.execute(
+                """
+                SELECT COUNT(*) FROM jobs
+                WHERE worker_instance_id = ?
+                  AND retry_count > 0
+                  AND started_at > datetime('now', '-1 hour')
+                """,
+                (iid,),
+            )
+            count = (await ac.fetchone())[0]
+            if count >= 3:
+                # Never suspend the localhost worker — under monopoly mode
+                # it is the sole PS4 processor; a burst of failures
+                # would otherwise wedge the queue for 15 min.
+                await db.execute(
+                    "UPDATE worker_instances SET suspended_until = datetime('now', '+15 minutes') "
+                    "WHERE id = ? AND ip NOT IN ('127.0.0.1','::1') "
+                    "AND (suspended_until IS NULL OR suspended_until < datetime('now'))",
+                    (iid,),
+                )
+
+        # Now requeue the jobs
+        await db.execute(
+            """
+            UPDATE jobs SET status = 'queued',
+                            worker_key_id = NULL,
+                            worker_instance_id = NULL,
+                            retry_count = COALESCE(retry_count, 0) + 1
+            WHERE status = 'running'
+              AND worker_instance_id IS NOT NULL
+              AND worker_instance_id IN (
+                SELECT id FROM worker_instances
+                WHERE last_seen IS NULL OR last_seen < datetime('now', '-300 seconds')
+              )
+            """
+        )
+        await db.commit()
+
+        # When the monopoly flag exists, all PS4 jobs are routed to the
+        # local bridge worker. Remote PS4 workers still heartbeat
+        # (staying counted as online) but only receive PS5 jobs.
+        if os.path.exists("/opt/htos/bridge_monopoly") and worker_platform == "ps4":
+            client_ip_now = _client_ip()
+            if not (client_ip_now.startswith("127.") or client_ip_now == "::1"):
+                return Response(status=204)
+
+        # Atomic claim: pick oldest queued job matching this worker's platform
+        # and flip it to 'running' in a single UPDATE. Prevents two workers
+        # from grabbing the same job when they poll simultaneously. Platform
+        # match: exact worker_platform, OR NULL/unknown (legacy = ps4).
+        legacy_ok = 1 if worker_platform == "ps4" else 0
+        cursor = await db.execute(
+            """
+            UPDATE jobs SET status = 'running'
+            WHERE id = (
+                SELECT id FROM jobs
+                WHERE status = 'queued'
+                  AND (
+                    json_extract(params, '$.platform') = ?
+                    OR (? = 1 AND (
+                        json_extract(params, '$.platform') IS NULL
+                        OR json_extract(params, '$.platform') = 'unknown'
+                    ))
+                  )
+                ORDER BY created_at ASC LIMIT 1
+            )
+            RETURNING id, user_id, operation, params, created_at
+            """,
+            (worker_platform, legacy_ok),
+        )
+        row = await cursor.fetchone()
+        await db.commit()
+        if not row:
             return Response(status=204)
-
-        for row in rows:
-            job = dict(row)
-            if job["params"]:
-                job["params"] = json.loads(job["params"])
-            else:
-                job["params"] = {}
-
-            # Filter by platform (defaults to ps4 for legacy workers)
-            # "unknown" platform treated as ps4 so jobs aren't stuck forever
-            job_platform = job["params"].get("platform", "ps4")
-            if job_platform == "unknown":
-                job_platform = "ps4"
-            if job_platform != worker_platform:
-                continue
-
-            return job
-
-        # No matching jobs
-        return Response(status=204)
+        job = dict(row)
+        job["params"] = json.loads(job["params"]) if job["params"] else {}
+        return job
     finally:
         await db.close()
 
@@ -384,16 +459,37 @@ async def job_files(job_id):
     tmp_path = os.path.join(os.path.dirname(upload_dir), f"{job_id}_worker.zip")
     with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_STORED) as zf:
         for root, dirs, files in os.walk(upload_dir):
+            # Strip macOS zip cruft — otherwise worker sees __MACOSX as a
+            # second top-level dir and descend_single_dir bails, hiding
+            # sce_sys/ from the encrypt path (was a real user report).
+            dirs[:] = [d for d in dirs if d != "__MACOSX"]
             for f in files:
+                if f == ".DS_Store" or f.startswith("._"):
+                    continue
                 filepath = os.path.join(root, f)
                 arcname = os.path.relpath(filepath, upload_dir)
                 zf.write(filepath, arcname)
 
-    return await send_file(
-        tmp_path,
+    # Manual async streaming — Quart's send_file wraps the file in an
+    # aio helper that reads to memory before yielding on multi-GB responses,
+    # causing hypercorn to drop the connection ~1.7 GB in. A plain async
+    # generator + explicit Content-Length reads chunked from disk.
+    import aiofiles
+    size = os.path.getsize(tmp_path)
+    async def _stream():
+        async with aiofiles.open(tmp_path, "rb") as fh:
+            while True:
+                chunk = await fh.read(1024 * 1024)
+                if not chunk:
+                    break
+                yield chunk
+    return Response(
+        _stream(),
         mimetype="application/zip",
-        as_attachment=True,
-        attachment_filename=f"{job_id}.zip",
+        headers={
+            "Content-Length": str(size),
+            "Content-Disposition": f'attachment; filename="{job_id}.zip"',
+        },
     )
 
 
@@ -530,9 +626,11 @@ async def update_status(job_id):
                 )
                 recent = await cursor3.fetchall()
                 if len(recent) >= 10 and all(r["status"] == "failed" for r in recent):
+                    # Same bridge exemption as the +15 min trigger above.
                     await db.execute(
                         "UPDATE worker_instances SET suspended_until = "
-                        "datetime('now', '+24 hours') WHERE id = ?",
+                        "datetime('now', '+24 hours') "
+                        "WHERE id = ? AND ip NOT IN ('127.0.0.1','::1')",
                         (inst_id,),
                     )
             elif worker_key:
@@ -595,6 +693,42 @@ async def update_status(job_id):
                 await db2.close()
         except Exception:
             pass
+
+
+    # BO1 chain: when a decrypt job carrying bo1_patch completes, extract
+    # its result zip, overwrite .PRF files with the encrypted patch blob,
+    # and queue a follow-up encrypt job that re-signs to the target account.
+    if status == "done":
+        try:
+            db_bo1 = await get_db()
+            try:
+                cursor = await db_bo1.execute(
+                    "SELECT operation, result_path, params, user_id FROM jobs WHERE id = ?",
+                    (job_id,),
+                )
+                jrow = await cursor.fetchone()
+            finally:
+                await db_bo1.close()
+            if jrow and jrow["operation"] == "decrypt" and jrow["result_path"]:
+                jp = json.loads(jrow["params"] or "{}")
+                if jp.get("bo1_patch") and jp.get("bo1_account_id"):
+                    from services.bo1 import chain_after_decrypt
+                    await chain_after_decrypt(
+                        decrypt_job_id=job_id,
+                        user_id=jrow["user_id"],
+                        result_zip=jrow["result_path"],
+                        patch_text=jp["bo1_patch"],
+                        target_account_id=jp["bo1_account_id"],
+                    )
+                elif jp.get("bo1_editor"):
+                    from services.bo1 import chain_stage_only
+                    await chain_stage_only(
+                        decrypt_job_id=job_id,
+                        user_id=jrow["user_id"],
+                        result_zip=jrow["result_path"],
+                    )
+        except Exception as e:
+            push_log(job_id, "ERROR", f"BO1 chain failed: {e}")
 
     # Also broadcast status change via SSE
     job = get_or_create_job_logger(job_id)
@@ -798,3 +932,77 @@ async def complete_result_upload(job_id):
         job.result_path = result_path
 
     return {"ok": True, "result_path": result_path}
+
+
+# ---------------------------------------------------------------------------
+# Self-update: outdated workers download their replacement from here.
+# The 426 response from /next tells the worker its version is too low; the
+# worker then GETs this endpoint, streams the reply into local elfldr on
+# 127.0.0.1:9021, and kill-9s itself. The new ELF elfldr loaded takes over.
+#
+# We proxy from git.etawen.dev/earthonion/garlic-worker/releases/latest so
+# there is a single source of truth. A short local disk cache keeps the
+# upstream API happy on burst-restart cycles.
+# ---------------------------------------------------------------------------
+
+import time as _time
+import urllib.request as _urllib_request
+import urllib.error as _urllib_error
+
+_UPDATE_CACHE_DIR = "/var/cache/htos/worker-update"
+_UPDATE_CACHE_TTL = 300  # 5 minutes
+
+
+def _cached_worker_elf(platform):
+    """Return path to a fresh copy of garlic-worker-{platform}.elf.
+    Downloads from the latest release if the cache is missing/stale."""
+    assert platform in ("ps4", "ps5")
+    os.makedirs(_UPDATE_CACHE_DIR, exist_ok=True)
+    fname = f"garlic-worker-{platform}.elf"
+    dest = os.path.join(_UPDATE_CACHE_DIR, fname)
+    try:
+        mtime = os.path.getmtime(dest)
+        if _time.time() - mtime < _UPDATE_CACHE_TTL and os.path.getsize(dest) > 4096:
+            return dest
+    except FileNotFoundError:
+        pass
+
+    # Forgejo has no /releases/latest/download/ shortcut - hit the API for
+    # the latest release, then download the matching asset URL from it.
+    api_url = "https://git.etawen.dev/api/v1/repos/earthonion/garlic-worker/releases?limit=1"
+    api_req = _urllib_request.Request(api_url, headers={"User-Agent": "htos-worker-update-proxy"})
+    with _urllib_request.urlopen(api_req, timeout=15) as r:
+        rel = json.loads(r.read())[0]
+    asset_url = None
+    for a in rel.get("assets", []):
+        if a.get("name") == fname:
+            asset_url = a["browser_download_url"]
+            break
+    if not asset_url:
+        raise _urllib_error.URLError(f"asset {fname} not in latest release {rel.get('tag_name')}")
+    tmp = dest + ".tmp"
+    req = _urllib_request.Request(asset_url, headers={"User-Agent": "htos-worker-update-proxy"})
+    with _urllib_request.urlopen(req, timeout=30) as r:
+        with open(tmp, "wb") as f:
+            shutil.copyfileobj(r, f, length=64 * 1024)
+    os.replace(tmp, dest)
+    return dest
+
+
+@api_bp.route("/update", methods=["GET"])
+@require_worker_key
+async def worker_update():
+    """Stream the latest garlic-worker ELF for the requested platform.
+    Triggered by workers that received 426 from /next."""
+    platform = request.args.get("platform", "ps5").lower()
+    if platform not in ("ps4", "ps5"):
+        return {"error": "bad_platform"}, 400
+    try:
+        path = _cached_worker_elf(platform)
+    except (_urllib_error.URLError, OSError) as e:
+        return {"error": "upstream_unavailable", "detail": str(e)}, 502
+    return await send_file(
+        path,
+        mimetype="application/octet-stream",
+        attachment_filename=f"garlic-worker-{platform}.elf",
+    )

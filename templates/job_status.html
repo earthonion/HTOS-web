@@ -1,12 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Job Status{% endblock %}
+{% block supporters_footer %}{% endblock %}
 {% block footer_text %}
-{% if job.status == 'done' %}
-<p style="margin-bottom: 0.3rem; font-size: 0.85rem; color: var(--text-2);">If you find this website useful, consider sponsoring!</p>
-<code class="xmr-copy" onclick="navigator.clipboard.writeText(this.textContent.trim());this.dataset.copied='1';setTimeout(()=>delete this.dataset.copied,1500);" title="click to copy XMR address" style="display:inline-block; font-family:'Fira Code', monospace; font-size:0.65rem; word-break:break-all; max-width:480px; cursor:pointer; color:var(--accent, #fbd308); padding:6px 10px; border:1px solid var(--border, #30363d); border-radius:6px; background:var(--surface, #161b22);">XMR: 8AabfCR2u5qcMiiuzxvTixgchH18fptGJcTCNFbpkBJxBaNf46aDRTTUFTxyGRETvRB6cFKrRRGXRU7EHEvCNFPEA3ubgXR</code>
-{% else %}
-<p>garlicsaves</p>
+<p style="margin-bottom: 0.4rem; font-size: 0.85rem; color: var(--text-2);">{% if job.status == 'done' %}Huge thanks to everyone helping keep this service running.{% else %}garlicsaves is free thanks to volunteer PS5 workers. Server hosting isn't free. If this saved you time:{% endif %}</p>
+{% if supporters or anonymous_count %}
+<div style="display:flex; flex-wrap:wrap; gap:0.3rem 0.4rem; justify-content:center; margin: 0 auto 0.6rem; max-width:560px;">
+    {% for s in supporters %}<span style="font-size:0.8rem; padding:0.1rem 0.5rem; border:1px solid var(--border, #30363d); border-radius:999px; color:var(--text-1);{% if s.is_subscription_payment %} border-color:var(--indigo, #6366f1); color:var(--indigo-light, #818cf8);{% endif %}"{% if s.is_subscription_payment and s.tier_name %} title="{{ s.tier_name }}"{% endif %}>{{ s.from_name }}{% if s.count and s.count > 1 %} <span style="opacity:0.7; font-size:0.85em;">×{{ s.count }}</span>{% endif %}</span>{% endfor %}
+    {% if anonymous_count %}<span style="font-size:0.78rem; color:var(--text-3, #6e7681); align-self:center;">+ {{ anonymous_count }} anonymous</span>{% endif %}
+</div>
 {% endif %}
+<a href="https://ko-fi.com/earthonion" target="_blank" rel="noopener" style="display:inline-block; font-family:inherit; font-size:0.85rem; max-width:480px; color:var(--accent, #fbd308); padding:6px 10px; border:1px solid var(--border, #30363d); border-radius:6px; background:var(--surface, #161b22); text-decoration:none;">&#9749; Tip on ko-fi</a>
 {% endblock %}
 {% block content %}
 <h1>Job: {{ job.operation }} <span class="status-{{ job.status }}" id="status-badge">{{ job.status }}</span></h1>
@@ -18,6 +21,11 @@
 <p style="margin-bottom: 1rem; color: var(--text-2);">{{ job.params.savename }}</p>
 {% endif %}
 
+{% if throttle_pending %}
+<div style="margin-bottom: 1rem; padding: 0.85rem 1rem; border-radius: 6px; background: rgba(251,211,8,0.08); border: 1px solid rgba(251,211,8,0.25); color: var(--text-1); font-size: 0.92rem;">
+    <strong style="color: var(--accent, #fbd308);">Please wait</strong> &mdash; this may take a few minutes. We're experiencing higher than normal load.
+</div>
+{% endif %}
 <div id="queue-info" style="{% if job.status != 'queued' %}display:none{% endif %}; margin-bottom: 1rem; padding: 0.75rem 1rem; border-radius: 6px; background: rgba(99,102,241,0.1); color: var(--text-2); font-size: 0.9rem;">
     Position <strong id="queue-pos">{{ queue_position }}</strong> of <strong id="queue-total">{{ queue_total }}</strong> in queue
 </div>

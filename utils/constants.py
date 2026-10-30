@@ -342,7 +342,7 @@ KEYSTONE_NAME = "keystone"
 PARAM_NAME = "param.sfo"
 SCE_SYS_NAME = "sce_sys"
 
-SAVEBLOCKS_MAX = 32768
+SAVEBLOCKS_MAX = 327680
 SAVESIZE_MAX = saveblocks_to_bytes(SAVEBLOCKS_MAX)
 SAVESIZE_MB_MIN = bytes_to_mb(saveblocks_to_bytes(SAVEBLOCKS_MIN))
 SAVESIZE_MB_MAX = bytes_to_mb(SAVESIZE_MAX)
