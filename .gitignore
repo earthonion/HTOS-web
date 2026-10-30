@@ -13,3 +13,8 @@ titles.db
 *.bak.*
 =*
 prebuilt/
+
+# Backup files
+*.pre-*
+*.bak-*
+*.bak
