@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - run: pip install ruff
+      - run: pip install --break-system-packages ruff
 
       - run: ruff check --select I --fix .
 
@@ -20,4 +20,4 @@ jobs:
 
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "style: auto-fix, format, and sort imports"
+          commit_message: 'style: auto-fix, format, and sort imports'
