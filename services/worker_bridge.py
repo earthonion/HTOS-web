@@ -70,7 +70,7 @@ async def process_decrypt(job: Job):
 
         push_log(job.job_id, "INFO", f"Sending {save_name} to fallback decryptor...")
 
-                async with httpx.AsyncClient(timeout=300) as client:
+        async with httpx.AsyncClient(timeout=300) as client:
             with open(bin_path, "rb") as sk, open(save_path, "rb") as sf:
                 r = await client.post(
                     f"{BRIDGE_URL}/api/decrypt",
