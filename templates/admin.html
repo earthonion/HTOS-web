@@ -79,6 +79,12 @@ tr.instance-row > td { padding: 0; }
 .instance-panel td { padding: 0.25rem 0.5rem; font-family: 'Fira Code', monospace; }
 .instance-panel .ua { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); }
 button.toggle-instances { font-family: inherit; cursor: pointer; }
+.msg-form { display: flex; flex-direction: column; gap: 0.5rem; max-width: 540px; }
+.msg-form .msg-row { display: flex; gap: 0.5rem; align-items: center; }
+.msg-form input[type="text"] { flex: 1; width: auto; }
+.msg-form select { width: auto; flex-shrink: 0; }
+.msg-form textarea { width: 100%; min-height: 80px; }
+.msg-form .msg-actions { display: flex; align-items: center; gap: 0.5rem; }
 </style>
 {% endblock %}
 {% block content %}
@@ -260,18 +266,18 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
 <section class="panel">
     <h2>Send User Message</h2>
     <p style="color: var(--text-2); font-size: 0.82rem; margin: 0 0 0.75rem;">Posts a banner at the top of every page for the target user (or <code>*</code> for everyone). Shown until they click the × dismiss button.</p>
-    <div style="display: flex; flex-direction: column; gap: 0.5rem; max-width: 540px;">
-        <div style="display: flex; gap: 0.5rem; align-items: center;">
-            <input type="text" id="msg-username" placeholder="Username (or * for all)" style="flex: 1; font-size: 0.82rem; padding: 0.3rem 0.5rem;">
-            <select id="msg-level" style="font-size: 0.82rem; padding: 0.3rem 0.5rem;">
+    <div class="msg-form">
+        <div class="msg-row">
+            <input type="text" id="msg-username" placeholder="Username (or * for all)">
+            <select id="msg-level">
                 <option value="info">info</option>
                 <option value="success">success</option>
                 <option value="warning">warning</option>
                 <option value="error">error</option>
             </select>
         </div>
-        <textarea id="msg-body" rows="3" placeholder="Message (max 2000 chars)" style="font-size: 0.82rem; padding: 0.4rem 0.5rem; resize: vertical;"></textarea>
-        <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <textarea id="msg-body" rows="4" placeholder="Message (max 2000 chars)"></textarea>
+        <div class="msg-actions">
             <button class="btn-small" onclick="sendUserMessage()">Send</button>
             <span id="msg-result" style="font-size: 0.75rem;"></span>
         </div>
