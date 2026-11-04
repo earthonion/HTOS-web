@@ -45,9 +45,14 @@ async def create_job_endpoint(user_id):
     if operation == "ppr_derive":
         client_value = form.get("client_value", "").lower()
         server_value = form.get("server_value", "").lower()
-        for name, value in (("client_value", client_value), ("server_value", server_value)):
+        for name, value in (
+            ("client_value", client_value),
+            ("server_value", server_value),
+        ):
             if len(value) != 32 or any(c not in "0123456789abcdef" for c in value):
-                return jsonify({"error": f"{name} must be exactly 16 bytes of hex"}), 400
+                return jsonify(
+                    {"error": f"{name} must be exactly 16 bytes of hex"}
+                ), 400
         job = await create_job(
             user_id,
             operation,
