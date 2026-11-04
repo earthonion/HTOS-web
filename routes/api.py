@@ -901,9 +901,18 @@ async def complete_result_upload(job_id):
     if not parts:
         abort(400)
 
+    db = await get_db()
+    try:
+        cursor = await db.execute("SELECT operation FROM jobs WHERE id = ?", (job_id,))
+        operation_row = await cursor.fetchone()
+    finally:
+        await db.close()
+    operation = operation_row["operation"] if operation_row else ""
+
     result_dir = os.path.join("workspace", "results")
     os.makedirs(result_dir, exist_ok=True)
-    result_path = os.path.join(result_dir, f"{job_id}.zip")
+    extension = "json" if operation == "ppr_derive" else "zip"
+    result_path = os.path.join(result_dir, f"{job_id}.{extension}")
 
     with open(result_path, "wb") as out:
         for part in parts:
@@ -914,21 +923,21 @@ async def complete_result_upload(job_id):
     # Clean up chunk dir
     shutil.rmtree(chunk_dir, ignore_errors=True)
 
-    # Validate the assembled zip
-    err = _validate_result_zip(result_path)
-    if err:
-        os.remove(result_path)
-        db = await get_db()
-        try:
-            await db.execute(
-                "UPDATE jobs SET status = 'failed', error = ? WHERE id = ?",
-                (err, job_id),
-            )
-            await db.commit()
-        finally:
-            await db.close()
-        push_log(job_id, "ERROR", err)
-        return {"ok": False, "error": err}, 400
+    if operation != "ppr_derive":
+        err = _validate_result_zip(result_path)
+        if err:
+            os.remove(result_path)
+            db = await get_db()
+            try:
+                await db.execute(
+                    "UPDATE jobs SET status = 'failed', error = ? WHERE id = ?",
+                    (err, job_id),
+                )
+                await db.commit()
+            finally:
+                await db.close()
+            push_log(job_id, "ERROR", err)
+            return {"ok": False, "error": err}, 400
 
     # Update job with result path
     db = await get_db()

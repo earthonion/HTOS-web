@@ -4,7 +4,7 @@ import json
 import os
 from functools import wraps
 
-from quart import Blueprint, jsonify, request
+from quart import Blueprint, jsonify, request, send_file
 
 from models import get_db
 from routes.api import validate_worker_key
@@ -42,6 +42,24 @@ def require_api_key(f):
 async def create_job_endpoint(user_id):
     form = await request.form
     operation = form.get("operation", "")
+    if operation == "ppr_derive":
+        client_value = form.get("client_value", "").lower()
+        server_value = form.get("server_value", "").lower()
+        for name, value in (("client_value", client_value), ("server_value", server_value)):
+            if len(value) != 32 or any(c not in "0123456789abcdef" for c in value):
+                return jsonify({"error": f"{name} must be exactly 16 bytes of hex"}), 400
+        job = await create_job(
+            user_id,
+            operation,
+            {
+                "client_value": client_value,
+                "server_value": server_value,
+                "platform": "ps5",
+            },
+            ready=True,
+        )
+        return jsonify({"job_id": job.job_id, "status": "queued"}), 201
+
     if operation not in ("decrypt", "encrypt", "resign", "reregion", "createsave"):
         return jsonify({"error": f"Invalid operation: {operation}"}), 400
 
@@ -213,7 +231,7 @@ async def get_result(user_id, job_id):
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT status, result_path FROM jobs WHERE id = ? AND user_id = ?",
+            "SELECT operation, status, result_path FROM jobs WHERE id = ? AND user_id = ?",
             (job_id, user_id),
         )
         row = await cursor.fetchone()
@@ -226,6 +244,13 @@ async def get_result(user_id, job_id):
     if not row["result_path"] or not os.path.exists(row["result_path"]):
         return jsonify({"error": "Result file not found"}), 404
 
+    if os.getenv("DIRECT_FILE_DOWNLOAD") == "1":
+        return await send_file(
+            row["result_path"],
+            as_attachment=True,
+            attachment_filename=os.path.basename(row["result_path"]),
+        )
+
     # Delegate byte-streaming to nginx via X-Accel-Redirect. See
     # /_result_files/ internal alias in the nginx site config.
     from quart import Response
@@ -233,6 +258,10 @@ async def get_result(user_id, job_id):
     filename = os.path.basename(row["result_path"])
     resp = Response(b"", status=200)
     resp.headers["X-Accel-Redirect"] = f"/_result_files/{filename}"
-    resp.headers["Content-Type"] = "application/zip"
-    resp.headers["Content-Disposition"] = f'attachment; filename="{job_id}.zip"'
+    if row["operation"] == "ppr_derive":
+        resp.headers["Content-Type"] = "application/json"
+        resp.headers["Content-Disposition"] = f'attachment; filename="{job_id}.json"'
+    else:
+        resp.headers["Content-Type"] = "application/zip"
+        resp.headers["Content-Disposition"] = f'attachment; filename="{job_id}.zip"'
     return resp
