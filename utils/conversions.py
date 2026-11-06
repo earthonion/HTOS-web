@@ -10,7 +10,7 @@ def gb_to_bytes(n: int) -> int:
 
 
 def saveblocks_to_bytes(blocks: int) -> int:
-    return blocks << 15
+    return blocks << 16
 
 
 def bytes_to_mb(n: int) -> int:
@@ -18,7 +18,7 @@ def bytes_to_mb(n: int) -> int:
 
 
 def mb_to_saveblocks(n: int) -> int:
-    return n << 5
+    return n << 4
 
 
 def round_half_up(c: float) -> int:
