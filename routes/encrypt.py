@@ -116,7 +116,7 @@ async def encrypt():
 
             upload_ids = _json.loads(upload_ids_json)
             chunked_dir = await resolve_chunked_uploads(
-                upload_ids, user_id, temp_job_id
+                upload_ids, user_id, temp_job_id, extract_zips=False
             )
             zip_path = None
             for f in os.listdir(chunked_dir):
@@ -280,32 +280,62 @@ async def encrypt():
             await flash("No sce_sys/param.sfo found in zip.", "error")
             return await render_template("encrypt.html", profiles=profiles)
 
-        sfo_ctx = await sfo_ctx_create(sfo_path)
+        with open(sfo_path, "rb") as sfo_file:
+            zero_sfo = not any(sfo_file.read())
+
+        sfo_ctx = None
+        job_upload_dir = save_dir
         saveblocks = None
-        for param in sfo_ctx.params:
-            if param.key == "SAVEDATA_BLOCKS":
-                from utils.type_helpers import uint64
+        if zero_sfo:
+            sidecar_dir = os.path.dirname(save_dir)
+            required_sidecars = ("PS5PARAM", "PS5KEY", "PS5IMAGE")
+            if not all(
+                os.path.isfile(os.path.join(sidecar_dir, name))
+                for name in required_sidecars
+            ):
+                await flash(
+                    "Zeroed param.sfo requires PS5PARAM, PS5KEY and PS5IMAGE. "
+                    "Upload the parent folder containing the save and these files.",
+                    "error",
+                )
+                return await render_template("encrypt.html", profiles=profiles)
 
-                blocks = uint64(param.value, "little")
-                saveblocks = blocks.value
-                break
-        if saveblocks is None:
-            await flash("Could not read SAVEDATA_BLOCKS from param.sfo.", "error")
-            return await render_template("encrypt.html", profiles=profiles)
+            original_size = os.path.getsize(os.path.join(sidecar_dir, "PS5IMAGE"))
+            size_path = os.path.join(sidecar_dir, "PS5PARAM_SIZE")
+            if os.path.isfile(size_path):
+                with open(size_path) as size_file:
+                    preserved_size = int(size_file.read().strip())
+                if preserved_size != original_size:
+                    await flash("PS5IMAGE size does not match PS5PARAM_SIZE.", "error")
+                    return await render_template("encrypt.html", profiles=profiles)
+            saveblocks = (original_size + 65535) // 65536
+            job_upload_dir = sidecar_dir
+        else:
+            sfo_ctx = await sfo_ctx_create(sfo_path)
+            for param in sfo_ctx.params:
+                if param.key == "SAVEDATA_BLOCKS":
+                    from utils.type_helpers import uint64
 
-        # Recalculate blocks from actual file sizes (1 block = 64KB)
-        # Add overhead for PFS metadata (~5%)
-        total_size = 0
-        for root, _d, fnames in os.walk(save_dir):
-            for fname in fnames:
-                total_size += os.path.getsize(os.path.join(root, fname))
-        headroom = max(total_size * 130 // 100, total_size + 4 * 1024 * 1024)
-        needed_blocks = (
-            headroom + 65535
-        ) // 65536  # 30% overhead OR +4MB, whichever larger
-        if needed_blocks > saveblocks:
-            saveblocks = needed_blocks
-            patch_sfo_saveblocks(sfo_path, saveblocks)
+                    blocks = uint64(param.value, "little")
+                    saveblocks = blocks.value
+                    break
+            if saveblocks is None:
+                await flash("Could not read SAVEDATA_BLOCKS from param.sfo.", "error")
+                return await render_template("encrypt.html", profiles=profiles)
+
+            # Recalculate blocks from actual file sizes (1 block = 64KB)
+            # Add overhead for PFS metadata (~5%)
+            total_size = 0
+            for root, _d, fnames in os.walk(save_dir):
+                for fname in fnames:
+                    total_size += os.path.getsize(os.path.join(root, fname))
+            headroom = max(total_size * 130 // 100, total_size + 4 * 1024 * 1024)
+            needed_blocks = (
+                headroom + 65535
+            ) // 65536  # 30% overhead OR +4MB, whichever larger
+            if needed_blocks > saveblocks:
+                saveblocks = needed_blocks
+                patch_sfo_saveblocks(sfo_path, saveblocks)
 
         if not (SAVEBLOCKS_MIN <= saveblocks <= SAVEBLOCKS_MAX):
             await flash(f"Invalid save blocks: {saveblocks}", "error")
@@ -314,20 +344,24 @@ async def encrypt():
         platform = "ps5" if form.get("platform") == "ps5" else "ps4"
 
         # Read original account ID from param.sfo, then patch with user's
-        sfo_account_id = _read_account_id_from_sfo(sfo_path, platform)
-        patch_sfo_account_id(sfo_path, account_id, platform)
+        sfo_account_id = (
+            None if zero_sfo else _read_account_id_from_sfo(sfo_path, platform)
+        )
+        if not zero_sfo:
+            patch_sfo_account_id(sfo_path, account_id, platform)
         if platform == "ps5" and not await ps5_workers_online():
             await flash("PS5 saves not currently supported!", "error")
             return await render_template("encrypt.html", profiles=profiles)
         # Extract TITLE_ID and look up game title
         title_id = ""
         game_title = ""
-        for param in sfo_ctx.params:
-            if param.key == "TITLE_ID":
-                from utils.type_helpers import utf_8
+        if sfo_ctx is not None:
+            for param in sfo_ctx.params:
+                if param.key == "TITLE_ID":
+                    from utils.type_helpers import utf_8
 
-                title_id = utf_8(param.value).to_str().strip("\x00")
-                break
+                    title_id = utf_8(param.value).to_str().strip("\x00")
+                    break
         if title_id:
             game_title = await lookup_title(title_id) or ""
 
@@ -341,7 +375,7 @@ async def encrypt():
             "account_id": account_id,
             "savename": savename,
             "saveblocks": saveblocks,
-            "upload_dir": save_dir,
+            "upload_dir": job_upload_dir,
             "platform": platform,
         }
         if title_id:

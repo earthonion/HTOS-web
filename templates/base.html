@@ -281,7 +281,7 @@
         if (!input) return;
 
         drop.addEventListener('click', e => {
-            if (e.target === input) return;
+            if (e.target === input || e.target.closest('[data-browse-folder], #browse-folder')) return;
             input.click();
         });
 

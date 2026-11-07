@@ -234,7 +234,9 @@ def _strip_sdimg_prefix(directory: str):
                 os.rename(src, dst)
 
 
-async def resolve_chunked_uploads(upload_ids: list, user_id: int, job_id: str) -> str:
+async def resolve_chunked_uploads(
+    upload_ids: list, user_id: int, job_id: str, extract_zips: bool = True
+) -> str:
     """Move assembled files from chunk staging to the job's upload dir.
     Returns the upload directory path."""
     upload_dir = os.path.join(UPLOAD_DIR, str(user_id), job_id)
@@ -261,7 +263,8 @@ async def resolve_chunked_uploads(upload_ids: list, user_id: int, job_id: str) -
         shutil.rmtree(chunk_dir, ignore_errors=True)
 
     # Auto-extract zips, strip prefix, check sizes and dangerous files
-    _extract_zips_in_dir(upload_dir)
+    if extract_zips:
+        _extract_zips_in_dir(upload_dir)
     _strip_sdimg_prefix(upload_dir)
     check_dangerous_files(upload_dir)
     _check_file_sizes(upload_dir)

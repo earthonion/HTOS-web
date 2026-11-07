@@ -116,6 +116,8 @@ async def create_job_endpoint(user_id):
         params["account_id"] = account_id
         if form.get("platform") == "ps5":
             params["platform"] = "ps5"
+        if form.get("saveblocks"):
+            params["saveblocks"] = int(form["saveblocks"])
         if operation == "createsave":
             savename = form.get("savename", "")
             saveblocks = form.get("saveblocks", "")
