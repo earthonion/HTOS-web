@@ -10,6 +10,7 @@ from services.files import (
     FileTooLargeError,
     _check_file_sizes,
     _read_account_id_from_sfo,
+    _safe_join,
     _strip_sdimg_prefix,
     check_dangerous_files,
     check_zip_safety,
@@ -108,7 +109,7 @@ async def encrypt():
             for f in folder_files:
                 if not f.filename or f.filename.endswith("/"):
                     continue
-                dest = os.path.join(extract_dir, f.filename)
+                dest = _safe_join(extract_dir, f.filename)
                 os.makedirs(os.path.dirname(dest), exist_ok=True)
                 await f.save(dest)
         elif upload_ids_json:

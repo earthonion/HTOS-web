@@ -1,3 +1,8 @@
+function normalizedUploadFile(file) {
+  const name = (file.webkitRelativePath || file.name).replace(/\\/g, '/');
+  return new File([file], name, { type: file.type, lastModified: file.lastModified });
+}
+
 // 10 MB per chunk keeps each POST well inside Cloudflare's 100-second
 // per-request cap even on 1 Mbps upstreams (~80 s wire time). Bumping this
 // makes slow uploaders time out mid-chunk with "network error".
@@ -53,7 +58,7 @@ class ChunkedUploader {
 
     const initResp = await xhrPost('/api/upload/init',
       new Blob([JSON.stringify({
-        filename: this.file.webkitRelativePath || this.file.name,
+        filename: (this.file.webkitRelativePath || this.file.name).replace(/\\/g, '/'),
         total_size: this.file.size,
         chunk_size: this.chunkSize,
       })], { type: 'application/json' }));
@@ -101,7 +106,7 @@ function setupChunkedForm(form, fieldMap) {
     for (const inputName of Object.keys(fieldMap)) {
       const input = form.querySelector(`input[name="${inputName}"]`);
       if (!input || !input.files || !input.files.length) continue;
-      const files = Array.from(input.files);
+      const files = Array.from(input.files, normalizedUploadFile);
       const total = files.reduce((s, f) => s + f.size, 0);
       grandTotal += total;
       inputs.push({ inputName, idsFieldName: fieldMap[inputName], files, total });
