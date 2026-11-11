@@ -14,7 +14,7 @@ from functools import wraps
 # via umask(0) + explicit fchmod(0777) in copy_dir_pfs/copy_dir_recursive.
 # This gate also covers the older v1.1.2 SFO_AID_OFFSET fix (PS4-only).
 # Outdated workers polling /next get 426 until they update.
-MIN_WORKER_VERSION = (1, 1, 8)
+MIN_WORKER_VERSION = (1, 5, 6)
 
 
 def parse_worker_version(ua: str):
