@@ -341,10 +341,9 @@ async def encrypt():
         # CoW saves (non-zero SFO with fs_ext) have sidecars in the parent
         if not zero_sfo and save_dir != extract_dir:
             sidecar_dir = os.path.dirname(save_dir)
-            cow_sidecars = (
-                os.path.isfile(os.path.join(sidecar_dir, "PS5IMAGE"))
-                and os.path.isfile(os.path.join(sidecar_dir, "PS5KEY"))
-            )
+            cow_sidecars = os.path.isfile(
+                os.path.join(sidecar_dir, "PS5IMAGE")
+            ) and os.path.isfile(os.path.join(sidecar_dir, "PS5KEY"))
             if cow_sidecars:
                 job_upload_dir = sidecar_dir
 
