@@ -338,6 +338,16 @@ async def encrypt():
                 saveblocks = needed_blocks
                 patch_sfo_saveblocks(sfo_path, saveblocks)
 
+        # CoW saves (non-zero SFO with fs_ext) have sidecars in the parent
+        if not zero_sfo and save_dir != extract_dir:
+            sidecar_dir = os.path.dirname(save_dir)
+            cow_sidecars = (
+                os.path.isfile(os.path.join(sidecar_dir, "PS5IMAGE"))
+                and os.path.isfile(os.path.join(sidecar_dir, "PS5KEY"))
+            )
+            if cow_sidecars:
+                job_upload_dir = sidecar_dir
+
         if not (SAVEBLOCKS_MIN <= saveblocks <= SAVEBLOCKS_MAX):
             await flash(f"Invalid save blocks: {saveblocks}", "error")
             return await render_template("encrypt.html", profiles=profiles)
