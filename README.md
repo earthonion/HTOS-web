@@ -115,4 +115,46 @@ HTOS-web/
 - **Server-Sent Events (SSE)** stream real-time logs from jobs to the browser
 - **Community voting** on Save DB entries with Reddit-style auto-upvote and auto-delete at -10
 
+## Worker updates
+
+HTOS enforces a minimum worker version from `MIN_WORKER_VERSION` in `routes/api.py`. Older workers receive HTTP 426 from `/api/worker/next`, then request a replacement from `/api/worker/update`. API job-submission toggles do not disable worker polling or updates.
+
+The update endpoint proxies the **latest GitHub release** from `earthonion/garlic-worker` and caches each ELF for five minutes under `/var/cache/htos/worker-update/`. The required asset names are:
+
+- `garlic-worker-ps4.elf`
+- `garlic-worker-ps5.elf`
+
+### Publishing a worker update
+
+1. Update the version in the worker source and build both platform ELFs. Check the embedded version with `strings` before publishing.
+2. Publish a non-prerelease GitHub release containing both assets with the exact names above. GitHub's `releases/latest/download` URL must serve this release.
+3. If the server minimum changes, update `MIN_WORKER_VERSION` in `routes/api.py` and the outdated-worker check in `templates/admin.html` to the same version. Do not raise the minimum before the matching assets are downloadable.
+4. Deploy HTOS. To force an immediate refresh instead of waiting for the five-minute cache, remove the cached ELFs:
+
+   ```bash
+   rm -f /var/cache/htos/worker-update/garlic-worker-ps4.elf
+   rm -f /var/cache/htos/worker-update/garlic-worker-ps5.elf
+   ```
+
+5. Verify both update endpoints using a valid worker key, replacing `1.5.9` with the intended release:
+
+   ```bash
+   curl -fSLo /tmp/garlic-worker-ps5.elf \
+     -H "X-Worker-Key: YOUR_KEY" \
+     "https://garlicsaves.com/api/worker/update?platform=ps5"
+   curl -fSLo /tmp/garlic-worker-ps4.elf \
+     -H "X-Worker-Key: YOUR_KEY" \
+     "https://garlicsaves.com/api/worker/update?platform=ps4"
+   strings /tmp/garlic-worker-ps5.elf | grep '1.5.9'
+   strings /tmp/garlic-worker-ps4.elf | grep '1.5.9'
+   ```
+
+6. Watch online worker user agents and the job queue. Outdated instances should download the new ELF, restart, and stop receiving 426. No HTOS restart is required after only clearing the update cache.
+
+### Avoiding an update loop
+
+A mirror whose latest release is older than `MIN_WORKER_VERSION` creates a self-reinforcing loop: workers update, still receive 426, and repeatedly poll `/next` and `/update`. This can look like a DDoS and prevent jobs from draining. Check the asset's actual version, not only its release tag, and confirm `/update` returns HTTP 200 rather than 499 or 502.
+
+Stale recovery requeues jobs when an assigned instance has not heartbeated for five minutes. Running jobs with no instance assignment are requeued after 30 minutes. Redundant worker `last_used` timestamp writes are throttled to reduce SQLite lock contention during update bursts.
+
 
