@@ -76,9 +76,16 @@ const logEl = document.getElementById('log');
 const statusBadge = document.getElementById('status-badge');
 const currentStatus = statusBadge.textContent.trim();
 const isFinished = (currentStatus === 'done' || currentStatus === 'failed');
+let streamReloadTimer = null;
 
 // Always connect to SSE to load historical log messages
 const evtSource = new EventSource("{{ url_for('jobs.job_stream', job_id=job.job_id) }}");
+evtSource.onopen = function() {
+    if (streamReloadTimer) {
+        clearTimeout(streamReloadTimer);
+        streamReloadTimer = null;
+    }
+};
 
 // Queue position polling
 const queueInfo = document.getElementById('queue-info');
@@ -112,6 +119,10 @@ evtSource.onmessage = function(event) {
             if (queueInterval) clearInterval(queueInterval);
         }
         if (data.msg === 'done' || data.msg === 'failed') {
+            if (streamReloadTimer) {
+                clearTimeout(streamReloadTimer);
+                streamReloadTimer = null;
+            }
             evtSource.close();
             if (!isFinished) {
                 location.reload();
@@ -127,7 +138,11 @@ evtSource.onmessage = function(event) {
 };
 
 evtSource.onerror = function() {
-    evtSource.close();
+    if (!streamReloadTimer && !isFinished) {
+        streamReloadTimer = setTimeout(function() {
+            location.reload();
+        }, 15000);
+    }
 };
 </script>
 {% endblock %}
