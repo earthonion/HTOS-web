@@ -142,7 +142,10 @@ class Job:
 
 
 async def create_job(
-    user_id: int, operation: str, params: dict | None = None, ready: bool = True,
+    user_id: int,
+    operation: str,
+    params: dict | None = None,
+    ready: bool = True,
     submitter_key_id: int | None = None,
 ) -> Job:
     job_id = str(uuid.uuid4())
