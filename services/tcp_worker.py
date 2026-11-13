@@ -21,6 +21,7 @@ import zipfile
 from config import WORKER_KEY
 from models import get_db
 from services.jobs import get_or_create_job_logger, push_log
+from services.rate_limit import enforce_job_rate_limit
 
 log = logging.getLogger("tcp_worker")
 log.setLevel(logging.DEBUG)
@@ -138,6 +139,9 @@ async def _update_worker_heartbeat(key: str, platform: str):
 
 async def _get_next_job(platform: str, worker_key: str = "") -> dict | None:
     """Find next queued job for the given platform and atomically claim it."""
+    _, retry_after = await enforce_job_rate_limit(worker_key)
+    if retry_after:
+        return None
     db = await get_db()
     try:
         # Resolve worker_key_id for tracking
