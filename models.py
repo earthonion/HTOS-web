@@ -164,6 +164,7 @@ CREATE TABLE IF NOT EXISTS kofi_supporters (
 );
 
 INSERT OR IGNORE INTO settings (key, value) VALUES ('invite_only', '0');
+INSERT OR IGNORE INTO settings (key, value) VALUES ('worker_key_generation_enabled', '0');
 """
 
 MIGRATIONS = [

@@ -160,6 +160,17 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
 </section>
 
 <section class="panel">
+    <h2>Worker Key Generation</h2>
+    <label style="display:flex;align-items:center;gap:0.5rem;">
+        <input id="worker-key-generation-toggle" type="checkbox" {% if key_generation_enabled %}checked{% endif %}>
+        Allow users to generate new worker keys
+    </label>
+    <p id="worker-key-generation-state" style="color:var(--text-2);font-size:0.8rem;margin-top:0.5rem;">
+        {{ 'Generation enabled' if key_generation_enabled else 'Generation disabled; existing keys still work' }}
+    </p>
+</section>
+
+<section class="panel">
     <h2 style="display:flex;align-items:center;gap:0.75rem">Worker Stats
         <button id="toggle-offline" class="btn-small" style="font-size:0.7rem;padding:0.2rem 0.6rem;font-weight:500" onclick="toggleOfflineWorkers()">Hide offline</button>
         <span style="font-size:0.75rem; font-weight:400; color:var(--text-2); margin-left:auto;">
@@ -485,6 +496,30 @@ document.addEventListener('change', async function(e) {
         const result = await response.json();
         if (!response.ok || !result.ok) throw new Error(result.error || 'Could not save API access');
         input.checked = result.enabled;
+    } catch (error) {
+        input.checked = !enabled;
+        alert(error.message);
+    } finally {
+        input.disabled = false;
+    }
+});
+
+document.getElementById('worker-key-generation-toggle').addEventListener('change', async function(e) {
+    const input = e.target;
+    const enabled = input.checked;
+    input.disabled = true;
+    try {
+        const response = await fetch('/admin/worker-key-generation', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({enabled: enabled}),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Could not save key generation setting');
+        input.checked = result.enabled;
+        document.getElementById('worker-key-generation-state').textContent = result.enabled
+            ? 'Generation enabled'
+            : 'Generation disabled; existing keys still work';
     } catch (error) {
         input.checked = !enabled;
         alert(error.message);

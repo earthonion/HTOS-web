@@ -44,10 +44,14 @@ function copyEl(id) {
 
 <section class="panel">
     <h2>Generate Key</h2>
+    {% if key_generation_enabled %}
     <form method="POST" action="{{ url_for('contribute.contribute') }}" class="inline-form">
         <input type="text" name="name" placeholder="Key name (e.g. My PS4)" required maxlength="64">
         <button type="submit">Generate</button>
     </form>
+    {% else %}
+    <p style="color: var(--text-2);">Worker key generation is currently disabled. Existing keys continue to work.</p>
+    {% endif %}
 </section>
 
 <details class="panel setup-dropdown">

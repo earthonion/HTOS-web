@@ -7,6 +7,7 @@ from quart import Blueprint, Response, jsonify, render_template, request
 
 from auth import admin_required
 from models import get_db
+from routes.contribute import key_generation_enabled
 
 admin_web_bp = Blueprint("admin_web", __name__)
 
@@ -170,6 +171,7 @@ async def dashboard():
         stats=stats,
         op_stats=op_stats,
         workers_online=workers_online,
+        key_generation_enabled=await key_generation_enabled(),
     )
 
 
@@ -299,6 +301,26 @@ async def set_worker_rate_limit(key_id):
     finally:
         await db.close()
     return jsonify({"ok": True, "limit": limit})
+
+
+@admin_web_bp.route("/admin/worker-key-generation", methods=["POST"])
+@admin_required
+async def set_worker_key_generation():
+    data = await request.get_json()
+    enabled = data.get("enabled")
+    if not isinstance(enabled, bool):
+        return jsonify({"ok": False, "error": "enabled must be a boolean"}), 400
+    db = await get_db()
+    try:
+        await db.execute(
+            "INSERT INTO settings (key, value) VALUES ('worker_key_generation_enabled', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            ("1" if enabled else "0",),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+    return jsonify({"ok": True, "enabled": enabled})
 
 
 @admin_web_bp.route("/admin/worker-api-access/<int:key_id>", methods=["POST"])

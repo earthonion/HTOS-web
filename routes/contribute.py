@@ -16,12 +16,28 @@ def generate_worker_key(user_id: int, key_id: int) -> str:
     return hmac.new(WORKER_SIGNING_KEY.encode(), message, hashlib.sha256).hexdigest()
 
 
+async def key_generation_enabled():
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT value FROM settings WHERE key = 'worker_key_generation_enabled'"
+        )
+        row = await cursor.fetchone()
+        return bool(row and row["value"] == "1")
+    finally:
+        await db.close()
+
+
 @contribute_bp.route("/contribute", methods=["GET", "POST"])
 @login_required
 async def contribute():
     user_id = session["user_id"]
 
     if request.method == "POST":
+        if not await key_generation_enabled():
+            await flash("Worker key generation is currently disabled.", "error")
+            return redirect(url_for("contribute.contribute"))
+
         form = await request.form
         name = form.get("name", "").strip()
 
@@ -101,7 +117,12 @@ async def contribute():
             "error",
         )
 
-    return await render_template("contribute.html", keys=keys, new_key=new_key)
+    return await render_template(
+        "contribute.html",
+        keys=keys,
+        new_key=new_key,
+        key_generation_enabled=await key_generation_enabled(),
+    )
 
 
 @contribute_bp.route("/contribute/<int:key_id>/revoke", methods=["POST"])
