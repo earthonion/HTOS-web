@@ -22,7 +22,10 @@ Submit a job with files via multipart form upload.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `operation` | string | yes | `encrypt`, `decrypt`, `resign`, `reregion`, or `createsave` |
-| `files` | file(s) | yes | Save files or a zip archive |
+| `files` | file(s) | multipart only | Save files or a zip archive |
+| `upload_ids` | JSON string | with chunking | Upload IDs returned by `/api/upload`; use instead of `files` |
+
+For large uploads, start each file with `POST /api/upload/init` (`filename`, `total_size`, and optional `chunk_size`), send chunks to `/api/upload/<upload_id>/chunk/<index>`, then call `/api/upload/<upload_id>/complete`. Submit the resulting IDs in `upload_ids` as a JSON array. Chunks of 10 MiB avoid proxy request-body limits.
 
 **Operation-specific fields:**
 

@@ -14,6 +14,7 @@ from services.files import (
     InvalidSaveFilesError,
     detect_platform_in_dir,
     extract_account_id,
+    resolve_chunked_uploads,
     save_uploaded_files,
     validate_save_pairs,
 )
@@ -69,7 +70,8 @@ async def create_job_endpoint(user_id):
         return jsonify({"error": f"Invalid operation: {operation}"}), 400
 
     files = (await request.files).getlist("files")
-    if not files or not files[0].filename:
+    upload_ids_json = form.get("upload_ids", "")
+    if (not files or not files[0].filename) and not upload_ids_json:
         return jsonify({"error": "No files uploaded"}), 400
 
     # Create job for file storage
@@ -77,7 +79,16 @@ async def create_job_endpoint(user_id):
     job = await create_job(user_id, operation, params, ready=False)
 
     try:
-        upload_dir = await save_uploaded_files(files, user_id, job.job_id)
+        if upload_ids_json and not (files and files[0].filename):
+            upload_ids = json.loads(upload_ids_json)
+            if not isinstance(upload_ids, list) or not upload_ids or not all(
+                isinstance(uid, str) and len(uid) == 36 and set(uid) <= set("0123456789abcdef-")
+                for uid in upload_ids
+            ):
+                return jsonify({"error": "upload_ids must be a list of upload IDs"}), 400
+            upload_dir = await resolve_chunked_uploads(upload_ids, user_id, job.job_id)
+        else:
+            upload_dir = await save_uploaded_files(files, user_id, job.job_id)
     except FileTooLargeError as e:
         return jsonify({"error": f"File too large: {e}"}), 400
     except DangerousFileError as e:
