@@ -203,13 +203,15 @@ def create_app():
         from models import get_db
 
         try:
+            from auth import _real_client_ip
+
             db = await get_db()
             try:
                 await db.execute(
-                    "UPDATE users SET last_seen = CURRENT_TIMESTAMP "
+                    "UPDATE users SET last_seen = CURRENT_TIMESTAMP, last_ip = ? "
                     "WHERE id = ? AND (last_seen IS NULL "
                     "                   OR last_seen < datetime('now','-60 seconds'))",
-                    (uid,),
+                    (_real_client_ip(), uid),
                 )
                 await db.commit()
             finally:
