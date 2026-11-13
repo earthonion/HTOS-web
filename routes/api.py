@@ -694,13 +694,6 @@ async def update_status(job_id):
                             )
                             await db2.commit()
 
-                    # Auto-capture sample save from decrypt results
-                    tid = jp.get("title_id", "")
-                    if tid and jrow["operation"] == "decrypt" and os.path.exists(rp):
-                        from services.samples import maybe_store_sample_from_zip
-
-                        platform = jp.get("platform", "ps4")
-                        await maybe_store_sample_from_zip(tid, rp, platform)
             finally:
                 await db2.close()
         except Exception:

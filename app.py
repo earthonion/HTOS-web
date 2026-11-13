@@ -341,7 +341,6 @@ def create_app():
             "workspace/processing",
             "workspace/chunks",
             "workspace/savedb",
-            "workspace/savedb_samples",
             "workspace/saveeditor",
         ]:
             os.makedirs(d, exist_ok=True)

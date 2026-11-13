@@ -310,11 +310,10 @@ async def _handle_status(msg: dict, worker_key: str):
             job.error = error
         job.logger._broadcast({"level": "STATUS", "msg": status})
 
-    # Post-completion: extract title, capture sample
+    # Post-completion: extract title
     if status == "done":
         try:
             from routes.api import _extract_title_from_zip
-            from services.samples import maybe_store_sample_from_zip
             from services.titles import lookup_title
 
             db2 = await get_db()
@@ -340,10 +339,6 @@ async def _handle_status(msg: dict, worker_key: str):
                             )
                             await db2.commit()
 
-                    tid = jp.get("title_id", "")
-                    if tid and jrow["operation"] == "decrypt" and os.path.exists(rp):
-                        platform = jp.get("platform", "ps4")
-                        await maybe_store_sample_from_zip(tid, rp, platform)
             finally:
                 await db2.close()
         except Exception:
