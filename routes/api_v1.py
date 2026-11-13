@@ -38,9 +38,51 @@ def require_api_key(f):
     return decorated
 
 
+async def enforce_job_rate_limit(key):
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT id, job_rate_limit FROM worker_keys WHERE key = ?", (key,)
+        )
+        row = await cursor.fetchone()
+        if not row or not row["job_rate_limit"]:
+            return None, 0
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM jobs WHERE submitter_key_id = ? "
+            "AND created_at > datetime('now', '-60 seconds')",
+            (row["id"],),
+        )
+        count = (await cursor.fetchone())[0]
+        return row["id"], 60 if count >= row["job_rate_limit"] else 0
+    finally:
+        await db.close()
+
+
+async def record_submitter_ip(user_id):
+    from auth import _real_client_ip
+
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE users SET last_ip = ?, last_seen = CURRENT_TIMESTAMP WHERE id = ?",
+            (_real_client_ip(), user_id),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+
 @api_v1_bp.route("/jobs", methods=["POST"])
 @require_api_key
 async def create_job_endpoint(user_id):
+    key_id, retry_after = await enforce_job_rate_limit(
+        request.headers.get("X-Worker-Key", "")
+    )
+    if retry_after:
+        return jsonify({"error": "rate limit exceeded; try again later"}), 429, {
+            "Retry-After": str(retry_after)
+        }
+    await record_submitter_ip(user_id)
     form = await request.form
     operation = form.get("operation", "")
     if operation == "ppr_derive":
@@ -63,6 +105,7 @@ async def create_job_endpoint(user_id):
                 "platform": "ps5",
             },
             ready=True,
+            submitter_key_id=key_id,
         )
         return jsonify({"job_id": job.job_id, "status": "queued"}), 201
 
@@ -76,7 +119,7 @@ async def create_job_endpoint(user_id):
 
     # Create job for file storage
     params = {}
-    job = await create_job(user_id, operation, params, ready=False)
+    job = await create_job(user_id, operation, params, ready=False, submitter_key_id=key_id)
 
     try:
         if upload_ids_json and not (files and files[0].filename):

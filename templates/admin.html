@@ -168,7 +168,7 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
         <thead>
             <tr>
                 <th>ID</th><th>Name</th><th>Plat</th><th>Status</th><th>Uptime</th>
-                <th>Done</th><th>Fail</th><th>Total</th><th>Rate</th><th>Active</th><th>Instances</th>
+                <th>Done</th><th>Fail</th><th>Total</th><th>Rate</th><th>Active</th><th>Instances</th><th>Jobs/min limit</th>
             </tr>
         </thead>
         <tbody>
@@ -226,6 +226,10 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
                     {% if w.instances > 0 %}
                     <button class="btn-small toggle-instances" data-key-id="{{ w.id }}">{{ w.instances }} ▾</button>
                     {% else %}-{% endif %}
+                </td>
+                <td style="white-space:nowrap;">
+                    <input class="rate-limit-input" data-key-id="{{ w.id }}" type="number" min="0" max="100000" value="{{ w.job_rate_limit or 0 }}" style="width:70px;font-size:0.75rem;" title="Jobs per minute; 0 is unlimited">
+                    <button class="btn-small save-rate-limit" data-key-id="{{ w.id }}">Save</button>
                 </td>
             </tr>
             {% endif %}
@@ -414,6 +418,35 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
         }
     };
 })();
+
+document.addEventListener('click', async function(e) {
+    const button = e.target.closest('.save-rate-limit');
+    if (!button) return;
+    const keyId = button.dataset.keyId;
+    const input = document.querySelector('.rate-limit-input[data-key-id="' + keyId + '"]');
+    const previous = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Saving…';
+    try {
+        const response = await fetch('/admin/worker-rate-limit/' + keyId, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({limit: Number(input.value || 0)}),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Could not save limit');
+        input.value = result.limit;
+        button.textContent = 'Saved';
+    } catch (error) {
+        button.textContent = 'Error';
+        alert(error.message);
+    } finally {
+        setTimeout(() => {
+            button.disabled = false;
+            button.textContent = previous;
+        }, 1200);
+    }
+});
 
 document.addEventListener('DOMContentLoaded', function() {
     const workerTable = document.getElementById('worker-stats-table');
