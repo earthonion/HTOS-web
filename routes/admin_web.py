@@ -7,7 +7,6 @@ from quart import Blueprint, Response, jsonify, render_template, request
 
 from auth import admin_required
 from models import get_db
-from services.geoip import enrich_jobs
 
 admin_web_bp = Blueprint("admin_web", __name__)
 
@@ -71,8 +70,6 @@ async def dashboard():
             else:
                 j["game_title"] = ""
                 j["title_id"] = ""
-
-        jobs = await enrich_jobs(jobs)
 
         # Queue count
         cursor = await db.execute("SELECT COUNT(*) FROM jobs WHERE status = 'queued'")
@@ -408,8 +405,6 @@ async def feed():
                             nj["game_title"] = ""
                             nj["title_id"] = ""
                         del nj["params"]
-                    new_jobs = await enrich_jobs(new_jobs)
-
                     # Also check for status updates on recent jobs
                     cursor = await db.execute(
                         "SELECT j.id, j.status, j.error, wk.name as worker_name, u.last_ip as user_ip "
@@ -419,7 +414,6 @@ async def feed():
                         "ORDER BY j.created_at DESC LIMIT 50"
                     )
                     updates = [dict(r) for r in await cursor.fetchall()]
-                    updates = await enrich_jobs(updates)
 
                     # Queue count
                     cursor = await db.execute(

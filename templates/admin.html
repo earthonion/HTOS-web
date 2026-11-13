@@ -271,7 +271,7 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
                 </td>
                 <td style="font-size: 0.75rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ j.error or '' }}">{{ j.error or '-' }}</td>
                 <td>{{ j.worker_name or '-' }}</td>
-                <td title="{{ j.user_location or 'Location unknown' }}">{{ j.user_flag }}{{ ' ' if j.user_flag else '' }}{{ j.user_ip or '-' }}</td>
+                <td>{{ j.user_ip or '-' }}</td>
                 <td>{{ j.created_at }}</td>
                 <td><a href="{{ url_for('jobs.job_status', job_id=j.id) }}" class="btn-small">View</a></td>
             </tr>
@@ -346,9 +346,7 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
         const tr = document.createElement('tr');
         tr.className = 'new-row';
         tr.dataset.jobId = j.id;
-        var userLocation = escapeHtml(j.user_location || 'Location unknown');
         var userIp = escapeHtml(j.user_ip || '-');
-        var userFlag = j.user_flag ? j.user_flag + ' ' : '';
         var titleCell = '-';
         if (j.game_title) titleCell = j.game_title;
         else if (j.title_id) titleCell = '<code>' + j.title_id + '</code>';
@@ -360,7 +358,7 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
             '<td><span class="status-' + j.status + '">' + j.status + '</span></td>' +
             '<td style="font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (j.error || '') + '">' + (j.error || '-') + '</td>' +
             '<td>' + (j.worker_name || '-') + '</td>' +
-            '<td title="' + userLocation + '">' + userFlag + userIp + '</td>' +
+            '<td>' + userIp + '</td>' +
             '<td>' + j.created_at + '</td>' +
             '<td><a href="/jobs/' + j.id + '" class="btn-small">View</a></td>';
         return tr;
