@@ -33,7 +33,9 @@ def lookup_ip(ip):
             return result
         country_code = (data.get("country_code") or "").upper()
         location = ", ".join(
-            part for part in (data.get("city"), data.get("region"), data.get("country")) if part
+            part
+            for part in (data.get("city"), data.get("region"), data.get("country"))
+            if part
         )
         result = {
             "flag": country_flag(country_code),
