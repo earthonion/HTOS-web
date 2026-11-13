@@ -22,6 +22,30 @@ from services.jobs import create_job
 from services.rate_limit import enforce_job_rate_limit
 
 api_v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
+API_OPERATION_LOG_MESSAGES = {
+    "decrypt": "Decrypting with GarlicSaves",
+    "encrypt": "Encrypting with GarlicSaves",
+    "resign": "Resigning with GarlicSaves",
+    "reregion": "Re-regioning with GarlicSaves",
+    "createsave": "Creating save with GarlicSaves",
+    "ppr_derive": "Deriving PPR with GarlicSaves",
+}
+
+
+async def log_api_operation(job, operation):
+    message = API_OPERATION_LOG_MESSAGES[operation]
+    job.logger.info(message)
+    entry = json.dumps({"level": "INFO", "msg": message})
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE jobs SET logs = CASE WHEN logs IS NULL THEN ? "
+            "ELSE logs || '\n' || ? END WHERE id = ?",
+            (entry, entry, job.job_id),
+        )
+        await db.commit()
+    finally:
+        await db.close()
 
 
 def require_api_key(f):
@@ -100,6 +124,7 @@ async def create_job_endpoint(user_id):
             ready=True,
             submitter_key_id=key_id,
         )
+        await log_api_operation(job, operation)
         return jsonify({"job_id": job.job_id, "status": "queued"}), 201
 
     if operation not in ("decrypt", "encrypt", "resign", "reregion", "createsave"):
@@ -223,6 +248,7 @@ async def create_job_endpoint(user_id):
 
     await job.update_params(params)
     await job.set_status("queued")
+    await log_api_operation(job, operation)
 
     return jsonify({"job_id": job.job_id, "status": "queued"}), 201
 
