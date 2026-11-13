@@ -162,20 +162,25 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
 <section class="panel">
     <h2 style="display:flex;align-items:center;gap:0.75rem">Worker Stats
         <button id="toggle-offline" class="btn-small" style="font-size:0.7rem;padding:0.2rem 0.6rem;font-weight:500" onclick="toggleOfflineWorkers()">Hide offline</button>
+        <span style="font-size:0.75rem; font-weight:400; color:var(--text-2); margin-left:auto;">
+            <input id="rate-limit-search" type="search" placeholder="Search user or key name" aria-label="Search user or key name" style="width:220px; font-size:0.75rem;">
+            <span id="rate-limit-count"></span>
+        </span>
     </h2>
     <div style="overflow-x: auto;">
     <table id="worker-stats-table">
         <thead>
             <tr>
-                <th>ID</th><th>Name</th><th>Plat</th><th>Status</th><th>Uptime</th>
+                <th>ID</th><th>User</th><th>Key name</th><th>Plat</th><th>Status</th><th>Uptime</th>
                 <th>Done</th><th>Fail</th><th>Total</th><th>Rate</th><th>Active</th><th>Instances</th><th>Jobs/min limit</th>
             </tr>
         </thead>
         <tbody>
             {% for w in workers %}
             {% if w.is_online or w.total > 0 or w.instances > 0 %}
-            <tr data-key-id="{{ w.id }}" {% if w.instances > 1 %}class="has-instances"{% endif %}>
+            <tr data-key-id="{{ w.id }}" data-search="{{ (w.owner_username or '') ~ ' ' ~ (w.name or '') }}" {% if w.instances > 1 %}class="has-instances"{% endif %}>
                 <td>{{ w.id }}</td>
+                <td>{{ w.owner_username or '-' }}</td>
                 <td>{{ w.name }}</td>
                 <td>
                     {% if w.ps4_online and w.ps5_online %}
@@ -312,6 +317,18 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
     const tbody = document.querySelector('#jobs-table tbody');
     const queuedEl = document.getElementById('queued-count');
     const es = new EventSource('/admin/feed');
+
+    function filterRateLimitRows() {
+        const query = document.getElementById('rate-limit-search').value.trim().toLowerCase();
+        let visible = 0;
+        document.querySelectorAll('#worker-stats-table tbody tr[data-key-id]').forEach(function(row) {
+            const matches = (row.dataset.search || '').toLowerCase().includes(query);
+            row.hidden = !matches;
+            if (matches) visible++;
+        });
+        document.getElementById('rate-limit-count').textContent = query ? `${visible} matching` : '';
+    }
+    document.getElementById('rate-limit-search').addEventListener('input', filterRateLimitRows);
 
     function escapeHtml(value) {
         return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -491,25 +508,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     switch(index) {
                         case 0: // ID
-                        case 5: // Done
-                        case 6: // Fail
-                        case 7: // Total
+                        case 6: // Done
+                        case 7: // Fail
+                        case 8: // Total
                             cmp = (parseInt(valA, 10) || 0) - (parseInt(valB, 10) || 0);
                             break;
-                        case 8: // Rate
+                        case 9: // Rate
                             let numA = valA === '-' ? -1 : parseFloat(valA);
                             let numB = valB === '-' ? -1 : parseFloat(valB);
                             cmp = numA - numB;
                             break;
-                        case 2: // Plat
+                        case 3: // Plat
                             let wPlat = { 'PS4': 1, 'PS5': 2, '-': 3 };
                             cmp = (wPlat[valA] || 3) - (wPlat[valB] || 3);
                             break;
-                        case 3: // Status
+                        case 4: // Status
                             let wStatus = { 'ONLINE': 1, 'OFFLINE': 2 };
                             cmp = (wStatus[valA] || 3) - (wStatus[valB] || 3);
                             break;
-                        case 4: // Uptime
+                        case 5: // Uptime
                             let getUptime = (td) => {
                                 let span = td.querySelector('span[data-since]');
                                 if (!span || span.dataset.since === "0") return -1;
@@ -675,7 +692,7 @@ function toggleOfflineWorkers() {
     var hiddenCount = 0;
     rows.forEach(function(r) {
         if (r.classList.contains('instance-row')) return;
-        var statusCell = r.children[3];
+        var statusCell = r.children[4];
         if (!statusCell) return;
         var isOffline = !statusCell.querySelector('.status-done');
         if (isOffline) {
