@@ -7,6 +7,7 @@ from quart import Blueprint, Response, jsonify, render_template, request
 
 from auth import admin_required
 from models import get_db
+from services.geoip import enrich_jobs
 
 admin_web_bp = Blueprint("admin_web", __name__)
 
@@ -52,9 +53,9 @@ async def dashboard():
         # Recent jobs
         cursor = await db.execute(
             "SELECT j.id, u.username, j.operation, j.status, j.created_at, j.error, "
-            "j.params, wk.name as worker_name, wi.ip as worker_ip "
+            "j.params, wk.name as worker_name, u.last_ip as user_ip "
             "FROM jobs j JOIN users u ON j.user_id = u.id "
-            "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id LEFT JOIN worker_instances wi ON j.worker_instance_id = wi.id "
+            "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id "
             "ORDER BY j.created_at DESC LIMIT 30"
         )
         jobs = [dict(r) for r in await cursor.fetchall()]
@@ -68,6 +69,8 @@ async def dashboard():
             else:
                 j["game_title"] = ""
                 j["title_id"] = ""
+
+        jobs = await enrich_jobs(jobs)
 
         # Queue count
         cursor = await db.execute("SELECT COUNT(*) FROM jobs WHERE status = 'queued'")
@@ -334,9 +337,9 @@ async def feed():
                     # New jobs since last check
                     cursor = await db.execute(
                         "SELECT j.id, u.username, j.operation, j.status, j.created_at, j.error, "
-                        "j.params, wk.name as worker_name, wi.ip as worker_ip "
+                        "j.params, wk.name as worker_name, u.last_ip as user_ip "
                         "FROM jobs j JOIN users u ON j.user_id = u.id "
-                        "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id LEFT JOIN worker_instances wi ON j.worker_instance_id = wi.id "
+                        "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id "
                         "WHERE j.created_at > ? "
                         "ORDER BY j.created_at ASC",
                         (last_seen,),
@@ -353,16 +356,18 @@ async def feed():
                             nj["game_title"] = ""
                             nj["title_id"] = ""
                         del nj["params"]
+                    new_jobs = await enrich_jobs(new_jobs)
 
                     # Also check for status updates on recent jobs
                     cursor = await db.execute(
-                        "SELECT j.id, j.status, j.error, wk.name as worker_name, wi.ip as worker_ip "
+                        "SELECT j.id, j.status, j.error, wk.name as worker_name, u.last_ip as user_ip "
                         "FROM jobs j "
-                        "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id LEFT JOIN worker_instances wi ON j.worker_instance_id = wi.id "
+                        "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id "
                         "WHERE j.status IN ('done', 'failed', 'running') "
                         "ORDER BY j.created_at DESC LIMIT 50"
                     )
                     updates = [dict(r) for r in await cursor.fetchall()]
+                    updates = await enrich_jobs(updates)
 
                     # Queue count
                     cursor = await db.execute(
