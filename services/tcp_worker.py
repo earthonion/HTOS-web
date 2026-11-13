@@ -34,6 +34,7 @@ if not log.handlers:
 
 _idle_workers: dict[str, list["TCPWorker"]] = {"ps4": [], "ps5": []}
 _lock = asyncio.Lock()
+_heartbeat_lock = asyncio.Lock()
 
 HEARTBEAT_INTERVAL = 30  # seconds
 
@@ -112,26 +113,35 @@ async def _validate_key(key: str) -> bool:
 
 
 async def _update_worker_heartbeat(key: str, platform: str):
-    db = await get_db()
-    try:
-        await db.execute(
-            "UPDATE worker_keys SET last_used = CURRENT_TIMESTAMP, last_platform = ? "
-            "WHERE key = ?",
-            (platform, key),
-        )
-        await db.execute(
-            "UPDATE worker_keys SET online_since = datetime('now') "
-            "WHERE key = ? AND (last_used IS NULL OR last_used < datetime('now', '-300 seconds'))",
-            (key,),
-        )
-        if platform == "ps5":
-            await db.execute(
-                "INSERT INTO settings (key, value) VALUES ('last_ps5_worker', datetime('now')) "
-                "ON CONFLICT(key) DO UPDATE SET value = datetime('now')"
+    async with _heartbeat_lock:
+        db = await get_db()
+        try:
+            cursor = await db.execute(
+                "SELECT last_used, last_used > datetime('now', '-15 seconds') AS recent_used "
+                "FROM worker_keys WHERE key = ?",
+                (key,),
             )
-        await db.commit()
-    finally:
-        await db.close()
+            row = await cursor.fetchone()
+            if row and row["recent_used"]:
+                return
+            await db.execute(
+                "UPDATE worker_keys SET last_used = CURRENT_TIMESTAMP, last_platform = ? "
+                "WHERE key = ?",
+                (platform, key),
+            )
+            await db.execute(
+                "UPDATE worker_keys SET online_since = datetime('now') "
+                "WHERE key = ? AND (last_used IS NULL OR last_used < datetime('now', '-300 seconds'))",
+                (key,),
+            )
+            if platform == "ps5":
+                await db.execute(
+                    "INSERT INTO settings (key, value) VALUES ('last_ps5_worker', datetime('now')) "
+                    "ON CONFLICT(key) DO UPDATE SET value = datetime('now')"
+                )
+            await db.commit()
+        finally:
+            await db.close()
 
 
 # ── Job queries ────────────────────────────────────────────────

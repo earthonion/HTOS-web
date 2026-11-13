@@ -1,3 +1,4 @@
+import asyncio
 import hmac
 import json
 import os
@@ -32,6 +33,16 @@ from services.rate_limit import enforce_job_rate_limit
 from services.titles import lookup_title
 
 api_bp = Blueprint("api", __name__, url_prefix="/api/worker")
+_worker_auth_lock = asyncio.Lock()
+
+
+def _serialize_worker_auth(f):
+    @wraps(f)
+    async def wrapped(*args, **kwargs):
+        async with _worker_auth_lock:
+            return await f(*args, **kwargs)
+
+    return wrapped
 
 
 def _extract_title_from_zip(zip_path):
@@ -137,20 +148,24 @@ async def _touch_instance(db, worker_key_id, platform):
     )
 
 
+@_serialize_worker_auth
 async def validate_worker_key(key):
     """Check key against DB. Returns user_id or None."""
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT id, user_id FROM worker_keys WHERE key = ? AND is_active = 1",
+            "SELECT id, user_id, last_used, "
+            "last_used > datetime('now', '-15 seconds') AS recent_used "
+            "FROM worker_keys WHERE key = ? AND is_active = 1",
             (key,),
         )
         row = await cursor.fetchone()
         if row:
-            await db.execute(
-                "UPDATE worker_keys SET last_used = CURRENT_TIMESTAMP WHERE id = ?",
-                (row["id"],),
-            )
+            if not row["recent_used"]:
+                await db.execute(
+                    "UPDATE worker_keys SET last_used = CURRENT_TIMESTAMP WHERE id = ?",
+                    (row["id"],),
+                )
             await db.commit()
             return row["user_id"]
     finally:
@@ -172,20 +187,25 @@ async def get_worker_api_access(key):
         await db.close()
 
 
+@_serialize_worker_auth
 async def _ensure_global_key_in_db():
     """Insert or update the global worker key in the DB. Returns its row id."""
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT id FROM worker_keys WHERE key = ?", (WORKER_KEY,)
+            "SELECT id, last_used, "
+            "last_used > datetime('now', '-15 seconds') AS recent_used "
+            "FROM worker_keys WHERE key = ?",
+            (WORKER_KEY,),
         )
         row = await cursor.fetchone()
         if row:
             key_id = row["id"]
-            await db.execute(
-                "UPDATE worker_keys SET last_used = CURRENT_TIMESTAMP WHERE id = ?",
-                (key_id,),
-            )
+            if not row["recent_used"]:
+                await db.execute(
+                    "UPDATE worker_keys SET last_used = CURRENT_TIMESTAMP WHERE id = ?",
+                    (key_id,),
+                )
         else:
             cursor = await db.execute(
                 "INSERT INTO worker_keys (user_id, key, name, is_active, last_used) "
