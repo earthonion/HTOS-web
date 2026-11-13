@@ -19,7 +19,7 @@ async def dashboard():
     try:
         # Worker stats (combine current jobs + persisted stats + instance count)
         cursor = await db.execute(
-            "SELECT wk.id, wk.name, wk.last_platform, wk.is_active, wk.jobs_completed, wk.job_rate_limit, "
+            "SELECT wk.id, wk.name, u.username as owner_username, wk.last_platform, wk.is_active, wk.jobs_completed, wk.job_rate_limit, "
             "wk.suspended_until, wk.online_since, "
             "COALESCE(SUM(CASE WHEN j.status = 'done' THEN 1 ELSE 0 END), 0) "
             "  + COALESCE(ps.hist_done, 0) as done, "
@@ -33,6 +33,7 @@ async def dashboard():
             "COALESCE(ic.ps4_online, 0) as ps4_online, "
             "COALESCE(ic.ps5_online, 0) as ps5_online "
             "FROM worker_keys wk "
+            "LEFT JOIN users u ON wk.user_id = u.id "
             "LEFT JOIN jobs j ON j.worker_key_id = wk.id "
             "LEFT JOIN ("
             "  SELECT worker_key_id, SUM(done) as hist_done, SUM(failed) as hist_failed, "
