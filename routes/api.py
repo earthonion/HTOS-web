@@ -1032,8 +1032,7 @@ def _cached_worker_elf(platform):
         pass
 
     asset_url = (
-        "https://github.com/earthonion/garlic-worker/releases/latest/download/"
-        f"{fname}"
+        f"https://github.com/earthonion/garlic-worker/releases/latest/download/{fname}"
     )
     tmp = dest + ".tmp"
     req = _urllib_request.Request(
