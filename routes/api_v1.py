@@ -63,7 +63,9 @@ async def create_job_endpoint(user_id):
         if not access or not access["ppr_derive_enabled"]:
             return jsonify({"error": "ppr_derive is disabled for this worker key"}), 403
     elif not access or not access["api_enabled"]:
-        return jsonify({"error": "API job creation is disabled for this worker key"}), 403
+        return jsonify(
+            {"error": "API job creation is disabled for this worker key"}
+        ), 403
 
     _, retry_after = await enforce_job_rate_limit(
         request.headers.get("X-Worker-Key", "")
