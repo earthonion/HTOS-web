@@ -240,7 +240,7 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
     <div style="overflow-x: auto;">
     <table id="jobs-table">
         <thead>
-            <tr><th>ID</th><th>User</th><th>Op</th><th>Title</th><th>Status</th><th>Error</th><th>Worker</th><th>Created</th><th></th></tr>
+            <tr><th>ID</th><th>User</th><th>Op</th><th>Title</th><th>Status</th><th>Error</th><th>Worker</th><th>IP</th><th>Created</th><th></th></tr>
         </thead>
         <tbody>
             {% for j in jobs %}
@@ -254,6 +254,7 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
                 </td>
                 <td style="font-size: 0.75rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ j.error or '' }}">{{ j.error or '-' }}</td>
                 <td>{{ j.worker_name or '-' }}</td>
+                <td>{{ j.worker_ip or '-' }}</td>
                 <td>{{ j.created_at }}</td>
                 <td><a href="{{ url_for('jobs.job_status', job_id=j.id) }}" class="btn-small">View</a></td>
             </tr>
@@ -323,6 +324,7 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
             '<td><span class="status-' + j.status + '">' + j.status + '</span></td>' +
             '<td style="font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (j.error || '') + '">' + (j.error || '-') + '</td>' +
             '<td>' + (j.worker_name || '-') + '</td>' +
+            '<td>' + (j.worker_ip || '-') + '</td>' +
             '<td>' + j.created_at + '</td>' +
             '<td><a href="/jobs/' + j.id + '" class="btn-small">View</a></td>';
         return tr;

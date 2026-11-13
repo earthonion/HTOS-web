@@ -52,9 +52,9 @@ async def dashboard():
         # Recent jobs
         cursor = await db.execute(
             "SELECT j.id, u.username, j.operation, j.status, j.created_at, j.error, "
-            "j.params, wk.name as worker_name "
+            "j.params, wk.name as worker_name, wi.ip as worker_ip "
             "FROM jobs j JOIN users u ON j.user_id = u.id "
-            "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id "
+            "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id LEFT JOIN worker_instances wi ON j.worker_instance_id = wi.id "
             "ORDER BY j.created_at DESC LIMIT 30"
         )
         jobs = [dict(r) for r in await cursor.fetchall()]
@@ -334,9 +334,9 @@ async def feed():
                     # New jobs since last check
                     cursor = await db.execute(
                         "SELECT j.id, u.username, j.operation, j.status, j.created_at, j.error, "
-                        "j.params, wk.name as worker_name "
+                        "j.params, wk.name as worker_name, wi.ip as worker_ip "
                         "FROM jobs j JOIN users u ON j.user_id = u.id "
-                        "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id "
+                        "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id LEFT JOIN worker_instances wi ON j.worker_instance_id = wi.id "
                         "WHERE j.created_at > ? "
                         "ORDER BY j.created_at ASC",
                         (last_seen,),
@@ -356,9 +356,9 @@ async def feed():
 
                     # Also check for status updates on recent jobs
                     cursor = await db.execute(
-                        "SELECT j.id, j.status, j.error, wk.name as worker_name "
+                        "SELECT j.id, j.status, j.error, wk.name as worker_name, wi.ip as worker_ip "
                         "FROM jobs j "
-                        "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id "
+                        "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id LEFT JOIN worker_instances wi ON j.worker_instance_id = wi.id "
                         "WHERE j.status IN ('done', 'failed', 'running') "
                         "ORDER BY j.created_at DESC LIMIT 50"
                     )
