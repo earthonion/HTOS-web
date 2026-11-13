@@ -81,11 +81,19 @@ async def create_job_endpoint(user_id):
     try:
         if upload_ids_json and not (files and files[0].filename):
             upload_ids = json.loads(upload_ids_json)
-            if not isinstance(upload_ids, list) or not upload_ids or not all(
-                isinstance(uid, str) and len(uid) == 36 and set(uid) <= set("0123456789abcdef-")
-                for uid in upload_ids
+            if (
+                not isinstance(upload_ids, list)
+                or not upload_ids
+                or not all(
+                    isinstance(uid, str)
+                    and len(uid) == 36
+                    and set(uid) <= set("0123456789abcdef-")
+                    for uid in upload_ids
+                )
             ):
-                return jsonify({"error": "upload_ids must be a list of upload IDs"}), 400
+                return jsonify(
+                    {"error": "upload_ids must be a list of upload IDs"}
+                ), 400
             upload_dir = await resolve_chunked_uploads(upload_ids, user_id, job.job_id)
         else:
             upload_dir = await save_uploaded_files(files, user_id, job.job_id)
