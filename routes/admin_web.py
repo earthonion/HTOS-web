@@ -19,7 +19,7 @@ async def dashboard():
     try:
         # Worker stats (combine current jobs + persisted stats + instance count)
         cursor = await db.execute(
-            "SELECT wk.id, wk.name, wk.last_platform, wk.is_active, wk.jobs_completed, "
+            "SELECT wk.id, wk.name, wk.last_platform, wk.is_active, wk.jobs_completed, wk.job_rate_limit, "
             "wk.suspended_until, wk.online_since, "
             "COALESCE(SUM(CASE WHEN j.status = 'done' THEN 1 ELSE 0 END), 0) "
             "  + COALESCE(ps.hist_done, 0) as done, "
@@ -273,6 +273,29 @@ async def stats_json():
         return await _compute_stats(db)
     finally:
         await db.close()
+
+
+@admin_web_bp.route("/admin/worker-rate-limit/<int:key_id>", methods=["POST"])
+@admin_required
+async def set_worker_rate_limit(key_id):
+    data = await request.get_json()
+    try:
+        limit = int(data.get("limit", 0))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "limit must be a non-negative integer"}), 400
+    if limit < 0 or limit > 100000:
+        return jsonify({"ok": False, "error": "limit must be between 0 and 100000"}), 400
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "UPDATE worker_keys SET job_rate_limit = ? WHERE id = ?", (limit, key_id)
+        )
+        await db.commit()
+        if cursor.rowcount == 0:
+            return jsonify({"ok": False, "error": "worker key not found"}), 404
+    finally:
+        await db.close()
+    return jsonify({"ok": True, "limit": limit})
 
 
 @admin_web_bp.route("/admin/worker-instances/<int:key_id>")

@@ -142,7 +142,8 @@ class Job:
 
 
 async def create_job(
-    user_id: int, operation: str, params: dict | None = None, ready: bool = True
+    user_id: int, operation: str, params: dict | None = None, ready: bool = True,
+    submitter_key_id: int | None = None,
 ) -> Job:
     job_id = str(uuid.uuid4())
     params_json = json.dumps(params) if params else None
@@ -150,8 +151,8 @@ async def create_job(
     db = await get_db()
     try:
         await db.execute(
-            "INSERT INTO jobs (id, user_id, operation, status, params) VALUES (?, ?, ?, ?, ?)",
-            (job_id, user_id, operation, status, params_json),
+            "INSERT INTO jobs (id, user_id, operation, status, params, submitter_key_id) VALUES (?, ?, ?, ?, ?, ?)",
+            (job_id, user_id, operation, status, params_json, submitter_key_id),
         )
         await db.commit()
     finally:
