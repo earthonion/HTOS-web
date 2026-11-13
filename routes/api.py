@@ -1005,9 +1005,8 @@ async def complete_result_upload(job_id):
 # worker then GETs this endpoint, streams the reply into local elfldr on
 # 127.0.0.1:9021, and kill-9s itself. The new ELF elfldr loaded takes over.
 #
-# We proxy from git.etawen.dev/earthonion/garlic-worker/releases/latest so
-# there is a single source of truth. A short local disk cache keeps the
-# upstream API happy on burst-restart cycles.
+# Proxy GitHub's latest release asset directly. A short local disk cache
+# avoids repeated upstream downloads on burst-restart cycles.
 # ---------------------------------------------------------------------------
 
 import time as _time
@@ -1032,25 +1031,10 @@ def _cached_worker_elf(platform):
     except FileNotFoundError:
         pass
 
-    # Forgejo has no /releases/latest/download/ shortcut - hit the API for
-    # the latest release, then download the matching asset URL from it.
-    api_url = (
-        "https://git.etawen.dev/api/v1/repos/earthonion/garlic-worker/releases?limit=1"
+    asset_url = (
+        "https://github.com/earthonion/garlic-worker/releases/latest/download/"
+        f"{fname}"
     )
-    api_req = _urllib_request.Request(
-        api_url, headers={"User-Agent": "htos-worker-update-proxy"}
-    )
-    with _urllib_request.urlopen(api_req, timeout=15) as r:
-        rel = json.loads(r.read())[0]
-    asset_url = None
-    for a in rel.get("assets", []):
-        if a.get("name") == fname:
-            asset_url = a["browser_download_url"]
-            break
-    if not asset_url:
-        raise _urllib_error.URLError(
-            f"asset {fname} not in latest release {rel.get('tag_name')}"
-        )
     tmp = dest + ".tmp"
     req = _urllib_request.Request(
         asset_url, headers={"User-Agent": "htos-worker-update-proxy"}
