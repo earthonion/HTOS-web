@@ -25,12 +25,20 @@ def _require_auth(f):
             import hmac
 
             from config import WORKER_KEY
-            from routes.api import validate_worker_key
+            from routes.api import (
+                _ensure_global_key_in_db,
+                get_worker_api_access,
+                validate_worker_key,
+            )
 
-            if (
-                WORKER_KEY and hmac.compare_digest(key, WORKER_KEY)
-            ) or await validate_worker_key(key):
-                return await f(*args, **kwargs)
+            if WORKER_KEY and hmac.compare_digest(key, WORKER_KEY):
+                await _ensure_global_key_in_db()
+            elif not await validate_worker_key(key):
+                abort(401)
+            access = await get_worker_api_access(key)
+            if not access or not access["api_enabled"]:
+                abort(403)
+            return await f(*args, **kwargs)
         abort(401)
 
     return decorated

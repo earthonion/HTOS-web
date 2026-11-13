@@ -172,7 +172,7 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
         <thead>
             <tr>
                 <th>ID</th><th>User</th><th>Key name</th><th>Plat</th><th>Status</th><th>Uptime</th>
-                <th>Done</th><th>Fail</th><th>Total</th><th>Rate</th><th>Active</th><th>Instances</th><th>Jobs/min limit</th>
+                <th>Done</th><th>Fail</th><th>Total</th><th>Rate</th><th>Active</th><th>Instances</th><th>Jobs/min limit</th><th>API access</th>
             </tr>
         </thead>
         <tbody>
@@ -235,6 +235,14 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
                 <td style="white-space:nowrap;">
                     <input class="rate-limit-input" data-key-id="{{ w.id }}" type="number" min="0" max="100000" value="{{ w.job_rate_limit or 0 }}" style="width:70px;font-size:0.75rem;" title="Jobs per minute; 0 is unlimited">
                     <button class="btn-small save-rate-limit" data-key-id="{{ w.id }}">Save</button>
+                </td>
+                <td style="white-space:nowrap;font-size:0.75rem;">
+                    <label title="Allow decrypt, encrypt, resign, reregion, and createsave jobs">
+                        <input class="worker-access-toggle" data-key-id="{{ w.id }}" data-setting="api_enabled" type="checkbox" {% if w.api_enabled %}checked{% endif %}> Jobs
+                    </label>
+                    <label title="Allow ppr_derive jobs" style="margin-left:0.6rem;">
+                        <input class="worker-access-toggle" data-key-id="{{ w.id }}" data-setting="ppr_derive_enabled" type="checkbox" {% if w.ppr_derive_enabled %}checked{% endif %}> ppr_derive
+                    </label>
                 </td>
             </tr>
             {% endif %}
@@ -462,6 +470,28 @@ document.addEventListener('click', async function(e) {
             button.disabled = false;
             button.textContent = previous;
         }, 1200);
+    }
+});
+
+document.addEventListener('change', async function(e) {
+    const input = e.target.closest('.worker-access-toggle');
+    if (!input) return;
+    const enabled = input.checked;
+    input.disabled = true;
+    try {
+        const response = await fetch('/admin/worker-api-access/' + input.dataset.keyId, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({setting: input.dataset.setting, enabled: enabled}),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Could not save API access');
+        input.checked = result.enabled;
+    } catch (error) {
+        input.checked = !enabled;
+        alert(error.message);
+    } finally {
+        input.disabled = false;
     }
 });
 

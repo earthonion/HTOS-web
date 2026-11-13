@@ -6,6 +6,8 @@ Base URL: `https://garlicsaves.com/api/v1`
 
 All requests require a worker key passed via the `X-Worker-Key` header. Generate a key from the [Contribute](https://garlicsaves.com/contribute) page.
 
+API job creation is disabled for each worker key by default. Administrators can enable general save jobs and `ppr_derive` independently for each key. General save-job access also controls chunked uploads authenticated with a worker key; website-session uploads are unaffected.
+
 ```bash
 -H "X-Worker-Key: YOUR_KEY_HERE"
 ```

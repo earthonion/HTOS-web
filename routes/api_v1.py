@@ -7,7 +7,7 @@ from functools import wraps
 from quart import Blueprint, jsonify, request, send_file
 
 from models import get_db
-from routes.api import validate_worker_key
+from routes.api import get_worker_api_access, validate_worker_key
 from services.files import (
     DangerousFileError,
     FileTooLargeError,
@@ -56,7 +56,16 @@ async def record_submitter_ip(user_id):
 @api_v1_bp.route("/jobs", methods=["POST"])
 @require_api_key
 async def create_job_endpoint(user_id):
-    key_id, retry_after = await enforce_job_rate_limit(
+    form = await request.form
+    operation = form.get("operation", "")
+    access = await get_worker_api_access(request.headers.get("X-Worker-Key", ""))
+    if operation == "ppr_derive":
+        if not access or not access["ppr_derive_enabled"]:
+            return jsonify({"error": "ppr_derive is disabled for this worker key"}), 403
+    elif not access or not access["api_enabled"]:
+        return jsonify({"error": "API job creation is disabled for this worker key"}), 403
+
+    _, retry_after = await enforce_job_rate_limit(
         request.headers.get("X-Worker-Key", "")
     )
     if retry_after:
@@ -65,9 +74,8 @@ async def create_job_endpoint(user_id):
             429,
             {"Retry-After": str(retry_after)},
         )
+    key_id = access["id"]
     await record_submitter_ip(user_id)
-    form = await request.form
-    operation = form.get("operation", "")
     if operation == "ppr_derive":
         client_value = form.get("client_value", "").lower()
         server_value = form.get("server_value", "").lower()
