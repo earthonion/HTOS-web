@@ -79,9 +79,11 @@ async def create_job_endpoint(user_id):
         request.headers.get("X-Worker-Key", "")
     )
     if retry_after:
-        return jsonify({"error": "rate limit exceeded; try again later"}), 429, {
-            "Retry-After": str(retry_after)
-        }
+        return (
+            jsonify({"error": "rate limit exceeded; try again later"}),
+            429,
+            {"Retry-After": str(retry_after)},
+        )
     await record_submitter_ip(user_id)
     form = await request.form
     operation = form.get("operation", "")
@@ -119,7 +121,9 @@ async def create_job_endpoint(user_id):
 
     # Create job for file storage
     params = {}
-    job = await create_job(user_id, operation, params, ready=False, submitter_key_id=key_id)
+    job = await create_job(
+        user_id, operation, params, ready=False, submitter_key_id=key_id
+    )
 
     try:
         if upload_ids_json and not (files and files[0].filename):

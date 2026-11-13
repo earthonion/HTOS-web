@@ -282,9 +282,13 @@ async def set_worker_rate_limit(key_id):
     try:
         limit = int(data.get("limit", 0))
     except (TypeError, ValueError):
-        return jsonify({"ok": False, "error": "limit must be a non-negative integer"}), 400
+        return jsonify(
+            {"ok": False, "error": "limit must be a non-negative integer"}
+        ), 400
     if limit < 0 or limit > 100000:
-        return jsonify({"ok": False, "error": "limit must be between 0 and 100000"}), 400
+        return jsonify(
+            {"ok": False, "error": "limit must be between 0 and 100000"}
+        ), 400
     db = await get_db()
     try:
         cursor = await db.execute(
