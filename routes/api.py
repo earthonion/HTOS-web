@@ -379,7 +379,7 @@ async def next_job():
         # 2. Bump each abandoning instance's jobs_failed counter.
         # 3. If the same instance has been requeued 3+ times in the last hour,
         #    short-suspend it (15 min) — probably slow-uploader on flaky net.
-        # 4. Then requeue the jobs.
+        # 4. Then requeue those jobs and unassigned claims older than 30 minutes.
         stale_cursor = await db.execute(
             """
             SELECT DISTINCT j.worker_instance_id
@@ -426,12 +426,18 @@ async def next_job():
             UPDATE jobs SET status = 'queued',
                             worker_key_id = NULL,
                             worker_instance_id = NULL,
+                            started_at = NULL,
                             retry_count = COALESCE(retry_count, 0) + 1
             WHERE status = 'running'
-              AND worker_instance_id IS NOT NULL
-              AND worker_instance_id IN (
-                SELECT id FROM worker_instances
-                WHERE last_seen IS NULL OR last_seen < datetime('now', '-300 seconds')
+              AND (
+                worker_instance_id IN (
+                  SELECT id FROM worker_instances
+                  WHERE last_seen IS NULL OR last_seen < datetime('now', '-300 seconds')
+                )
+                OR (
+                  worker_instance_id IS NULL
+                  AND COALESCE(started_at, created_at) < datetime('now', '-30 minutes')
+                )
               )
             """
         )
