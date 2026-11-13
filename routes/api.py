@@ -158,6 +158,20 @@ async def validate_worker_key(key):
     return None
 
 
+async def get_worker_api_access(key):
+    """Return API submission permissions for an active worker key."""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT id, api_enabled, ppr_derive_enabled FROM worker_keys "
+            "WHERE key = ? AND is_active = 1",
+            (key,),
+        )
+        return await cursor.fetchone()
+    finally:
+        await db.close()
+
+
 async def _ensure_global_key_in_db():
     """Insert or update the global worker key in the DB. Returns its row id."""
     db = await get_db()

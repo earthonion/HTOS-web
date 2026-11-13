@@ -210,6 +210,8 @@ MIGRATIONS = [
     "ALTER TABLE users ADD COLUMN last_ip TEXT",
     "ALTER TABLE worker_keys ADD COLUMN job_rate_limit INTEGER DEFAULT 0",
     "ALTER TABLE jobs ADD COLUMN submitter_key_id INTEGER",
+    "ALTER TABLE worker_keys ADD COLUMN api_enabled INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE worker_keys ADD COLUMN ppr_derive_enabled INTEGER NOT NULL DEFAULT 1",
 ]
 
 
