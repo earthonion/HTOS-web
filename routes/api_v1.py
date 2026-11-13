@@ -19,6 +19,7 @@ from services.files import (
     validate_save_pairs,
 )
 from services.jobs import create_job
+from services.rate_limit import enforce_job_rate_limit
 
 api_v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
 
@@ -36,26 +37,6 @@ def require_api_key(f):
         return await f(*args, **kwargs)
 
     return decorated
-
-
-async def enforce_job_rate_limit(key):
-    db = await get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT id, job_rate_limit FROM worker_keys WHERE key = ?", (key,)
-        )
-        row = await cursor.fetchone()
-        if not row or not row["job_rate_limit"]:
-            return None, 0
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM jobs WHERE submitter_key_id = ? "
-            "AND created_at > datetime('now', '-60 seconds')",
-            (row["id"],),
-        )
-        count = (await cursor.fetchone())[0]
-        return row["id"], 60 if count >= row["job_rate_limit"] else 0
-    finally:
-        await db.close()
 
 
 async def record_submitter_ip(user_id):

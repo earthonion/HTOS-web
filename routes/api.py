@@ -28,6 +28,7 @@ from quart import Blueprint, Response, abort, request, send_file
 from config import CHUNK_DIR, WORKER_KEY
 from models import get_db
 from services.jobs import get_or_create_job_logger, push_log
+from services.rate_limit import enforce_job_rate_limit
 from services.titles import lookup_title
 
 api_bp = Blueprint("api", __name__, url_prefix="/api/worker")
@@ -240,8 +241,17 @@ async def next_job():
             content_type="application/json",
         )
 
-    # Track worker platform on heartbeat
     worker_key = request.headers.get("X-Worker-Key", "")
+    _, retry_after = await enforce_job_rate_limit(worker_key)
+    if retry_after:
+        return Response(
+            json.dumps({"error": "rate limit exceeded; try again later"}),
+            status=429,
+            content_type="application/json",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    # Track worker platform on heartbeat
     if worker_key:
         db = await get_db()
         try:
