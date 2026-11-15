@@ -451,14 +451,34 @@ async def next_job():
             if not (client_ip_now.startswith("127.") or client_ip_now == "::1"):
                 return Response(status=204)
 
+        # Resolve claiming worker's key_id and instance_id so we can stamp
+        # them atomically — prevents the stale-worker requeue from
+        # re-queuing a just-claimed job before the worker posts /status.
+        claim_key_id = await _resolve_key_id(db, worker_key) if worker_key else None
+        claim_instance_id = None
+        if claim_key_id:
+            claim_ip = _client_ip()
+            if claim_ip:
+                ic = await db.execute(
+                    "SELECT id FROM worker_instances WHERE worker_key_id = ? AND ip = ?",
+                    (claim_key_id, claim_ip),
+                )
+                ir = await ic.fetchone()
+                if ir:
+                    claim_instance_id = ir["id"]
+
         # Atomic claim: pick oldest queued job matching this worker's platform
         # and flip it to 'running' in a single UPDATE. Prevents two workers
-        # from grabbing the same job when they poll simultaneously. Platform
-        # match: exact worker_platform, OR NULL/unknown (legacy = ps4).
+        # from grabbing the same job when they poll simultaneously. Also stamps
+        # started_at and worker identity so the stale-requeue guard can't
+        # immediately reclaim it.
         legacy_ok = 1 if worker_platform == "ps4" else 0
         cursor = await db.execute(
             """
-            UPDATE jobs SET status = 'running'
+            UPDATE jobs SET status = 'running',
+                            started_at = CURRENT_TIMESTAMP,
+                            worker_key_id = ?,
+                            worker_instance_id = ?
             WHERE id = (
                 SELECT id FROM jobs
                 WHERE status = 'queued'
@@ -473,7 +493,7 @@ async def next_job():
             )
             RETURNING id, user_id, operation, params, created_at
             """,
-            (worker_platform, legacy_ok),
+            (claim_key_id, claim_instance_id, worker_platform, legacy_ok),
         )
         row = await cursor.fetchone()
         await db.commit()
