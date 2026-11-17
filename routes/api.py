@@ -489,7 +489,7 @@ async def next_job():
             WHERE id = (
                 SELECT id FROM jobs
                 WHERE status = 'queued'
-                  AND (? = 0 OR ? != 'ps5' OR operation NOT IN ('decrypt', 'encrypt', 'resign', 'createsave'))
+                  AND (? = 1 OR ? != 'ps5' OR operation NOT IN ('decrypt', 'encrypt', 'resign', 'createsave'))
                   AND (? != 'ps4' OR operation NOT IN ('decrypt', 'encrypt', 'resign', 'createsave')
                        OR json_extract(params, '$.platform') NOT IN ('ps5', 'unknown'))
                   AND (
