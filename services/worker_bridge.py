@@ -157,6 +157,8 @@ async def process_encrypt(job: Job):
         params["account_id"] = account_id
     if saveblocks:
         params["num_blocks"] = saveblocks
+    params["sd_key_ver"] = int(job.params.get("sd_key_ver", 9))
+    params["sealed_key_version"] = int(job.params.get("sealed_key_version", 10))
 
     push_log(job.job_id, "INFO", "Sending to fallback encryptor...")
 
