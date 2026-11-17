@@ -303,7 +303,7 @@ async def encrypt():
                     "PS5IMAGE (the original encrypted save container, not icon0.png), "
                     "PS5KEY (the internal encryption key, not sce_sys/keystone), and "
                     "PS5PARAM (protected metadata containing the real param.sfo). "
-                    "These are generated during decrypt; do not rename or remove them.",
+                    "Older decrypt exports include these files; current exports already recover the real param.sfo for you.",
                     "error",
                 )
                 return await render_template("encrypt.html", profiles=profiles)
