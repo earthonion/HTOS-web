@@ -715,11 +715,11 @@ document.addEventListener('click', function(e) {
                 var maj = +verMatch[1], min = +verMatch[2], pat = +verMatch[3];
                 if (maj !== 1) return maj < 1;
                 if (min !== 6) return min < 6;
-                return pat < 1;
+                return pat < 2;
             })();
             var outdated = versionTooLow;
             var outdatedTitle = verMatch
-                ? 'v' + verMatch[1] + '.' + verMatch[2] + '.' + verMatch[3] + ' — < v1.6.1 (per-save metadata fix, all jobs blocked)'
+                ? 'v' + verMatch[1] + '.' + verMatch[2] + '.' + verMatch[3] + ' — < v1.6.2 (selected-folder encryption fix, all jobs blocked)'
                 : 'no version reported — all jobs blocked';
             var outdatedBadge = outdated
                 ? ' <span class="outdated-badge" title="' + outdatedTitle + '">⚠ OUTDATED</span>'
