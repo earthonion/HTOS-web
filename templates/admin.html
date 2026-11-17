@@ -171,6 +171,17 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
 </section>
 
 <section class="panel">
+    <h2>PS5 fast mode toggle</h2>
+    <label style="display:flex;align-items:center;gap:0.5rem;">
+        <input id="ps5-fast-mode-toggle" type="checkbox" {% if ps5_fast_mode %}checked{% endif %}>
+        Prioritize PS5 decrypt, encrypt, resign, and createsave jobs
+    </label>
+    <p id="ps5-fast-mode-state" style="color:var(--text-2);font-size:0.8rem;margin-top:0.5rem;">
+        {{ 'Fast mode enabled; supported PS5 jobs use the accelerated queue' if ps5_fast_mode else 'Fast mode disabled; standard workers can also take jobs' }}
+    </p>
+</section>
+
+<section class="panel">
     <h2 style="display:flex;align-items:center;gap:0.75rem">Worker Stats
         <button id="toggle-offline" class="btn-small" style="font-size:0.7rem;padding:0.2rem 0.6rem;font-weight:500" onclick="toggleOfflineWorkers()">Hide offline</button>
         <span style="font-size:0.75rem; font-weight:400; color:var(--text-2); margin-left:auto;">
@@ -528,6 +539,30 @@ document.getElementById('worker-key-generation-toggle').addEventListener('change
     }
 });
 
+document.getElementById('ps5-fast-mode-toggle').addEventListener('change', async function(e) {
+    const input = e.target;
+    const enabled = input.checked;
+    input.disabled = true;
+    try {
+        const response = await fetch('/admin/ps5-fast-mode', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({enabled: enabled}),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Could not save PS5 fast mode setting');
+        input.checked = result.enabled;
+        document.getElementById('ps5-fast-mode-state').textContent = result.enabled
+            ? 'Fast mode enabled; supported PS5 jobs use the accelerated queue'
+            : 'Fast mode disabled; standard workers can also take jobs';
+    } catch (error) {
+        input.checked = !enabled;
+        alert(error.message);
+    } finally {
+        input.disabled = false;
+    }
+});
+
 document.addEventListener('DOMContentLoaded', function() {
     const workerTable = document.getElementById('worker-stats-table');
     if (!workerTable) return;
@@ -674,21 +709,17 @@ document.addEventListener('click', function(e) {
             else if (i.is_ps5_capable) { plat = 'PS5'; platCls = 'ps5'; }
             else if (i.is_ps4_capable) { plat = 'PS4'; platCls = 'ps4'; }
             else { plat = (i.last_platform || '-').toUpperCase(); platCls = (i.last_platform || '').toLowerCase(); }
-            // "Outdated" = worker below MIN_WORKER_VERSION on the server (v1.1.6).
-            // v1.1.5 and below ran with default umask (022), producing saves with
-            // mode 0775 that the game flags as corrupt at load. Every worker below
-            // that threshold is blocked from ALL job pulls until it updates —
-            // regardless of platform or key ownership.
+            // Keep this check aligned with MIN_WORKER_VERSION in routes/api.py.
             var verMatch = /worker\/v?(\d+)\.(\d+)\.(\d+)/.exec(i.user_agent || '');
             var versionTooLow = !verMatch || (function() {
                 var maj = +verMatch[1], min = +verMatch[2], pat = +verMatch[3];
                 if (maj !== 1) return maj < 1;
-                if (min !== 1) return min < 1;
-                return pat < 6;
+                if (min !== 6) return min < 6;
+                return pat < 0;
             })();
             var outdated = versionTooLow;
             var outdatedTitle = verMatch
-                ? 'v' + verMatch[1] + '.' + verMatch[2] + '.' + verMatch[3] + ' — < v1.1.6 (PFS chmod 0775 corruption, all jobs blocked)'
+                ? 'v' + verMatch[1] + '.' + verMatch[2] + '.' + verMatch[3] + ' — < v1.6.0 (native CoW creation fix, all jobs blocked)'
                 : 'no version reported — all jobs blocked';
             var outdatedBadge = outdated
                 ? ' <span class="outdated-badge" title="' + outdatedTitle + '">⚠ OUTDATED</span>'

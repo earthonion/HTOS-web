@@ -15,7 +15,7 @@ from functools import wraps
 # via umask(0) + explicit fchmod(0777) in copy_dir_pfs/copy_dir_recursive.
 # This gate also covers the older v1.1.2 SFO_AID_OFFSET fix (PS4-only).
 # Outdated workers polling /next get 426 until they update.
-MIN_WORKER_VERSION = (1, 5, 9)
+MIN_WORKER_VERSION = (1, 6, 0)
 
 
 def parse_worker_version(ua: str):
@@ -447,14 +447,20 @@ async def next_job():
         # local bridge worker. Remote PS4 workers still heartbeat
         # (staying counted as online) but only receive PS5 jobs.
         if os.path.exists("/opt/htos/bridge_monopoly") and worker_platform == "ps4":
-            client_ip_now = _client_ip()
-            if not (client_ip_now.startswith("127.") or client_ip_now == "::1"):
-                return Response(status=204)
+            from services.worker_bridge import check_available
+
+            if await check_available():
+                client_ip_now = _client_ip()
+                if not (client_ip_now.startswith("127.") or client_ip_now == "::1"):
+                    return Response(status=204)
 
         # Atomic claim: pick oldest queued job matching this worker's platform
         # and flip it to 'running' in a single UPDATE. Prevents two workers
         # from grabbing the same job when they poll simultaneously. Platform
         # match: exact worker_platform, OR NULL/unknown (legacy = ps4).
+        cursor = await db.execute("SELECT value FROM settings WHERE key = 'ps5_fast_mode'")
+        fast_mode_row = await cursor.fetchone()
+        ps5_fast_mode = fast_mode_row is not None and fast_mode_row["value"] == "1"
         legacy_ok = 1 if worker_platform == "ps4" else 0
         cursor = await db.execute(
             """
@@ -462,8 +468,16 @@ async def next_job():
             WHERE id = (
                 SELECT id FROM jobs
                 WHERE status = 'queued'
+                  AND (? = 0 OR ? != 'ps5' OR operation NOT IN ('decrypt', 'encrypt', 'resign', 'createsave'))
+                  AND (? != 'ps4' OR operation NOT IN ('decrypt', 'encrypt', 'resign', 'createsave')
+                       OR json_extract(params, '$.platform') NOT IN ('ps5', 'unknown'))
+                  AND (
+                    json_extract(params, '$.worker_key_id') IS NULL
+                    OR json_extract(params, '$.worker_key_id') = ?
+                  )
                   AND (
                     json_extract(params, '$.platform') = ?
+                    OR (? = 1 AND json_extract(params, '$.platform') = 'unknown')
                     OR (? = 1 AND (
                         json_extract(params, '$.platform') IS NULL
                         OR json_extract(params, '$.platform') = 'unknown'
@@ -473,7 +487,8 @@ async def next_job():
             )
             RETURNING id, user_id, operation, params, created_at
             """,
-            (worker_platform, legacy_ok),
+            (int(not ps5_fast_mode), worker_platform, worker_platform, key_id,
+             worker_platform, worker_platform, legacy_ok),
         )
         row = await cursor.fetchone()
         await db.commit()
