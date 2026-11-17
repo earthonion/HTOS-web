@@ -150,6 +150,9 @@ async def process_encrypt(job: Job):
                 filepath = os.path.join(root, f)
                 arcname = os.path.relpath(filepath, upload_dir)
                 zf.write(filepath, arcname)
+        if "sce_sys/icon0.png" not in zf.namelist():
+            default_icon = os.path.join(os.path.dirname(__file__), "..", "static", "default_icon0.png")
+            zf.write(default_icon, "sce_sys/icon0.png")
     zip_buf.seek(0)
 
     params = {}
