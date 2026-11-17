@@ -8,9 +8,9 @@ WORKSPACE=$BASE/workspace
 # --- File cleanup (runs first, must not be blocked) ---
 mkdir -p "$SAVES" "$WORKSPACE" 2>/dev/null || true
 
-# Delete files >30 min old under UserSaves + workspace, EXCEPT paths still
-# referenced by non-terminal jobs (pending/queued/running) — otherwise a
-# slow-to-drain queue lets us delete an upload_dir mid-flight and the bridge
+# Delete files >30 min old under UserSaves + workspace, EXCEPT paths referenced
+# by active jobs or retained failed jobs — otherwise a slow-to-drain queue can
+# delete an upload_dir mid-flight and the bridge
 # 404s on /api/worker/jobs/<id>/files. Python instead of `find` because we
 # need to consult the jobs DB for the in-use set.
 cd "$BASE"
@@ -29,7 +29,7 @@ try:
     with sqlite3.connect(os.path.join(BASE, "htos_web.db")) as db:
         db.row_factory = sqlite3.Row
         for r in db.execute(
-            "SELECT params FROM jobs WHERE status IN ('pending','queued','running','failed')"
+            "SELECT params, result_path FROM jobs WHERE status IN ('pending','queued','running','failed')"
         ):
             try:
                 p = json.loads(r["params"] or "{}")
@@ -37,7 +37,9 @@ try:
                 continue
             for k in ("upload_dir", "saves_dir", "sample_dir"):
                 v = p.get(k)
-                if v: in_use.add(os.path.normpath(v))
+                if v: in_use.add(os.path.abspath(os.path.join(BASE, v)))
+            if r["result_path"]:
+                in_use.add(os.path.abspath(os.path.join(BASE, r["result_path"])))
 except sqlite3.Error:
     pass  # if DB is unreachable, fall through to age-only rules
 
@@ -62,7 +64,7 @@ def sweep(root, respect_protect=False):
             except OSError:
                 pass
         try:
-            if cur != root and not os.listdir(cur) \
+            if cur != root and not os.listdir(cur) and not is_in_use(cur) \
                and not (respect_protect and is_protected(cur)):
                 os.rmdir(cur)
         except OSError:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Delete uploaded files and results older than 7 days."""
+"""Delete old uploaded files and results, retaining failed-job artifacts."""
 
 import json
 import os
@@ -19,7 +19,9 @@ MAX_AGE = 7 * 24 * 60 * 60  # 7 days in seconds
 def failed_job_paths():
     paths = set()
     with sqlite3.connect("/opt/htos/htos_web.db") as db:
-        for (params,) in db.execute("SELECT params FROM jobs WHERE status = 'failed'"):
+        for params, result_path in db.execute(
+            "SELECT params, result_path FROM jobs WHERE status = 'failed'"
+        ):
             try:
                 values = json.loads(params or "{}")
             except json.JSONDecodeError:
@@ -28,7 +30,18 @@ def failed_job_paths():
                 value = values.get(key)
                 if value:
                     paths.add(os.path.abspath(os.path.join("/opt/htos", value)))
+            if result_path:
+                paths.add(os.path.abspath(os.path.join("/opt/htos", result_path)))
     return paths
+
+
+def is_preserved(path, preserved):
+    return any(
+        path == preserved_path
+        or path.startswith(preserved_path + os.sep)
+        or preserved_path.startswith(path + os.sep)
+        for preserved_path in preserved
+    )
 
 
 def cleanup():
@@ -41,8 +54,7 @@ def cleanup():
             continue
         for name in os.listdir(base):
             path = os.path.abspath(os.path.join(base, name))
-            if any(path == preserved_path or path.startswith(preserved_path + os.sep)
-                   for preserved_path in preserved):
+            if is_preserved(path, preserved):
                 continue
             try:
                 mtime = os.path.getmtime(path)
