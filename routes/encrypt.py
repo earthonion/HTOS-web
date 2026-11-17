@@ -14,6 +14,7 @@ from services.files import (
     _strip_sdimg_prefix,
     check_dangerous_files,
     check_zip_safety,
+    detect_platform_for_operation,
     patch_sfo_account_id,
     patch_sfo_saveblocks,
     resolve_chunked_uploads,
@@ -286,17 +287,23 @@ async def encrypt():
 
         sfo_ctx = None
         job_upload_dir = save_dir
+        sidecar_dir = os.path.dirname(save_dir)
+        if os.path.isfile(os.path.join(save_dir, "chives.json")):
+            sidecar_dir = save_dir
+        has_chives_geometry = os.path.isfile(os.path.join(sidecar_dir, "chives.json"))
         saveblocks = None
         if zero_sfo:
-            sidecar_dir = os.path.dirname(save_dir)
             required_sidecars = ("PS5PARAM", "PS5KEY", "PS5IMAGE")
             if not all(
                 os.path.isfile(os.path.join(sidecar_dir, name))
                 for name in required_sidecars
             ):
                 await flash(
-                    "Zeroed param.sfo requires PS5PARAM, PS5KEY and PS5IMAGE. "
-                    "Upload the parent folder containing the save and these files.",
+                    "param.sfo is empty. Upload the complete decrypted ZIP or parent folder with all original metadata files: "
+                    "PS5IMAGE (the original encrypted save container, not icon0.png), "
+                    "PS5KEY (the internal encryption key, not sce_sys/keystone), and "
+                    "PS5PARAM (protected metadata containing the real param.sfo). "
+                    "These are generated during decrypt; do not rename or remove them.",
                     "error",
                 )
                 return await render_template("encrypt.html", profiles=profiles)
@@ -324,34 +331,34 @@ async def encrypt():
                 await flash("Could not read SAVEDATA_BLOCKS from param.sfo.", "error")
                 return await render_template("encrypt.html", profiles=profiles)
 
-            # Recalculate blocks from actual file sizes (1 block = 64KB)
-            # Add overhead for PFS metadata (~5%)
-            total_size = 0
-            for root, _d, fnames in os.walk(save_dir):
-                for fname in fnames:
-                    total_size += os.path.getsize(os.path.join(root, fname))
-            headroom = max(total_size * 130 // 100, total_size + 4 * 1024 * 1024)
-            needed_blocks = (
-                headroom + 65535
-            ) // 65536  # 30% overhead OR +4MB, whichever larger
-            if needed_blocks > saveblocks:
-                saveblocks = needed_blocks
-                patch_sfo_saveblocks(sfo_path, saveblocks)
+            if not has_chives_geometry:
+                # Estimate capacity only when no original PFS geometry was supplied.
+                total_size = 0
+                for root, _d, fnames in os.walk(save_dir):
+                    for fname in fnames:
+                        total_size += os.path.getsize(os.path.join(root, fname))
+                headroom = max(total_size * 130 // 100, total_size + 4 * 1024 * 1024)
+                needed_blocks = (headroom + 65535) // 65536
+                if needed_blocks > saveblocks:
+                    saveblocks = needed_blocks
+                    patch_sfo_saveblocks(sfo_path, saveblocks)
 
-        # CoW saves (non-zero SFO with fs_ext) have sidecars in the parent
-        if not zero_sfo and save_dir != extract_dir:
-            sidecar_dir = os.path.dirname(save_dir)
-            cow_sidecars = os.path.isfile(
+        if not zero_sfo:
+            legacy_cow_sidecars = os.path.isfile(
                 os.path.join(sidecar_dir, "PS5IMAGE")
             ) and os.path.isfile(os.path.join(sidecar_dir, "PS5KEY"))
-            if cow_sidecars:
+            if has_chives_geometry or legacy_cow_sidecars:
                 job_upload_dir = sidecar_dir
 
         if not (SAVEBLOCKS_MIN <= saveblocks <= SAVEBLOCKS_MAX):
             await flash(f"Invalid save blocks: {saveblocks}", "error")
             return await render_template("encrypt.html", profiles=profiles)
 
-        platform = "ps5" if form.get("platform") == "ps5" else "ps4"
+        try:
+            platform = detect_platform_for_operation(save_dir, "encrypt")
+        except InvalidSaveFilesError as e:
+            await flash(str(e), "error")
+            return await render_template("encrypt.html", profiles=profiles)
 
         # Read original account ID from param.sfo, then patch with user's
         sfo_account_id = (
