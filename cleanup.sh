@@ -29,7 +29,7 @@ try:
     with sqlite3.connect(os.path.join(BASE, "htos_web.db")) as db:
         db.row_factory = sqlite3.Row
         for r in db.execute(
-            "SELECT params FROM jobs WHERE status IN ('pending','queued','running')"
+            "SELECT params FROM jobs WHERE status IN ('pending','queued','running','failed')"
         ):
             try:
                 p = json.loads(r["params"] or "{}")
@@ -99,13 +99,13 @@ async def main():
 asyncio.run(main())
 " || echo "Warning: abandoned job cleanup failed"
 
-# Delete jobs older than 30 min (matching file-cleanup TTL). Roll their
-# stats into job_stats before delete so aggregates survive. Jobs whose
-# result files were preserved by the file-cleanup step keep their row.
+# Delete completed jobs older than 30 min (matching file-cleanup TTL). Roll their
+# stats into job_stats before delete so aggregates survive. Failed jobs and
+# their files are retained indefinitely for diagnosis.
 .venv/bin/python -c "
 import asyncio, aiosqlite
 AGE = 'datetime(\'now\', \'-30 minutes\')'
-COND = f'COALESCE(completed_at, started_at, created_at) < {AGE}'
+COND = f'status = \'done\' AND COALESCE(completed_at, started_at, created_at) < {AGE}'
 async def main():
     async with aiosqlite.connect('$BASE/htos_web.db') as db:
         await db.execute(
