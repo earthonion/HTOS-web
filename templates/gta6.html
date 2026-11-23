@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}GTA VI Money Editor{% endblock %}
+{% block meta_description %}Basic GTA VI bank and cash editor for decrypted PS5 and Xbox saves, made by some asshole.{% endblock %}
+{% block content %}
+<h1>GTA VI Money Editor</h1>
+<p>Set bank balances and cash in decrypted GTA VI saves. <strong>made by some asshole</strong></p>
+<p><a href="/gta6/cars">Open the GTA VI Car Giver</a></p>
+<p class="flash flash-warning">Save modding is at your own risk, including bans, account or console enforcement, data loss, and corrupted saves. <a href="{{ url_for('main.disclaimer') }}">Read the full disclaimer</a>.</p>
+
+{% if not saves %}
+<section class="panel">
+    <h2>Open decrypted save data</h2>
+    <p>Upload a decrypted ZIP from the PS5 or Xbox tools, or a single JSAV file. Keep all metadata files in the ZIP.</p>
+    <p><small>Bank balances can only be increased. Cash can be edited only when the character already has a cash item. Always keep a backup.</small></p>
+    <form method="POST" enctype="multipart/form-data" class="operation-form">
+        <input type="hidden" name="action" value="load">
+        <div class="file-drop">
+            <input type="file" name="backup" accept=".zip,.jsav,application/zip,application/octet-stream" required>
+            <svg class="file-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <div class="file-drop-text">Drop decrypted save data here, or <strong>browse files</strong></div>
+            <div class="file-drop-hint">Decrypted ZIP or raw JSAV, up to 128 MiB</div>
+            <div class="file-drop-selected"></div>
+        </div>
+        <button type="submit">Open Money Editor</button>
+    </form>
+</section>
+{% else %}
+<form method="POST" class="operation-form">
+    <input type="hidden" name="edit_id" value="{{ edit_id }}">
+    {% for save in saves %}
+    <section class="panel">
+        <h2>{{ save.name }}</h2>
+        <table>
+            <thead><tr><th>Character</th><th>Current bank</th><th>Current cash</th><th>Maximum bank</th><th>Items</th></tr></thead>
+            <tbody>
+            {% for inventory in save.inventories %}
+                <tr>
+                    <td>{{ inventory.name }}</td>
+                    <td>{{ "{:,}".format(inventory.bank) }}</td>
+                    <td>{{ "{:,}".format(inventory.cash) }}</td>
+                    <td>{{ "{:,}".format(inventory.max_bank) }}</td>
+                    <td>{{ inventory.items_used }}/4095</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% endfor %}
+    <section class="panel">
+        <h2>Set new values</h2>
+        <label>Character
+            <select name="character">
+                <option value="0">Lucia</option>
+                <option value="1">Jason</option>
+            </select>
+        </label>
+        <div class="inline-form">
+            <label>New bank balance
+                <input type="text" inputmode="numeric" name="bank" placeholder="Increase only">
+            </label>
+            <label>New cash amount (optional)
+                <input type="text" inputmode="numeric" name="cash" placeholder="Only if cash already exists">
+            </label>
+        </div>
+        <p><small>Bank can only be increased and always leaves 100 item slots free for future game items. Cash is capped at $20,000 and can be changed only if the selected character already has a cash item.</small></p>
+        <button type="submit" name="action" value="encrypt">Edit and Encrypt</button>
+        <button type="submit" name="action" value="save" class="secondary">Download Edited Data</button>
+        <p><small>Edit and Encrypt uses the account ID stored in the save and returns encrypted containers for both slot and autosave when present. Raw JSAV downloads must be encrypted manually.</small></p>
+    </section>
+</form>
+{% endif %}
+{% endblock %}

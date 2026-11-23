@@ -224,13 +224,14 @@ def validate_createsave_files(directory: str):
 
 
 def _strip_sdimg_prefix(directory: str):
-    """PS5 saves prefix sealed files with 'sdimg_'. Rename to match the .bin counterparts."""
+    """Match PS4 images to their .bin counterparts without renaming PS5 images."""
     for name in os.listdir(directory):
         if name.startswith("sdimg_"):
             stripped = name[6:]  # remove "sdimg_"
             src = os.path.join(directory, name)
             dst = os.path.join(directory, stripped)
-            if os.path.isfile(src) and not os.path.exists(dst):
+            if (os.path.isfile(src) and detect_save_platform(src) == "ps4"
+                    and not os.path.exists(dst)):
                 os.rename(src, dst)
 
 
@@ -323,10 +324,53 @@ def detect_save_platform(filepath: str) -> str:
     return "unknown"
 
 
+def _detect_platform_from_sfo(sfo_path: str) -> str:
+    try:
+        with open(sfo_path, "rb") as file:
+            data = file.read()
+        if len(data) < 20 or data[:4] != b"\x00PSF":
+            return "unknown"
+        key_offset, data_offset, count = struct.unpack_from("<III", data, 8)
+        if count > (len(data) - 20) // 16:
+            return "unknown"
+        title_id = ""
+        save_format = ""
+        for index in range(count):
+            entry = 20 + index * 16
+            key_rel, value_format, length, _capacity, value_rel = struct.unpack_from("<HHIII", data, entry)
+            key_pos = key_offset + key_rel
+            value_pos = data_offset + value_rel
+            if key_pos >= len(data) or value_pos > len(data) or length > len(data) - value_pos:
+                continue
+            key_end = data.find(b"\x00", key_pos)
+            if key_end < 0:
+                continue
+            key = data[key_pos:key_end].decode("ascii", errors="ignore")
+            value = data[value_pos:value_pos + length].split(b"\x00", 1)[0].decode("ascii", errors="ignore")
+            if key == "TITLE_ID":
+                title_id = value
+            elif key == "FORMAT":
+                save_format = value
+        if save_format == "ppr":
+            return "ps5"
+        if save_format == "obs":
+            return "ps4"
+        if title_id.startswith("PPSA"):
+            return "ps5"
+        if title_id.startswith("CUSA"):
+            return "ps4"
+    except (OSError, ValueError, UnicodeDecodeError, struct.error):
+        pass
+    return "unknown"
+
+
 def detect_platform_in_dir(directory: str) -> str:
-    """Detect platform from save files in a directory.
-    Uses first-byte detection (0x01=PS4, 0x02=PS5).
-    Returns 'ps4', 'ps5', or 'unknown'."""
+    """Detect platform from save metadata, then the PFS version header."""
+    for root, _dirs, files in os.walk(directory):
+        if "param.sfo" in files:
+            platform = _detect_platform_from_sfo(os.path.join(root, "param.sfo"))
+            if platform != "unknown":
+                return platform
     for root, _dirs, files in os.walk(directory):
         for name in files:
             if name.endswith(".bin") or name.lower() == "param.sfo":
@@ -336,6 +380,15 @@ def detect_platform_in_dir(directory: str) -> str:
             if platform != "unknown":
                 return platform
     return "unknown"
+
+
+def detect_platform_for_operation(directory: str, operation: str) -> str:
+    platform = detect_platform_in_dir(directory)
+    if platform == "unknown":
+        if operation in ("decrypt", "resign", "reregion"):
+            raise InvalidSaveFilesError("Could not determine save platform from the container's first byte.")
+        raise InvalidSaveFilesError("Could not determine save platform from param.sfo.")
+    return platform
 
 
 def extract_account_id(directory: str, platform: str = "ps4") -> str | None:

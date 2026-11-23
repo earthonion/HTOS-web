@@ -13,6 +13,11 @@ Web interface for HTOS PS4/PS5 save management. Replaces the Discord bot + NiceG
 - **Quick Codes** - Apply Save Wizard hex quick codes to save files
 - **Save DB** - Community save library where users contribute decrypted saves, vote on entries, and one-click encrypt to their account
 - **Luac0re** - Quick-resign for Star Wars: Racer Revenge exploit saves (US/EU)
+- **GTA VI Money Editor** - Edit bank and cash values in decrypted saves, including bank-parent validation, orphan-stack cleanup, and damaged-save detection
+- **GTA VI Car Giver** - Add or replace vehicles in decrypted saves, with community vehicle contributions and SaveRift naming/category data
+- **Disclaimer** - Public save-modding risk and responsibility notice at `/disclaimer`
+
+GTA VI money and vehicle editors are credited to **some asshole**. Vehicle names and categories partly use the SaveRift catalog (Apache-2.0); see `static/gta6-cars/THIRD_PARTY_NOTICES.md`.
 
 All PS4/PS5 operations communicate with a jailbroken console via the garlic-worker C agent.
 

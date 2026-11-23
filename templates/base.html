@@ -65,6 +65,7 @@
                 <a href="{{ url_for('convert.convert') }}">Convert</a>
 
                 {% endif %}
+                <a href="{{ url_for('gta6.gta6') }}">GTA VI</a>
                 <a href="https://m2k7m.github.io/re-region-web/" target="_blank" rel="noopener">Reregion &#8599;</a>
                 <a href="https://bucanero.github.io/apollo-patcher/" target="_blank" rel="noopener">Patch Save &#8599;</a>
                 <a href="{{ url_for('savedb.browse') }}">Save DB </a>
@@ -183,7 +184,7 @@
 
 
     <footer>
-        {% block footer_text %}<p>garlicsaves</p>{% endblock %}
+        {% block footer_text %}<p>garlicsaves · <a href="{{ url_for('main.disclaimer') }}">Disclaimer</a></p>{% endblock %}
     </footer>
 
     <script src="{{ url_for('static', filename='chunked-upload.js') }}?v=winpaths"></script>

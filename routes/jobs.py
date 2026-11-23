@@ -199,6 +199,12 @@ async def job_status(job_id):
         finally:
             await db.close()
 
+    show_gta6_editor = (
+        job.operation == "decrypt"
+        and job.status == "done"
+        and job.params
+        and job.params.get("title_id") in {"PPSA01547", "PPSA29660", "PPSA38500"}
+    )
     return await render_template(
         "job_status.html",
         job=job,
@@ -207,6 +213,7 @@ async def job_status(job_id):
         supporters=supporters,
         anonymous_count=anonymous_count,
         throttle_pending=_throttle_pending,
+        show_gta6_editor=show_gta6_editor,
     )
 
 

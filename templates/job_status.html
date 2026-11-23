@@ -66,6 +66,13 @@
     <a href="{{ url_for('jobs.job_download', job_id=job.job_id) }}" class="btn btn-primary">Download Result</a>
 </section>
 
+{% if show_gta6_editor %}
+<aside class="panel" style="margin-bottom: 1rem; padding: 0.75rem 1rem; border-left: 3px solid var(--cyan, #06b6d4); background: rgba(6,182,212,0.06);">
+    <span style="color: var(--text-2);">Looks like you're decrypting GTA 6! Do you want to try the save editor?</span>
+    <a href="{{ url_for('gta6.gta6') }}" style="margin-left: 0.75rem;">Open Save Editor</a>
+</aside>
+{% endif %}
+
 <section class="panel">
     <h2>Log</h2>
     <div id="log" class="log-area"></div>

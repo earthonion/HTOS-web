@@ -7,7 +7,7 @@ from quart import Blueprint, flash, redirect, render_template, request, session,
 from auth import login_required
 from config import CHUNK_DIR
 from models import get_db
-from services.files import detect_platform_in_dir
+from services.files import detect_platform_for_operation
 from services.jobs import create_job
 from services.workers import ps5_workers_online
 
@@ -113,7 +113,11 @@ async def reregion():
                 dest = os.path.join(sample_dir, os.path.basename(f.filename))
                 await f.save(dest)
 
-        platform = detect_platform_in_dir(saves_dir)
+        try:
+            platform = detect_platform_for_operation(saves_dir, "reregion")
+        except InvalidSaveFilesError as e:
+            await flash(str(e), "error")
+            return await render_template("reregion.html", profiles=profiles)
 
         if platform == "ps5":
             if not await ps5_workers_online():

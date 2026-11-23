@@ -476,11 +476,6 @@ async def next_job():
         # started_at and worker identity so the stale-requeue guard can't
         # immediately reclaim it. Platform match: exact worker_platform, OR
         # NULL/unknown (legacy = ps4).
-        cursor = await db.execute(
-            "SELECT value FROM settings WHERE key = 'ps5_fast_mode'"
-        )
-        fast_mode_row = await cursor.fetchone()
-        ps5_fast_mode = fast_mode_row is not None and fast_mode_row["value"] == "1"
         legacy_ok = 1 if worker_platform == "ps4" else 0
         cursor = await db.execute(
             """
@@ -491,7 +486,7 @@ async def next_job():
             WHERE id = (
                 SELECT id FROM jobs
                 WHERE status = 'queued'
-                  AND (? = 1 OR ? != 'ps5' OR operation NOT IN ('decrypt', 'encrypt', 'resign', 'createsave'))
+                  AND (? != 'ps5' OR operation NOT IN ('decrypt', 'encrypt', 'resign', 'createsave'))
                   AND (? != 'ps4' OR operation NOT IN ('decrypt', 'encrypt', 'resign', 'createsave')
                        OR json_extract(params, '$.platform') NOT IN ('ps5', 'unknown'))
                   AND (
@@ -513,7 +508,6 @@ async def next_job():
             (
                 claim_key_id,
                 claim_instance_id,
-                int(not ps5_fast_mode),
                 worker_platform,
                 worker_platform,
                 claim_key_id,

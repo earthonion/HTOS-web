@@ -5,7 +5,7 @@ from services.files import (
     DangerousFileError,
     FileTooLargeError,
     InvalidSaveFilesError,
-    detect_platform_in_dir,
+    detect_platform_for_operation,
     extract_account_id,
     resolve_chunked_uploads,
     save_uploaded_files,
@@ -61,7 +61,11 @@ async def decrypt():
         except DangerousFileError as e:
             await flash(str(e), "error")
             return await render_template("decrypt.html")
-        platform = detect_platform_in_dir(upload_dir)
+        try:
+            platform = detect_platform_for_operation(upload_dir, "decrypt")
+        except InvalidSaveFilesError as e:
+            await flash(str(e), "error")
+            return await render_template("decrypt.html")
         if platform != "ps5":
             try:
                 validate_save_pairs(upload_dir)

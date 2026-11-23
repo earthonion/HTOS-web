@@ -6,7 +6,7 @@ from services.files import (
     DangerousFileError,
     FileTooLargeError,
     InvalidSaveFilesError,
-    detect_platform_in_dir,
+    detect_platform_for_operation,
     resolve_chunked_uploads,
     save_uploaded_files,
     validate_save_pairs,
@@ -80,7 +80,11 @@ async def resign():
         except DangerousFileError as e:
             await flash(str(e), "error")
             return await render_template("resign.html", profiles=profiles)
-        platform = detect_platform_in_dir(upload_dir)
+        try:
+            platform = detect_platform_for_operation(upload_dir, "resign")
+        except InvalidSaveFilesError as e:
+            await flash(str(e), "error")
+            return await render_template("resign.html", profiles=profiles)
         if platform != "ps5":
             try:
                 validate_save_pairs(upload_dir)

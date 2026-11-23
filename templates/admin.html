@@ -171,17 +171,6 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
 </section>
 
 <section class="panel">
-    <h2>PS5 fast mode toggle</h2>
-    <label style="display:flex;align-items:center;gap:0.5rem;">
-        <input id="ps5-fast-mode-toggle" type="checkbox" {% if ps5_fast_mode %}checked{% endif %}>
-        Prioritize PS5 decrypt, encrypt, resign, and createsave jobs
-    </label>
-    <p id="ps5-fast-mode-state" style="color:var(--text-2);font-size:0.8rem;margin-top:0.5rem;">
-        {{ 'Fast mode enabled; supported PS5 jobs use the accelerated queue' if ps5_fast_mode else 'Fast mode disabled; standard workers can also take jobs' }}
-    </p>
-</section>
-
-<section class="panel">
     <h2 style="display:flex;align-items:center;gap:0.75rem">Worker Stats
         <button id="toggle-offline" class="btn-small" style="font-size:0.7rem;padding:0.2rem 0.6rem;font-weight:500" onclick="toggleOfflineWorkers()">Hide offline</button>
         <span style="font-size:0.75rem; font-weight:400; color:var(--text-2); margin-left:auto;">
@@ -304,6 +293,33 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
 </section>
 
 <section class="panel">
+    <h2>ppr_derive Jobs <span style="color: var(--green); font-size: 0.7rem; vertical-align: middle;">&#9679; live</span></h2>
+    <div style="overflow-x: auto;">
+    <table id="ppr-jobs-table">
+        <thead>
+            <tr><th>ID</th><th>User</th><th>Op</th><th>Title</th><th>Status</th><th>Error</th><th>Worker</th><th>User IP</th><th>Created</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for j in ppr_jobs %}
+            <tr data-job-id="{{ j.id }}">
+                <td style="font-size: 0.75rem;">{{ j.id[:8] }}</td>
+                <td>{{ j.username }}</td>
+                <td>{{ j.operation }}</td>
+                <td style="font-size: 0.8rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ j.game_title }} {{ j.title_id }}">{% if j.game_title %}{{ j.game_title }}{% elif j.title_id %}<code>{{ j.title_id }}</code>{% else %}-{% endif %}</td>
+                <td><span class="status-{{ j.status }}">{{ j.status }}</span></td>
+                <td style="font-size: 0.75rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ j.error or '' }}">{{ j.error or '-' }}</td>
+                <td>{{ j.worker_name or '-' }}</td>
+                <td>{{ j.user_ip or '-' }}</td>
+                <td>{{ j.created_at }}</td>
+                <td><a href="{{ url_for('jobs.job_status', job_id=j.id) }}" class="btn-small">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</section>
+
+<section class="panel">
     <h2>Send User Message</h2>
     <p style="color: var(--text-2); font-size: 0.82rem; margin: 0 0 0.75rem;">Posts a banner at the top of every page for the target user (or <code>*</code> for everyone). Shown until they click the × dismiss button.</p>
     <div class="msg-form">
@@ -345,6 +361,7 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
 <script>
 (function() {
     const tbody = document.querySelector('#jobs-table tbody');
+    const pprTbody = document.querySelector('#ppr-jobs-table tbody');
     const queuedEl = document.getElementById('queued-count');
     const es = new EventSource('/admin/feed');
 
@@ -446,14 +463,15 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
         if (data.queued !== undefined && queuedEl) queuedEl.textContent = data.queued;
         if (data.type === 'new_jobs' && data.jobs) {
             data.jobs.forEach(function(j) {
-                if (tbody.querySelector('[data-job-id="' + j.id + '"]')) return;
-                tbody.insertBefore(makeRow(j), tbody.firstChild);
-                while (tbody.children.length > 50) tbody.removeChild(tbody.lastChild);
+                const target = j.operation === 'ppr_derive' ? pprTbody : tbody;
+                if (target.querySelector('[data-job-id="' + j.id + '"]')) return;
+                target.insertBefore(makeRow(j), target.firstChild);
+                while (target.children.length > 50) target.removeChild(target.lastChild);
             });
         }
         if (data.type === 'updates' && data.updates) {
             data.updates.forEach(function(u) {
-                var row = tbody.querySelector('[data-job-id="' + u.id + '"]');
+                var row = tbody.querySelector('[data-job-id="' + u.id + '"]') || pprTbody.querySelector('[data-job-id="' + u.id + '"]');
                 if (!row) return;
                 row.children[4].innerHTML = '<span class="status-' + u.status + '">' + u.status + '</span>';
                 row.children[5].textContent = u.error || '-';
@@ -531,30 +549,6 @@ document.getElementById('worker-key-generation-toggle').addEventListener('change
         document.getElementById('worker-key-generation-state').textContent = result.enabled
             ? 'Generation enabled'
             : 'Generation disabled; existing keys still work';
-    } catch (error) {
-        input.checked = !enabled;
-        alert(error.message);
-    } finally {
-        input.disabled = false;
-    }
-});
-
-document.getElementById('ps5-fast-mode-toggle').addEventListener('change', async function(e) {
-    const input = e.target;
-    const enabled = input.checked;
-    input.disabled = true;
-    try {
-        const response = await fetch('/admin/ps5-fast-mode', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({enabled: enabled}),
-        });
-        const result = await response.json();
-        if (!response.ok || !result.ok) throw new Error(result.error || 'Could not save PS5 fast mode setting');
-        input.checked = result.enabled;
-        document.getElementById('ps5-fast-mode-state').textContent = result.enabled
-            ? 'Fast mode enabled; supported PS5 jobs use the accelerated queue'
-            : 'Fast mode disabled; standard workers can also take jobs';
     } catch (error) {
         input.checked = !enabled;
         alert(error.message);

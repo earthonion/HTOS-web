@@ -149,6 +149,9 @@ async def create_job(
     submitter_key_id: int | None = None,
 ) -> Job:
     job_id = str(uuid.uuid4())
+    if operation != "ppr_derive":
+        params = dict(params or {})
+        params.setdefault("ignore_secondlayer", False)
     params_json = json.dumps(params) if params else None
     status = "queued" if ready else "pending"
     db = await get_db()

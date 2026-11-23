@@ -8,6 +8,7 @@ from quart import Blueprint, Response, jsonify, render_template, request
 from auth import admin_required
 from models import get_db
 from routes.contribute import key_generation_enabled
+from services.titles import lookup_title
 
 admin_web_bp = Blueprint("admin_web", __name__)
 
@@ -58,14 +59,26 @@ async def dashboard():
             "j.params, wk.name as worker_name, u.last_ip as user_ip "
             "FROM jobs j JOIN users u ON j.user_id = u.id "
             "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id "
+            "WHERE j.operation != 'ppr_derive' "
             "ORDER BY j.created_at DESC LIMIT 30"
         )
         jobs = [dict(r) for r in await cursor.fetchall()]
-        for j in jobs:
+        cursor = await db.execute(
+            "SELECT j.id, u.username, j.operation, j.status, j.created_at, j.error, "
+            "j.params, wk.name as worker_name, u.last_ip as user_ip "
+            "FROM jobs j JOIN users u ON j.user_id = u.id "
+            "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id "
+            "WHERE j.operation = 'ppr_derive' "
+            "ORDER BY j.created_at DESC LIMIT 30"
+        )
+        ppr_jobs = [dict(r) for r in await cursor.fetchall()]
+        for j in jobs + ppr_jobs:
             if j["params"]:
                 p = json.loads(j["params"])
                 j["game_title"] = p.get("game_title", "")
                 j["title_id"] = p.get("title_id", "")
+                if not j["game_title"] and j["title_id"]:
+                    j["game_title"] = await lookup_title(j["title_id"]) or ""
                 if not j["game_title"] and not j["title_id"]:
                     j["game_title"] = p.get("savename", "")
             else:
@@ -158,11 +171,11 @@ async def dashboard():
         for w in workers
         if w["is_active"] and not w["suspended_until"]
     )
-
     return await render_template(
         "admin.html",
         workers=workers,
         jobs=jobs,
+        ppr_jobs=ppr_jobs,
         queued=queued,
         total_users=total_users,
         online_now=online_now,
@@ -421,6 +434,8 @@ async def feed():
                             p = json.loads(nj["params"])
                             nj["game_title"] = p.get("game_title", "")
                             nj["title_id"] = p.get("title_id", "")
+                            if not nj["game_title"] and nj["title_id"]:
+                                nj["game_title"] = await lookup_title(nj["title_id"]) or ""
                             if not nj["game_title"] and not nj["title_id"]:
                                 nj["game_title"] = p.get("savename", "")
                         else:

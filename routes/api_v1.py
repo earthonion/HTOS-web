@@ -12,7 +12,7 @@ from services.files import (
     DangerousFileError,
     FileTooLargeError,
     InvalidSaveFilesError,
-    detect_platform_in_dir,
+    detect_platform_for_operation,
     extract_account_id,
     resolve_chunked_uploads,
     save_uploaded_files,
@@ -165,9 +165,10 @@ async def create_job_endpoint(user_id):
     except DangerousFileError as e:
         return jsonify({"error": str(e)}), 400
 
-    platform = detect_platform_in_dir(upload_dir)
-    if platform == "unknown":
-        platform = "ps4"
+    try:
+        platform = detect_platform_for_operation(upload_dir, operation)
+    except InvalidSaveFilesError as e:
+        return jsonify({"error": str(e)}), 400
 
     params["upload_dir"] = upload_dir
     params["platform"] = platform
@@ -196,8 +197,6 @@ async def create_job_endpoint(user_id):
         if not account_id:
             return jsonify({"error": "Missing required field: account_id"}), 400
         params["account_id"] = account_id
-        if form.get("platform") == "ps5":
-            params["platform"] = "ps5"
         if form.get("saveblocks"):
             params["saveblocks"] = int(form["saveblocks"])
         if operation == "createsave":

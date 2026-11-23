@@ -31,6 +31,8 @@ def create_app():
     from routes.createsave import createsave_bp
     from routes.decrypt import decrypt_bp
     from routes.encrypt import encrypt_bp
+    from routes.gta6 import gta6_bp
+    from routes.gta6_cars import gta6_cars_bp
     from routes.jobs import jobs_bp
     from routes.kofi import kofi_bp
     from routes.luac0re import luac0re_bp
@@ -64,6 +66,8 @@ def create_app():
     app.register_blueprint(savedb_bp)
     app.register_blueprint(saveeditor_bp)
     app.register_blueprint(tools_bp)
+    app.register_blueprint(gta6_bp)
+    app.register_blueprint(gta6_cars_bp)
     app.register_blueprint(kofi_bp)
 
     @app.errorhandler(400)

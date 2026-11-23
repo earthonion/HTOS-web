@@ -90,6 +90,11 @@ async def about():
     return await render_template("about.html")
 
 
+@main_bp.route("/disclaimer")
+async def disclaimer():
+    return await render_template("disclaimer.html")
+
+
 @main_bp.route("/donate")
 async def donate():
     supporters = []
