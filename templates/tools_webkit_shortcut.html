@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+{% block title %}WebKit Shortcut ELF Builder — Tools{% endblock %}
+{% block extra_head %}
+<style>
+.builder-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 700px) { .builder-grid { grid-template-columns: 1fr; } }
+.builder-grid label { display: block; color: var(--text-2, #999); font-size: 0.85em; margin-bottom: 4px; margin-top: 10px; }
+.builder-grid input[type=text] { width: 100%; padding: 8px 12px; background: var(--bg-2, #1a1a2e);
+    border: 1px solid var(--border, #333); border-radius: 6px; color: var(--text-1, #eee); font-size: 0.95em; }
+.builder-grid input[type=text]:focus { outline: none; border-color: var(--indigo, #6366f1); }
+.img-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.img-box { flex: 1; min-width: 150px; border: 2px dashed var(--border, #333); border-radius: 8px;
+    padding: 16px; text-align: center; cursor: pointer; position: relative; transition: border-color 0.2s; }
+.img-box:hover { border-color: var(--indigo, #6366f1); }
+.img-box input[type=file] { display: none; }
+.img-box .browse-btn { display: inline-block; margin-top: 8px; padding: 4px 14px; background: var(--indigo, #6366f1); color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
+.img-box .browse-btn:hover { opacity: 0.85; }
+.img-box .lbl { color: var(--text-2, #999); font-size: 0.9em; }
+.img-box .sz { color: var(--text-3, #777); font-size: 0.75em; margin-top: 4px; }
+.img-box img { max-height: 80px; max-width: 100%; margin-top: 8px; border-radius: 4px; }
+.img-box .fname { color: var(--green, #10b981); font-size: 0.82em; margin-top: 4px; word-break: break-all; }
+.checks { display: flex; gap: 20px; margin-top: 12px; flex-wrap: wrap; }
+.checks label { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-1, #eee); font-size: 0.9em; }
+.checks input[type=checkbox] { accent-color: var(--indigo, #6366f1); width: 16px; height: 16px; }
+button.build-btn { display: block; width: 100%; padding: 14px; margin-top: 16px;
+    background: linear-gradient(135deg, var(--indigo, #6366f1), var(--cyan, #22d3ee)); color: white; border: none; border-radius: 8px;
+    font-size: 1.1em; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+button.build-btn:hover { opacity: 0.9; }
+button.build-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.build-log { background: var(--bg-0, #07090e); border-radius: 8px; padding: 12px; margin-top: 12px;
+    font-family: 'Cascadia Code','Fira Code',monospace; font-size: 0.82em; max-height: 260px;
+    overflow-y: auto; white-space: pre-wrap; color: var(--text-3, #5b6374); display: none; }
+.build-log.show { display: block; }
+.build-log .ok { color: var(--green, #10b981); }
+.build-log .err { color: var(--red, #f43f5e); }
+.dl-area { display: none; margin-top: 12px; }
+.dl-area a { display: inline-block; padding: 10px 24px; background: var(--green, #10b981); color: #111;
+    border-radius: 6px; text-decoration: none; font-weight: 600; margin-right: 8px; margin-bottom: 8px; }
+.dl-area a.src-btn { background: var(--indigo-light, #818cf8); }
+
+/* App type toggle */
+.type-toggle { display: inline-flex; gap: 0; border-radius: var(--r-sm, 6px); overflow: hidden; border: 1px solid var(--border, rgba(255,255,255,0.06)); margin-left: auto; }
+.tt { flex: 1; padding: 7px 12px; border: none; background: var(--bg-2, #12161f); color: var(--text-3, #5b6374);
+      font-size: 0.85em; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+.tt.active { background: var(--indigo-glow-strong, rgba(99,102,241,0.25)); color: var(--indigo-light, #818cf8); }
+
+/* Icon picker */
+.icon-section { margin-top: 12px; }
+.icon-section h3 { color: var(--indigo-light, #818cf8); font-size: 0.95em; margin-bottom: 8px; }
+.icon-tabs { display: flex; gap: 0; border-radius: var(--r-sm, 6px); overflow: hidden; border: 1px solid var(--border, rgba(255,255,255,0.06)); margin-bottom: 12px; }
+.icon-tab { flex: 1; padding: 8px 12px; border: none; background: var(--bg-2, #12161f); color: var(--text-3, #5b6374);
+    font-size: 0.85em; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+.icon-tab.active { background: var(--indigo-glow-strong, rgba(99,102,241,0.25)); color: var(--indigo-light, #818cf8); }
+.icon-disc { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--bg-2, #12161f);
+    border: 1px solid var(--border, rgba(255,255,255,0.06)); border-radius: var(--r-sm, 6px); cursor: pointer; user-select: none; transition: border-color 0.2s; }
+.icon-disc:hover { border-color: var(--indigo, #6366f1); }
+.icon-arrow { display: inline-block; font-size: 0.7em; color: var(--text-3, #5b6374); transition: transform 0.2s; }
+.icon-arrow.open { transform: rotate(90deg); }
+.icon-expand { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, opacity 0.2s ease; opacity: 0; margin-top: 0; }
+.icon-expand.open { max-height: 400px; opacity: 1; margin-top: 10px; overflow-y: auto; }
+.icon-color-row { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+.icon-color-row label { display: block; color: var(--text-2); font-size: 0.82em; margin: 0; }
+.icon-color-row input[type=color] { width: 40px; height: 28px; border: none; cursor: pointer; background: none; padding: 0; }
+.icon-color-row input[type=text] { flex: 1; min-width: 100px; padding: 6px 10px; background: var(--bg-2); border: 1px solid var(--border);
+    border-radius: var(--r-sm); color: var(--text-1); font-size: 0.82em; }
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 5px; padding: 4px; }
+.icon-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    border-radius: var(--r-sm, 6px); cursor: pointer; border: 2px solid transparent;
+    background: var(--bg-0, #07090e); transition: all 0.15s; color: var(--text-2); }
+.icon-cell:hover { border-color: var(--indigo, #6366f1); color: var(--indigo-light); }
+.icon-cell.sel { border-color: var(--green, #10b981); background: var(--indigo-glow, rgba(99,102,241,0.12)); color: var(--green); }
+.icon-cell svg { width: 24px; height: 24px; }
+.icon-preview-row { margin-top: 10px; text-align: center; }
+.icon-preview-row img { width: 72px; height: 72px; border-radius: var(--r-sm); border: 1px solid var(--border); }
+.icon-preview-row .ipn { font-size: 0.8em; color: var(--green); margin-top: 4px; }
+@media (max-width: 600px) { .icon-grid { grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); } }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>WebKit Shortcut ELF Builder</h1>
+<p>Build a PS5 homescreen installer ELF that deeplinks to any URL. Upload your images — they'll be auto-resized.</p>
+
+<form id="wk-form" method="POST" enctype="multipart/form-data">
+<div class="builder-grid">
+  <div>
+    <label>App Title</label>
+    <input type="text" name="title" value="My App" required>
+  </div>
+  <div>
+    <label>Title ID (4 letters + 5 digits)</label>
+    <input type="text" name="title_id" value="TEST10001" maxlength="9" pattern="[A-Za-z]{4}[0-9]{5}" required style="text-transform:uppercase">
+  </div>
+  <div>
+    <label>Deeplink URL</label>
+    <input type="text" name="deeplink" value="http://example.com" required>
+  </div>
+  <div>
+    <label>ELF Filename</label>
+    <input type="text" name="elf_name" value="shortcut-install.elf" required>
+  </div>
+  <div>
+    <label>Install Notification</label>
+    <input type="text" name="install_msg" value="Installing...">
+  </div>
+  <div>
+    <label>Success Notification</label>
+    <input type="text" name="success_msg" value="Installed!">
+  </div>
+</div>
+
+<div class="icon-section">
+  <h3>Icon</h3>
+  <div class="icon-tabs">
+    <button type="button" class="icon-tab active" onclick="setIconTab(this,'picker')">Pick an Icon</button>
+    <button type="button" class="icon-tab" onclick="setIconTab(this,'upload')">Upload Image</button>
+  </div>
+  <div id="icon_picker">
+    <div class="icon-disc" onclick="toggleIconGrid()">
+      <span class="icon-arrow" id="icon_arrow">&#9654;</span>
+      <span id="icon_disc_label">Choose an icon</span>
+      <img id="icon_disc_thumb" style="display:none;width:28px;height:28px;border-radius:4px;margin-left:auto">
+    </div>
+    <div class="icon-expand" id="icon_expand">
+      <div class="icon-color-row">
+        <div>
+          <label>Background</label>
+          <input type="color" id="icon_bg" value="#12161f" onchange="renderIconPreview()">
+        </div>
+        <div>
+          <label>Icon Color</label>
+          <input type="color" id="icon_fg" value="#818cf8" onchange="renderIconPreview()">
+        </div>
+        <input type="text" id="icon_search" placeholder="Search icons..." oninput="filterIcons()">
+      </div>
+      <div class="icon-grid" id="icon_grid"></div>
+    </div>
+    <canvas id="icon_canvas" width="512" height="512" style="display:none"></canvas>
+    <div class="icon-preview-row" id="icon_picked_preview" style="display:none">
+      <img id="icon_picked_img">
+      <div class="ipn" id="icon_picked_name"></div>
+    </div>
+  </div>
+  <div id="icon_upload" style="display:none">
+    <div class="img-box">
+      <input type="file" name="icon" id="f_icon" accept="image/*" onchange="pvf(this,'ic_p','ic_n');clearIconPick()">
+      <div class="lbl">Icon</div>
+      <div class="sz">icon0.png &rarr; 512 &times; 512</div>
+      <img id="ic_p" src="{{ url_for('static', filename='default_icon0.png') }}" style="max-height:80px"><div class="fname" id="ic_n">default</div>
+      <button type="button" class="browse-btn" onclick="document.getElementById('f_icon').click()">Browse</button>
+    </div>
+  </div>
+  <input type="hidden" name="icon_svg_data" id="icon_svg_data" value="">
+</div>
+
+<div class="img-row">
+  <div class="img-box">
+    <input type="file" name="pic1" id="f_pic1" accept="image/*" onchange="pvf(this,'p1_p','p1_n')">
+    <div class="lbl">Background</div>
+    <div class="sz">pic1.png &rarr; 1920 &times; 1080</div>
+    <img id="p1_p" src="{{ url_for('static', filename='default_pic1.png') }}" style="max-height:80px"><div class="fname" id="p1_n">default</div>
+    <button type="button" class="browse-btn" onclick="document.getElementById('f_pic1').click()">Browse</button>
+  </div>
+  <div class="img-box">
+    <input type="file" name="pic0" id="f_pic0" accept="image/*" onchange="pvf(this,'p0_p','p0_n')">
+    <div class="lbl">Splash (optional)</div>
+    <div class="sz">pic0.png &rarr; 1920 &times; 1080<br>uses background if empty</div>
+    <img id="p0_p" style="display:none"><div class="fname" id="p0_n"></div>
+    <button type="button" class="browse-btn" onclick="document.getElementById('f_pic0').click()">Browse</button>
+  </div>
+</div>
+<div class="img-row" style="margin-top:12px">
+  <div class="img-box">
+    <input type="file" name="bgm" id="f_bgm" accept="audio/*" onchange="pvf(this,'bgm_p','bgm_n')">
+    <div class="lbl">BGM Audio</div>
+    <div class="sz">snd0.at9 &mdash; converts mp3/wav/flac<br>max ~87s at 192kbps, default chime</div>
+    <img id="bgm_p" style="display:none"><div class="fname" id="bgm_n">default chime</div>
+    <button type="button" class="browse-btn" onclick="document.getElementById('f_bgm').click()">Browse</button>
+  </div>
+</div>
+
+<div class="checks">
+  <label><input type="checkbox" name="include_pic0" checked> Include pic0 (splash + DDS)</label>
+  <label><input type="checkbox" name="include_bgm" checked> Include BGM (snd0.at9)</label>
+  <label><input type="checkbox" name="fullscreen"> Fullscreen (webAppUri)</label>
+  <div class="type-toggle" style="margin-top:0">
+    <button type="button" class="tt active" data-val="media" onclick="setAppType(this)">Media</button>
+    <button type="button" class="tt" data-val="game" onclick="setAppType(this)">Game</button>
+  </div>
+  <input type="hidden" name="app_type" id="app_type" value="media">
+</div>
+
+<button type="submit" class="build-btn" id="bbtn">BUILD ELF</button>
+<div class="build-log" id="blog"></div>
+<div class="dl-area" id="dla"><a id="dl_a" href="#">Download ELF</a> <a id="dl_src" href="#" class="src-btn">Download Source</a></div>
+</form>
+
+<script>
+var ICONS = {};
+var selectedIcon = null;
+
+fetch('{{ url_for("static", filename="icons.json") }}')
+  .then(function(r){return r.json()})
+  .then(function(data){
+    ICONS = {};
+    for(var k in data) ICONS[k] = {l:k.replace(/_/g,' '), d:data[k]};
+    buildIconGrid();
+  });
+
+function setAppType(btn) {
+  document.querySelectorAll('.tt').forEach(function(b){b.classList.remove('active')});
+  btn.classList.add('active');
+  document.getElementById('app_type').value = btn.dataset.val;
+}
+
+function setIconTab(btn, tab) {
+  document.querySelectorAll('.icon-tab').forEach(function(b){b.classList.remove('active')});
+  btn.classList.add('active');
+  document.getElementById('icon_picker').style.display = tab === 'picker' ? '' : 'none';
+  document.getElementById('icon_upload').style.display = tab === 'upload' ? '' : 'none';
+}
+
+function toggleIconGrid() {
+  document.getElementById('icon_expand').classList.toggle('open');
+  document.getElementById('icon_arrow').classList.toggle('open');
+}
+
+function clearIconPick() {
+  selectedIcon = null;
+  document.getElementById('icon_svg_data').value = '';
+  document.querySelectorAll('.icon-cell').forEach(function(c){c.classList.remove('sel')});
+  document.getElementById('icon_picked_preview').style.display = 'none';
+  document.getElementById('icon_disc_thumb').style.display = 'none';
+  document.getElementById('icon_disc_label').textContent = 'Choose an icon';
+}
+
+function filterIcons() {
+  var q = document.getElementById('icon_search').value.toLowerCase();
+  document.querySelectorAll('.icon-cell').forEach(function(c){
+    c.style.display = c.dataset.name.indexOf(q) !== -1 ? '' : 'none';
+  });
+}
+
+function pickIcon(name) {
+  selectedIcon = name;
+  document.querySelectorAll('.icon-cell').forEach(function(c){c.classList.toggle('sel', c.dataset.name === name)});
+  renderIconPreview();
+  document.getElementById('icon_expand').classList.remove('open');
+  document.getElementById('icon_arrow').classList.remove('open');
+}
+
+function renderIconPreview() {
+  if (!selectedIcon || !ICONS[selectedIcon]) return;
+  var d = ICONS[selectedIcon].d;
+  var bg = document.getElementById('icon_bg').value;
+  var fg = document.getElementById('icon_fg').value;
+  var c = document.getElementById('icon_canvas');
+  var ctx = c.getContext('2d');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, 512, 512);
+  ctx.save();
+  var s = 512 * 0.7 / 960;
+  ctx.translate(512 * 0.15, 512 * 0.15);
+  ctx.scale(s, s);
+  ctx.translate(0, 960);
+  var p = new Path2D(d);
+  ctx.fillStyle = fg;
+  ctx.fill(p);
+  ctx.restore();
+  var url = c.toDataURL('image/png');
+  document.getElementById('icon_svg_data').value = url;
+  document.getElementById('icon_picked_img').src = url;
+  document.getElementById('icon_picked_name').textContent = ICONS[selectedIcon].l;
+  document.getElementById('icon_picked_preview').style.display = '';
+  var thumb = document.getElementById('icon_disc_thumb');
+  thumb.src = url;
+  thumb.style.display = '';
+  document.getElementById('icon_disc_label').textContent = ICONS[selectedIcon].l;
+}
+
+function buildIconGrid() {
+  var grid = document.getElementById('icon_grid');
+  grid.innerHTML = '';
+  for (var name in ICONS) {
+    var icon = ICONS[name];
+    var cell = document.createElement('div');
+    cell.className = 'icon-cell';
+    cell.dataset.name = name;
+    cell.title = icon.l;
+    (function(n){cell.onclick = function(){pickIcon(n)}})(name);
+    cell.innerHTML = '<svg viewBox="0 -960 960 960" fill="currentColor"><path d="' + icon.d + '"/></svg>';
+    grid.appendChild(cell);
+  }
+}
+
+function pvf(i,pid,nid){
+  var f=i.files[0];
+  if(!f)return;
+  document.getElementById(nid).textContent=f.name;
+  var im=document.getElementById(pid);
+  im.src=URL.createObjectURL(f);
+  im.style.display='block';
+}
+
+document.getElementById('wk-form').addEventListener('submit',async function(e){
+  e.preventDefault();
+  var btn=document.getElementById('bbtn');
+  var log=document.getElementById('blog');
+  var dl=document.getElementById('dla');
+  btn.disabled=true;
+  btn.textContent='Building...';
+  log.className='build-log show';
+  log.innerHTML='';
+  dl.style.display='none';
+  var fd=new FormData(this);
+  try {
+    var res=await fetch('{{ url_for("tools.webkit_shortcut_build") }}',{method:'POST',body:fd});
+    var data=await res.json();
+    for(var i=0;i<data.log.length;i++){
+      var l=data.log[i];
+      if(l.indexOf('ERROR')===0){
+        log.innerHTML+='<span class="err">'+l+'</span>\n';
+      } else if(l.indexOf('SUCCESS')===0){
+        log.innerHTML+='<span class="ok">'+l+'</span>\n';
+      } else {
+        log.innerHTML+=l+'\n';
+      }
+    }
+    if(data.ok){
+      dl.style.display='block';
+      var a=document.getElementById('dl_a');
+      a.href='/webkit-shortcut-elf/download/'+data.elf;
+      a.textContent='Download '+data.elf;
+      document.getElementById('dl_src').href='/webkit-shortcut-elf/download-source?elf='+encodeURIComponent(data.elf);
+    }
+  } catch(err) {
+    log.innerHTML+='<span class="err">Error: '+err+'</span>\n';
+  }
+  btn.disabled=false;
+  btn.textContent='BUILD ELF';
+  log.scrollTop=log.scrollHeight;
+});
+</script>
+{% endblock %}

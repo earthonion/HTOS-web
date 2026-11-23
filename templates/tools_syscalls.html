@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Syscall Reference — Tools{% endblock %}
+{% block extra_head %}
+<style>
+.search-box {
+    position: relative;
+    max-width: 500px;
+    margin-bottom: 1.5rem;
+}
+.search-box input[type="text"] {
+    width: 100%;
+    padding-right: 2.5rem;
+}
+.search-box .search-icon {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-3);
+    pointer-events: none;
+}
+.platform-toggle {
+    display: inline-flex;
+    gap: 0;
+    margin-bottom: 1rem;
+    border-radius: var(--r, 8px);
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+.platform-toggle a {
+    padding: 0.4rem 1rem;
+    font-size: 0.82rem;
+    text-decoration: none;
+    color: var(--text-2);
+    background: var(--bg-1);
+    font-weight: 500;
+}
+.platform-toggle a.active {
+    background: var(--indigo);
+    color: #fff;
+}
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+.results-table th {
+    text-align: left;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    color: var(--text-3);
+    letter-spacing: 0.06em;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+.results-table td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-1);
+}
+.results-table tr:hover td {
+    background: var(--bg-1);
+}
+.syscall-num {
+    font-family: 'Fira Code', monospace;
+    font-weight: 600;
+    color: var(--cyan, #0ff);
+    white-space: nowrap;
+}
+.syscall-name {
+    font-family: 'Fira Code', monospace;
+    word-break: break-all;
+}
+.result-count {
+    font-size: 0.78rem;
+    color: var(--text-3);
+    margin-bottom: 0.75rem;
+}
+.btn-man {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    text-decoration: none;
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--indigo-light, #818cf8);
+    white-space: nowrap;
+}
+.btn-man:hover {
+    background: rgba(99, 102, 241, 0.3);
+}
+</style>
+{% endblock %}
+{% block content %}
+<h1>Syscall Reference <span style="font-size:0.85rem; font-weight:400; color:var(--text-2);">{{ total }} syscalls</span></h1>
+<p>PlayStation system call table — search by name or number.</p>
+
+<div class="platform-toggle">
+    <a href="{{ url_for('tools.syscall_lookup', q=q, platform='ps4') }}" class="{% if platform == 'ps4' %}active{% endif %}">PS4</a>
+    <a href="{{ url_for('tools.syscall_lookup', q=q, platform='ps5') }}" class="{% if platform == 'ps5' %}active{% endif %}">PS5</a>
+</div>
+
+<div class="search-box">
+    <form method="GET" action="{{ url_for('tools.syscall_lookup') }}">
+        <input type="hidden" name="platform" value="{{ platform }}">
+        <input type="text" name="q" id="search-input" value="{{ q }}" placeholder="Search syscall name or number (e.g. mmap, 477)" autofocus autocomplete="off">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </form>
+</div>
+
+<div id="results-container">
+{% if q %}
+<div class="result-count">{{ results|length }} result{{ 's' if results|length != 1 }} for "{{ q }}"</div>
+{% endif %}
+
+{% if results %}
+<table class="results-table">
+    <thead>
+        <tr>
+            <th style="width:60px;">Dec</th>
+            <th style="width:60px;">Hex</th>
+            <th>Name</th>
+            <th style="width:100px;"></th>
+        </tr>
+    </thead>
+    <tbody id="results-body">
+        {% for r in results %}
+        {% set man_url = r.name | syscall_man_url %}
+        <tr>
+            <td class="syscall-num">{{ r.num }}</td>
+            <td class="syscall-num">0x{{ '%X' % r.num }}</td>
+            <td class="syscall-name">{{ r.name }}</td>
+            <td>{% if man_url %}<a href="{{ man_url }}" target="_blank" class="btn-man">Man Page</a>{% endif %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% elif q %}
+<p style="color:var(--text-3);">No results found.</p>
+{% endif %}
+</div>
+
+<div style="margin-top:1.5rem;">
+    <a href="{{ url_for('tools.tools_index') }}">&larr; Back to Tools</a>
+</div>
+
+<script>
+const platform = '{{ platform }}';
+let debounceTimer;
+const input = document.getElementById('search-input');
+const container = document.getElementById('results-container');
+
+input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const q = input.value.trim();
+    debounceTimer = setTimeout(async () => {
+        try {
+            const resp = await fetch('/tools/api/syscall-search?platform=' + platform + '&q=' + encodeURIComponent(q));
+            const data = await resp.json();
+            if (!data.results.length) {
+                container.innerHTML = '<p style="color:var(--text-3);">No results found.</p>';
+                return;
+            }
+            let html = q ? `<div class="result-count">${data.results.length} result${data.results.length !== 1 ? 's' : ''} for "${esc(q)}"</div>` : '';
+            html += '<table class="results-table"><thead><tr><th style="width:60px;">Dec</th><th style="width:60px;">Hex</th><th>Name</th><th style="width:100px;"></th></tr></thead><tbody>';
+            for (const r of data.results) {
+                const btn = r.man_url
+                    ? `<a href="${esc(r.man_url)}" target="_blank" class="btn-man">Man Page</a>`
+                    : '';
+                html += `<tr><td class="syscall-num">${r.num}</td><td class="syscall-num">0x${r.num.toString(16).toUpperCase()}</td><td class="syscall-name">${esc(r.name)}</td><td>${btn}</td></tr>`;
+            }
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        } catch {}
+    }, 300);
+});
+
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+</script>
+{% endblock %}

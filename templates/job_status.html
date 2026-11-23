@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Job Status{% endblock %}
+{% block supporters_footer %}{% endblock %}
+{% block footer_text %}
+<p style="margin-bottom: 0.4rem; font-size: 0.85rem; color: var(--text-2);">{% if job.status == 'done' %}Huge thanks to everyone helping keep this service running.{% else %}garlicsaves is free thanks to volunteer PS5 workers. Server hosting isn't free. If this saved you time:{% endif %}</p>
+{% if supporters or anonymous_count %}
+<div style="display:flex; flex-wrap:wrap; gap:0.3rem 0.4rem; justify-content:center; margin: 0 auto 0.6rem; max-width:560px;">
+    {% for s in supporters %}<span style="font-size:0.8rem; padding:0.1rem 0.5rem; border:1px solid var(--border, #30363d); border-radius:999px; color:var(--text-1);{% if s.is_subscription_payment %} border-color:var(--indigo, #6366f1); color:var(--indigo-light, #818cf8);{% endif %}"{% if s.is_subscription_payment and s.tier_name %} title="{{ s.tier_name }}"{% endif %}>{{ s.from_name }}{% if s.count and s.count > 1 %} <span style="opacity:0.7; font-size:0.85em;">×{{ s.count }}</span>{% endif %}</span>{% endfor %}
+    {% if anonymous_count %}<span style="font-size:0.78rem; color:var(--text-3, #6e7681); align-self:center;">+ {{ anonymous_count }} anonymous</span>{% endif %}
+</div>
+{% endif %}
+<a href="https://ko-fi.com/earthonion" target="_blank" rel="noopener" style="display:inline-block; font-family:inherit; font-size:0.85rem; max-width:480px; color:var(--accent, #fbd308); padding:6px 10px; border:1px solid var(--border, #30363d); border-radius:6px; background:var(--surface, #161b22); text-decoration:none;">&#9749; Tip on ko-fi</a>
+{% endblock %}
+{% block content %}
+<h1>Job: {{ job.operation }} <span class="status-{{ job.status }}" id="status-badge">{{ job.status }}</span></h1>
+{% if job.params and job.params.get('game_title') %}
+<p style="margin-bottom: 1rem; color: var(--text-2);">{{ job.params.game_title }}{% if job.params.get('title_id') %} <code style="font-size: 0.8rem;">{{ job.params.title_id }}</code>{% endif %}</p>
+{% elif job.params and job.params.get('title_id') %}
+<p style="margin-bottom: 1rem; color: var(--text-2);"><code>{{ job.params.title_id }}</code></p>
+{% elif job.params and job.params.get('savename') %}
+<p style="margin-bottom: 1rem; color: var(--text-2);">{{ job.params.savename }}</p>
+{% endif %}
+
+{% if throttle_pending %}
+<div style="margin-bottom: 1rem; padding: 0.85rem 1rem; border-radius: 6px; background: rgba(251,211,8,0.08); border: 1px solid rgba(251,211,8,0.25); color: var(--text-1); font-size: 0.92rem;">
+    <strong style="color: var(--accent, #fbd308);">Please wait</strong> &mdash; this may take a few minutes. We're experiencing higher than normal load.
+</div>
+{% endif %}
+<div id="queue-info" style="{% if job.status != 'queued' %}display:none{% endif %}; margin-bottom: 1rem; padding: 0.75rem 1rem; border-radius: 6px; background: rgba(99,102,241,0.1); color: var(--text-2); font-size: 0.9rem;">
+    Position <strong id="queue-pos">{{ queue_position }}</strong> of <strong id="queue-total">{{ queue_total }}</strong> in queue
+</div>
+
+{% if job.status == "waiting_input" and job.operation == "encrypt" %}
+<section class="panel">
+    <h2>Upload Files to Encrypt</h2>
+    {% if job.file_list %}
+    <p>Available files in save:</p>
+    <ul class="file-list">
+        {% for f in job.file_list %}
+        <li><code>{{ f }}</code></li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    <form method="POST" action="{{ url_for('encrypt.encrypt_continue', job_id=job.job_id) }}" enctype="multipart/form-data">
+        <div class="file-drop">
+            <input type="file" name="encrypt_files" multiple required>
+            <svg class="file-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <div class="file-drop-text">Drop modified files here or <strong>browse</strong></div>
+            <div class="file-drop-hint">Upload your edited save files</div>
+            <div class="file-drop-selected"></div>
+        </div>
+        <button type="submit">Continue Encrypt</button>
+    </form>
+</section>
+{% endif %}
+
+<section class="panel" id="download-section" style="{% if not (job.status == 'done' and job.result_path) %}display:none{% endif %}">
+    {% if job.params %}
+    {% if job.operation == 'encrypt' and job.params.get('sfo_account_id') and job.params.get('account_id') %}
+    <p style="margin-bottom: 0.5rem;">Previous Account ID: <code>{{ job.params.sfo_account_id }}</code></p>
+    <p style="margin-bottom: 0.75rem;">New Account ID: <code>{{ job.params.account_id | to_usb_id }}</code></p>
+    {% elif job.params.get('sfo_account_id') %}
+    <p style="margin-bottom: 0.75rem;">Account ID: <code>{{ job.params.sfo_account_id }}</code></p>
+    {% endif %}
+    {% endif %}
+    <a href="{{ url_for('jobs.job_download', job_id=job.job_id) }}" class="btn btn-primary">Download Result</a>
+</section>
+
+<section class="panel">
+    <h2>Log</h2>
+    <div id="log" class="log-area"></div>
+</section>
+
+<script>
+const logEl = document.getElementById('log');
+const statusBadge = document.getElementById('status-badge');
+const currentStatus = statusBadge.textContent.trim();
+const isFinished = (currentStatus === 'done' || currentStatus === 'failed');
+let streamReloadTimer = null;
+
+// Always connect to SSE to load historical log messages
+const evtSource = new EventSource("{{ url_for('jobs.job_stream', job_id=job.job_id) }}");
+evtSource.onopen = function() {
+    if (streamReloadTimer) {
+        clearTimeout(streamReloadTimer);
+        streamReloadTimer = null;
+    }
+};
+
+// Queue position polling
+const queueInfo = document.getElementById('queue-info');
+const queuePos = document.getElementById('queue-pos');
+const queueTotal = document.getElementById('queue-total');
+let queueInterval = null;
+if (currentStatus === 'queued') {
+    queueInterval = setInterval(function() {
+        fetch("{{ url_for('jobs.job_queue_position', job_id=job.job_id) }}").then(function(r) {
+            return r.json();
+        }).then(function(d) {
+            if (d.position > 0) {
+                queuePos.textContent = d.position;
+                queueTotal.textContent = d.total;
+                queueInfo.style.display = '';
+            } else {
+                queueInfo.style.display = 'none';
+                clearInterval(queueInterval);
+            }
+        }).catch(function(){});
+    }, 5000);
+}
+
+evtSource.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    if (data.level === 'STATUS') {
+        statusBadge.textContent = data.msg;
+        statusBadge.className = 'status-' + data.msg;
+        if (data.msg !== 'queued') {
+            queueInfo.style.display = 'none';
+            if (queueInterval) clearInterval(queueInterval);
+        }
+        if (data.msg === 'done' || data.msg === 'failed') {
+            if (streamReloadTimer) {
+                clearTimeout(streamReloadTimer);
+                streamReloadTimer = null;
+            }
+            evtSource.close();
+            if (!isFinished) {
+                location.reload();
+            }
+        }
+        return;
+    }
+    const line = document.createElement('div');
+    line.className = 'log-line log-' + data.level.toLowerCase();
+    line.textContent = '[' + data.level + '] ' + data.msg;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+};
+
+evtSource.onerror = function() {
+    if (!streamReloadTimer && !isFinished) {
+        streamReloadTimer = setTimeout(function() {
+            location.reload();
+        }, 15000);
+    }
+};
+</script>
+{% endblock %}

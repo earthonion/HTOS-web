@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <title>garlicsaves - {% block title %}Home{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}PS4 & PS5 save manager: decrypt, resign, convert and browse saves. Free and ad-free.{% endblock %}">
+    <meta property="og:site_name" content="garlicsaves">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{% block og_title %}garlicsaves — PS4 & PS5 save manager and more{% endblock %}">
+    <meta property="og:description" content="{{ self.meta_description() }}">
+    <meta property="og:image" content="{% block og_image %}https://garlicsaves.com{{ url_for('static', filename='og-card.png') }}?v=1{% endblock %}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="garlicsaves — PS4 & PS5 save manager and more">
+    <meta property="og:url" content="{% block og_url %}https://garlicsaves.com{{ request.path }}{% endblock %}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ self.og_title() }}">
+    <meta name="twitter:description" content="{{ self.meta_description() }}">
+    <meta name="twitter:image" content="{{ self.og_image() }}">
+    <meta name="twitter:image:alt" content="garlicsaves — PS4 & PS5 save manager and more">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=progress1">
+    <link rel="pgpkey" href="/.well-known/pgp.asc">
+    {% block extra_head %}{% endblock %}
+    {% if not session.get('is_admin') and not no_ads and adsense_client %}
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
+         crossorigin="anonymous"></script>
+    {% endif %}
+    <style>
+    .chunked-progress-wrapper { margin-top: 0.5rem; }
+    .chunked-progress { margin-bottom: 0.25rem; }
+    .chunked-progress-label { font-size: 0.8rem; color: var(--fg-dim, #888); margin-bottom: 2px; }
+    .chunked-progress-track { background: var(--bg-alt, #222); border-radius: 4px; height: 6px; overflow: hidden; }
+    .chunked-progress-fill { background: var(--cyan, #0ff); height: 100%; width: 0; transition: width 0.2s; border-radius: 4px; }
+    </style>
+</head>
+<body>
+<div id="kofi-banner" style="display:none; position:sticky; top:0; z-index:9999; background:#161b22; border-bottom:1px solid #30363d; color:#c9d1d9; padding:0.55rem 1rem; font-size:0.85rem; text-align:center;">
+  garlicsaves is free and ad-free. Consider
+  <a href="https://ko-fi.com/earthonion" target="_blank" rel="noopener" style="color:#fbd308; text-decoration:none; font-weight:600;">donating ☕</a> to help keep the server up.
+  <button onclick="document.getElementById('kofi-banner').style.display='none';localStorage.setItem('kofi-banner-dismissed-at',Date.now());" aria-label="dismiss" style="margin-left:0.6rem; background:none; border:0; color:#8b949e; cursor:pointer; font-size:1rem; line-height:1; padding:0 0.3rem;">&times;</button>
+</div>
+<script>(function(){var ts=parseInt(localStorage.getItem('kofi-banner-dismissed-at')||'0',10);if(!ts||Date.now()-ts>3*86400000){var b=document.getElementById('kofi-banner');if(b)b.style.display='block';}})();</script>
+
+    {% if session.get('user_id') %}
+    <nav class="sidebar">
+        <div class="nav-header">
+            <div class="nav-brand"><img src="{{ url_for('static', filename='favicon.svg') }}" alt="" style="height:1.4em;vertical-align:middle;margin-right:0.3em;">garlicsaves</div>
+            <button type="button" class="hamburger" id="hamburger" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+        <div class="nav-collapse" id="nav-collapse">
+            <div class="nav-links">
+                <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
+                {% if workers_online > 0 %}
+                <a href="{{ url_for('decrypt.decrypt') }}">Decrypt</a>
+                <a href="{{ url_for('encrypt.encrypt') }}">Encrypt</a>
+                <a href="{{ url_for('resign.resign') }}">Resign</a>
+                <a href="{{ url_for('createsave.createsave') }}">Create Save</a>
+                <a href="{{ url_for('convert.convert') }}">Convert</a>
+
+                {% endif %}
+                <a href="https://m2k7m.github.io/re-region-web/" target="_blank" rel="noopener">Reregion &#8599;</a>
+                <a href="https://bucanero.github.io/apollo-patcher/" target="_blank" rel="noopener">Patch Save &#8599;</a>
+                <a href="{{ url_for('savedb.browse') }}">Save DB </a>
+                <div class="nav-submenu">
+                    <a href="#" class="nav-submenu-toggle" onclick="event.preventDefault();this.parentElement.classList.toggle('open')">Tools <span class="nav-chevron"></span></a>
+                    <div class="nav-submenu-items">
+                        <a href="{{ url_for('tools.title_lookup') }}">Title ID Lookup</a>
+                        <a href="{{ url_for('tools.fs_browser') }}">Filesystem Browser</a>
+                        <a href="{{ url_for('tools.sfo_viewer') }}">param.sfo Viewer</a>
+                        <a href="{{ url_for('tools.function_lookup') }}">Function Lookup</a>
+                        <a href="{{ url_for('tools.entitlements') }}">Entitlement Dumper</a>
+                        <a href="{{ url_for('tools.syscall_lookup') }}">Syscall Reference</a>
+                        <a href="{{ url_for('tools.error_lookup') }}">Error Code Lookup</a>
+                        <a href="{{ url_for('saveeditor.saveeditor') }}">UE4/UE5 Save Editor</a>
+                        <a href="{{ url_for('tools.webkit_shortcut') }}">WebKit Shortcut ELF</a>
+                        <a href="https://bucanero.github.io/save-decrypters/" target="_blank" rel="noopener">Save Decrypters &#8599;</a>
+                    </div>
+                </div>
+                <a href="{{ url_for('contribute.contribute') }}">Contribute</a>
+                <a href="{{ url_for('main.about') }}">About</a>
+                {% if session.get('is_admin') %}
+                <a href="{{ url_for('admin_web.dashboard') }}">Admin</a>
+                {% endif %}
+            </div>
+            <div class="nav-social">
+                <a href="https://discord.gg/WAjsqN5FUb" target="_blank" rel="noopener" title="Discord" aria-label="Discord">
+                    <svg width="22" height="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>
+                </a>
+            </div>
+            <div class="nav-workers">
+                {% if workers_online > 0 %}
+                <span style="color: var(--green);">&#9679;</span> PS4: {{ ps4_workers }}, PS5: {{ ps5_workers }}
+                {% else %}
+                <span style="color: var(--red);">&#9679;</span> No workers online
+                {% endif %}
+            </div>
+            <form method="POST" action="{{ url_for('auth.logout') }}" class="nav-logout">
+                <button type="submit">Logout ({{ session.get('username', '') }})</button>
+            </form>
+        </div>
+    </nav>
+    {% else %}
+    <nav class="topbar">
+        <div class="nav-brand"><img src="{{ url_for('static', filename='favicon.svg') }}" alt="" style="height:1.4em;vertical-align:middle;margin-right:0.3em;">garlicsaves</div>
+        <div class="topbar-btns">
+            <div class="topbar-dropdown">
+                <a href="#" class="topbar-dropdown-toggle" onclick="event.preventDefault();this.parentElement.classList.toggle('open')" style="font-size:0.85rem; color:var(--text-2); text-decoration:none;">Tools <span class="nav-chevron"></span></a>
+                <div class="topbar-dropdown-menu">
+                    <a href="{{ url_for('tools.title_lookup') }}">Title ID Lookup</a>
+                    <a href="{{ url_for('tools.fs_browser') }}">Filesystem Browser</a>
+                    <a href="{{ url_for('tools.sfo_viewer') }}">param.sfo Viewer</a>
+                    <a href="{{ url_for('tools.function_lookup') }}">Function Lookup</a>
+                    <a href="{{ url_for('tools.entitlements') }}">Entitlement Dumper</a>
+                    <a href="{{ url_for('tools.syscall_lookup') }}">Syscall Reference</a>
+                    <a href="{{ url_for('tools.webkit_shortcut') }}">WebKit Shortcut ELF</a>
+                        <a href="https://bucanero.github.io/save-decrypters/" target="_blank" rel="noopener">Save Decrypters &#8599;</a>
+                </div>
+            </div>
+            <a href="{{ url_for('main.about') }}" class="btn-about" style="font-size:0.85rem; color:var(--text-2); text-decoration:none;">About</a>
+            {% if not hide_signin %}<a href="{{ url_for('auth.login') }}" class="btn-signin">Sign In</a>{% endif %}
+        </div>
+    </nav>
+    {% endif %}
+
+    <main>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message | safe }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        {% if admin_messages %}
+        <div class="admin-messages">
+            {% for m in admin_messages %}
+            <div class="flash flash-{{ m.level }}" data-msg-id="{{ m.id }}" style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.75rem">
+                <div style="flex:1; white-space: pre-wrap; word-break: break-word">{{ m.message | linkify }}</div>
+                <button onclick="fetch('/messages/{{ m.id }}/dismiss',{method:'POST'}).then(()=>this.closest('.flash').remove())" style="background:transparent;border:0;color:inherit;cursor:pointer;font-size:1.1rem;line-height:1;padding:0 0.25rem" title="Dismiss" aria-label="Dismiss">×</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if maintenance %}
+        <div class="flash flash-info" style="background:linear-gradient(90deg,rgba(99,102,241,0.18),rgba(6,182,212,0.18));border-left:4px solid var(--cyan, #06b6d4);padding:0.7rem 1rem;margin:0 0 0.75rem;border-radius:6px;display:flex;align-items:center;gap:0.7rem">
+            
+            <div style="flex:1">
+                <strong>Scheduled maintenance</strong>
+                {% if maintenance.scheduled_at %}
+                at <span class="maint-time" data-utc="{{ maintenance.scheduled_at }}">{{ maintenance.scheduled_at }}</span>
+                {% endif %}
+                — expect ~{{ maintenance.duration_min or 15 }} min of downtime. Thank you for your patience!
+            </div>
+        </div>
+        <script>
+        // Localize the scheduled time for the viewer's tz.
+        (function(){
+            var el = document.querySelector('.maint-time');
+            if (!el) return;
+            var d = new Date(el.dataset.utc);
+            if (isNaN(d)) return;
+            el.textContent = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZoneName:'short'});
+        })();
+        </script>
+        {% endif %}
+
+        {% if workers_online == 0 and session.get('user_id') %}
+        <div class="flash flash-warning">No workers available. <a href="{{ url_for('contribute.contribute') }}">Consider contributing!</a></div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+
+    <footer>
+        {% block footer_text %}<p>garlicsaves · <a href="{{ url_for('main.disclaimer') }}">Disclaimer</a></p>{% endblock %}
+    </footer>
+
+    <script src="{{ url_for('static', filename='chunked-upload.js') }}?v=winpaths"></script>
+    <script>
+    const hamburger = document.getElementById('hamburger');
+    const navCollapse = document.getElementById('nav-collapse');
+    if (hamburger) {
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            navCollapse.classList.toggle('open');
+        });
+    }
+
+    // Close topbar dropdown on click outside
+    document.addEventListener('click', e => {
+        document.querySelectorAll('.topbar-dropdown.open').forEach(dd => {
+            if (!dd.contains(e.target)) dd.classList.remove('open');
+        });
+    });
+
+    // Folder browse links
+    document.querySelectorAll('[data-browse-folder]').forEach(link => {
+        link.addEventListener('click', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            const drop = link.closest('.file-drop');
+            const folderInput = drop.querySelector('[data-folder-input]');
+            if (folderInput) folderInput.click();
+        });
+    });
+
+    // Folder input change handler
+    document.querySelectorAll('[data-folder-input]').forEach(folderInput => {
+        folderInput.addEventListener('change', () => {
+            if (!folderInput.files.length) return;
+            const drop = folderInput.closest('.file-drop');
+            const fileInput = drop.querySelector('input[type="file"]:not([data-folder-input])');
+            const sel = drop.querySelector('.file-drop-selected');
+            if (fileInput) fileInput.required = false;
+            sel.textContent = folderInput.files.length + ' files from folder';
+            drop.style.borderColor = 'var(--cyan)';
+            drop.style.borderStyle = 'solid';
+            setTimeout(() => { drop.style.borderColor = ''; drop.style.borderStyle = ''; }, 800);
+        });
+    });
+
+    // Auto-detect folder drops on all file-drop zones
+    document.querySelectorAll('[data-folder-drop]').forEach(drop => {
+        drop.addEventListener('drop', async e => {
+            if (!e.dataTransfer || !e.dataTransfer.items) return;
+            const items = [...e.dataTransfer.items];
+            const hasDir = items.some(i => {
+                const entry = i.webkitGetAsEntry && i.webkitGetAsEntry();
+                return entry && entry.isDirectory;
+            });
+            if (!hasDir) return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            const dt = new DataTransfer();
+            async function readDir(entry, path) {
+                if (entry.isFile) {
+                    const file = await new Promise(r => entry.file(r));
+                    dt.items.add(new File([file], path + file.name, {type: file.type}));
+                } else if (entry.isDirectory) {
+                    const reader = entry.createReader();
+                    const entries = await new Promise(r => reader.readEntries(r));
+                    for (const e of entries) await readDir(e, path + entry.name + '/');
+                }
+            }
+            for (const item of items) {
+                const entry = item.webkitGetAsEntry();
+                if (entry) await readDir(entry, '');
+            }
+            const folderInput = drop.querySelector('[data-folder-input]');
+            const fileInput = drop.querySelector('input[type="file"]:not([data-folder-input])');
+            const sel = drop.querySelector('.file-drop-selected');
+            if (folderInput) {
+                folderInput.files = dt.files;
+                folderInput.dispatchEvent(new Event('change'));
+            }
+            if (fileInput) fileInput.required = false;
+            sel.textContent = dt.files.length + ' files from folder';
+            drop.classList.remove('dragover');
+            drop.style.borderColor = 'var(--cyan)';
+            drop.style.borderStyle = 'solid';
+            setTimeout(() => { drop.style.borderColor = ''; drop.style.borderStyle = ''; }, 800);
+        }, true);
+    });
+
+    document.querySelectorAll('.file-drop').forEach(drop => {
+        const input = drop.querySelector('input[type="file"]');
+        const sel = drop.querySelector('.file-drop-selected');
+        if (!input) return;
+
+        drop.addEventListener('click', e => {
+            if (e.target === input || e.target.closest('[data-browse-folder], #browse-folder')) return;
+            input.click();
+        });
+
+        drop.addEventListener('dragover', e => {
+            e.preventDefault();
+            drop.classList.add('dragover');
+        });
+
+        drop.addEventListener('dragleave', e => {
+            if (!drop.contains(e.relatedTarget)) drop.classList.remove('dragover');
+        });
+
+        drop.addEventListener('drop', e => {
+            e.preventDefault();
+            drop.classList.remove('dragover');
+            input.files = e.dataTransfer.files;
+            input.dispatchEvent(new Event('change'));
+        });
+
+        input.addEventListener('change', () => {
+            if (!input.files.length) { sel.textContent = ''; return; }
+            if (input.files.length === 1) {
+                sel.textContent = input.files[0].name;
+            } else {
+                sel.textContent = input.files.length + ' files selected';
+            }
+            drop.style.borderColor = 'var(--cyan)';
+            drop.style.borderStyle = 'solid';
+            setTimeout(() => { drop.style.borderColor = ''; drop.style.borderStyle = ''; }, 800);
+        });
+    });
+    </script>
+{% block supporters_footer %}
+{% if footer_supporters or footer_anonymous_count %}
+<div style="max-width:640px; margin:40px auto 8px; padding:0 16px; text-align:center;">
+    <p style="font-size:0.75rem; color:var(--text-3, #6e7681); margin-bottom:0.5rem; font-family:ui-monospace,monospace;">supporters keeping the lights on · <a href="/donate" style="color:var(--accent, #fbd308); text-decoration:none;">☕ join them</a></p>
+    <div style="display:flex; flex-wrap:wrap; gap:0.25rem 0.35rem; justify-content:center;">
+        {% for s in footer_supporters %}<span style="font-size:0.72rem; padding:0.08rem 0.45rem; border:1px solid var(--border, #30363d); border-radius:999px; color:var(--text-2);{% if s.is_subscription_payment %} border-color:var(--accent, #fbd308); color:var(--accent, #fbd308);{% endif %}"{% if s.is_subscription_payment and s.tier_name %} title="{{ s.tier_name }}"{% endif %}>{{ s.from_name }}{% if s.count and s.count > 1 %} <span style="opacity:0.7; font-size:0.85em;">×{{ s.count }}</span>{% endif %}</span>{% endfor %}
+        {% if footer_anonymous_count %}<span style="font-size:0.72rem; color:var(--text-3, #6e7681); align-self:center;">+ {{ footer_anonymous_count }} anonymous</span>{% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+<footer style="margin:40px 0 16px;color:#888;font-family:ui-monospace,monospace;font-size:11px;text-align:center">PGP: <a href="/.well-known/pgp.asc" style="color:#888">25F9 762D 2597 2627 15B9 9200 71AE 4A88 D93C C98A</a></footer>
+<script>
+document.addEventListener('click', function(e) {
+    var el = e.target.closest('.rp-copy');
+    if (!el) return;
+    var text = el.textContent.replace(/^RP:\s*/, '').replace(/^Copied!$/, '');
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(function() {
+        var orig = el.textContent;
+        el.textContent = 'Copied!';
+        setTimeout(function() { el.textContent = orig; }, 1000);
+    });
+});
+</script>
+</body>
+</html>

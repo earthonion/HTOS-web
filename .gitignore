@@ -1,0 +1,20 @@
+__pycache__/
+*.pyc
+.venv/
+*.db
+workspace/
+logs/
+UserSaves/
+.env
+.env*
+static/*.pkg
+static/*.elf
+titles.db
+*.bak.*
+=*
+prebuilt/
+
+# Backup files
+*.pre-*
+*.bak-*
+*.bak

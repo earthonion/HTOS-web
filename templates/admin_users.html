@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Users — Admin{% endblock %}
+{% block content %}
+<h1>User Management <span style="font-size: 0.85rem; font-weight: 400; color: var(--text-2);">{{ total }} total</span></h1>
+
+<form method="GET" style="display:flex; gap:0.5rem; margin-bottom:1.5rem; align-items:center;">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search by username..." style="flex:1; min-width:0;">
+    <button type="submit">Search</button>
+</form>
+
+{% if users %}
+<div style="overflow-x: auto;">
+<table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+    <thead>
+        <tr>
+            <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">ID</th>
+            <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Username</th>
+            <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Status</th>
+            <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Created</th>
+            <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for u in users %}
+        <tr data-username="{{ u.username }}" data-banned="{{ u.banned }}">
+            <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-family:monospace;">{{ u.id }}</td>
+            <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border);">{{ u.username }}</td>
+            <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border);">
+                {% if u.banned %}
+                <span class="status-failed">BANNED</span>
+                {% else %}
+                <span class="status-done">active</span>
+                {% endif %}
+            </td>
+            <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.78rem;">{{ u.created_at }}</td>
+            <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border);">
+                {% if u.banned %}
+                <button class="btn-small" onclick="toggleBan('{{ u.username }}', false, this)" style="background:var(--bg-1);">Unban</button>
+                {% else %}
+                <button class="btn-small" onclick="toggleBan('{{ u.username }}', true, this)" style="background:rgba(239,68,68,0.15); color:var(--red);">Ban</button>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<div style="display:flex; gap:1rem; margin-top:1rem; justify-content:center;">
+    {% if page > 1 %}
+    <a href="?q={{ q }}&page={{ page - 1 }}">&larr; Previous</a>
+    {% endif %}
+    <span style="color:var(--text-2); font-size:0.85rem;">Page {{ page }} / {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="?q={{ q }}&page={{ page + 1 }}">Next &rarr;</a>
+    {% endif %}
+</div>
+{% elif q %}
+<p style="color: var(--text-2);">No users found for "{{ q }}".</p>
+{% else %}
+<p style="color: var(--text-2);">No users.</p>
+{% endif %}
+
+<div style="margin-top:1.5rem;">
+    <a href="{{ url_for('admin_web.dashboard') }}">&larr; Back to Admin</a>
+</div>
+
+<script>
+function toggleBan(username, ban, btn) {
+    if (ban && !confirm('Ban user "' + username + '"? They will be logged out immediately.')) return;
+    var url = ban ? '/admin/ban-user' : '/admin/unban-user';
+    btn.disabled = true;
+    btn.textContent = '...';
+    fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username: username})
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.ok) {
+            var row = btn.closest('tr');
+            var statusCell = row.children[2];
+            if (ban) {
+                statusCell.innerHTML = '<span class="status-failed">BANNED</span>';
+                btn.textContent = 'Unban';
+                btn.style.background = 'var(--bg-1)';
+                btn.style.color = '';
+                btn.onclick = function() { toggleBan(username, false, btn); };
+            } else {
+                statusCell.innerHTML = '<span class="status-done">active</span>';
+                btn.textContent = 'Ban';
+                btn.style.background = 'rgba(239,68,68,0.15)';
+                btn.style.color = 'var(--red)';
+                btn.onclick = function() { toggleBan(username, true, btn); };
+            }
+        } else {
+            alert('Error: ' + d.error);
+        }
+        btn.disabled = false;
+    }).catch(function() {
+        alert('Request failed');
+        btn.disabled = false;
+        btn.textContent = ban ? 'Ban' : 'Unban';
+    });
+}
+</script>
+{% endblock %}

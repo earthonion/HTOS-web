@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}PS5 Update Lookup — Tools{% endblock %}
+{% block extra_head %}
+<style>
+.psu-form { max-width: 760px; margin-bottom: 1.4rem; }
+.psu-form label { display:block; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-3); margin: 0 0 0.35rem; }
+.psu-form input[type=url] { width:100%; padding:0.55rem 0.7rem; font-family:'JetBrains Mono', monospace; font-size:0.82rem; background:var(--surface, #161b22); color:var(--text-1); border:1px solid var(--border); border-radius:6px; }
+.psu-form .hint { color:var(--text-3); font-size:0.78rem; margin-top:0.4rem; line-height:1.5; }
+.psu-form .actions { margin-top:0.8rem; display:flex; gap:0.5rem; }
+.psu-error { background:rgba(239, 68, 68, 0.1); border:1px solid rgba(239,68,68,0.35); color:#fca5a5; padding:0.7rem 0.9rem; border-radius:6px; font-size:0.85rem; margin-bottom:1.2rem; }
+.psu-result { max-width: 1000px; }
+.psu-pkg-card { border:1px solid var(--border); border-radius:8px; padding:1rem 1.1rem; margin-bottom:0.9rem; background:var(--surface, #161b22); }
+.psu-pkg-card h3 { font-size:1.05rem; margin:0 0 0.6rem; color:var(--text-1); display:flex; align-items:baseline; gap:0.6rem; flex-wrap:wrap; }
+.psu-pkg-card h3 .ver { color: var(--indigo-light, #818cf8); font-variant-numeric: tabular-nums; font-size:0.92rem; font-weight:500; }
+.psu-pkg-card h3 .tag { font-size:0.7rem; text-transform:uppercase; letter-spacing:0.06em; padding:0.1rem 0.5rem; border-radius:999px; border:1px solid var(--border); color:var(--text-3); font-weight:400; }
+.psu-pkg-card .grid { display:grid; grid-template-columns: max-content 1fr; gap: 0.3rem 1.1rem; font-size:0.84rem; }
+.psu-pkg-card .grid dt { color:var(--text-3); font-size:0.78rem; padding-top:0.05rem; }
+.psu-pkg-card .grid dd { margin:0; color:var(--text-1); font-variant-numeric: tabular-nums; word-break: break-all; }
+.psu-pkg-card .grid dd code { font-size:0.78rem; background:transparent; padding:0; }
+.psu-pkg-card .pkg-url-row { display:flex; gap:0.4rem; align-items:center; }
+.psu-pkg-card .pkg-url-row a { color:var(--indigo-light, #818cf8); text-decoration:none; word-break:break-all; font-size:0.78rem; }
+.psu-pkg-card .pkg-url-row a:hover { text-decoration:underline; }
+.psu-pkg-card .pkg-url-row .copy-btn { flex-shrink:0; font-size:0.7rem; padding:0.15rem 0.45rem; background:transparent; color:var(--text-3); border:1px solid var(--border); border-radius:4px; cursor:pointer; }
+.psu-pkg-card .pkg-url-row .copy-btn:hover { color:var(--text-1); border-color:var(--indigo-light, #818cf8); }
+.psu-pkg-card .pkg-url-row .copy-btn.copied { color: #10b981; border-color: #10b981; }
+.psu-features { display:flex; gap:0.4rem; flex-wrap:wrap; margin-top:0.6rem; }
+.psu-features .feat { font-size:0.72rem; padding:0.12rem 0.5rem; border-radius:999px; border:1px solid var(--border); color:var(--text-3); }
+.psu-features .feat.on { border-color: var(--indigo-light, #818cf8); color: var(--indigo-light, #818cf8); }
+.psu-section { margin-top:1.6rem; }
+.psu-section h2 { font-size:0.92rem; font-weight:600; color:var(--text-2); margin:0 0 0.7rem; text-transform:uppercase; letter-spacing:0.06em; }
+.psu-empty { color:var(--text-3); font-size:0.85rem; padding:0.4rem 0; }
+</style>
+{% endblock %}
+{% block content %}
+
+<h1 style="margin-bottom:0.4rem;">PS5 Update Lookup</h1>
+<p style="color:var(--text-2); margin-bottom:1.4rem; max-width:760px;">
+    Look up the latest update for a PS5 title from its version XML or <code>_sc.pkg</code> URL.
+    Powered by <a href="https://git.etawen.dev/andshrew/PS5-Updates-Python" target="_blank">andshrew/PS5-Updates-Python</a>.
+</p>
+
+<form method="get" action="{{ url_for('tools.ps5_updates') }}" class="psu-form">
+    <label for="urlInput">Update XML or _sc.pkg URL</label>
+    <input type="url" id="urlInput" name="url" required
+           placeholder="https://sgst.prod.dl.playstation.net/sgst/prod/00/np/PPSAxxxxx_00/<uuid>-version.xml"
+           value="{{ url or '' }}">
+    <p class="hint">
+        Get the URL from the title's <code>app_sc.pkg</code> on a game disc, the <code>entitlement.db</code>
+        from an exploitable console, or a previously-known update <code>_sc.pkg</code>. URLs from <code>sgst.prod.dl.playstation.net</code>,
+        <code>gst.prod.dl.playstation.net</code>, <code>ares.dl.playstation.net</code>, or <code>zeus.dl.playstation.net</code> are accepted.
+    </p>
+    <div class="actions">
+        <button type="submit" class="btn">Look up</button>
+    </div>
+</form>
+
+{% if error %}
+<div class="psu-error"><strong>Error:</strong> {{ error }}</div>
+{% endif %}
+
+{% if result %}
+<div class="psu-result">
+    {% if result.title_id %}
+        <h2 style="font-size:1rem; margin:0 0 0.4rem; color:var(--text-2);">
+            {{ result.latest.pkg.name if result.latest and result.latest.pkg else (result.name or 'Title') }}
+        </h2>
+        <p style="color:var(--text-3); font-size:0.85rem; margin:0 0 1.2rem;">
+            <code>{{ result.title_id }}</code>{% if result.content_id %} &middot; <code>{{ result.content_id }}</code>{% endif %}
+        </p>
+    {% endif %}
+
+    <div class="psu-section">
+        <h2>Latest update</h2>
+        {% set pkgs = result.packages if result.packages else ([result.latest] if result.latest else []) %}
+        {% if not pkgs %}
+            <div class="psu-empty">No update packages found.</div>
+        {% endif %}
+        {% for p in pkgs %}
+            {% if p %}
+            <div class="psu-pkg-card">
+                <h3>
+                    <span class="ver">{{ p.version }}</span>
+                    {% if loop.first and result.packages and result.packages|length > 1 %}<span class="tag">Latest</span>{% endif %}
+                </h3>
+                <dl class="grid">
+                    {% if p.update_size %}<dt>Size</dt><dd>{{ p.update_size }}</dd>{% endif %}
+                    {% if p.system_version %}<dt>System</dt><dd>{{ p.system_version }}</dd>{% endif %}
+                    {% if p.pkg and p.pkg.creation_date %}<dt>Created</dt><dd>{{ p.pkg.creation_date }}</dd>{% endif %}
+                    {% if p.pkg and p.pkg.content_version %}<dt>Content ver</dt><dd>{{ p.pkg.content_version }}</dd>{% endif %}
+                    {% if p.pkg_url %}
+                        <dt>pkg URL</dt>
+                        <dd class="pkg-url-row">
+                            <a href="{{ p.pkg_url }}" target="_blank" rel="noopener">{{ p.pkg_url }}</a>
+                            <button type="button" class="copy-btn" data-copy="{{ p.pkg_url }}">copy</button>
+                        </dd>
+                    {% endif %}
+                </dl>
+                {% if p.pkg %}
+                <div class="psu-features">
+                    {% if p.pkg.supports_120hz is not none %}<span class="feat {% if p.pkg.supports_120hz %}on{% endif %}">120 Hz</span>{% endif %}
+                    {% if p.pkg.supports_pssr is not none %}<span class="feat {% if p.pkg.supports_pssr %}on{% endif %}">PSSR</span>{% endif %}
+                    {% if p.pkg.supports_vrr is not none %}<span class="feat {% if p.pkg.supports_vrr %}on{% endif %}">VRR</span>{% endif %}
+                    {% if p.pkg.supports_hdr is not none %}<span class="feat {% if p.pkg.supports_hdr %}on{% endif %}">HDR</span>{% endif %}
+                    {% if p.pkg.supports_power_saver is not none %}<span class="feat {% if p.pkg.supports_power_saver %}on{% endif %}">Power Saver</span>{% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    {% if result.additional_content %}
+    <div class="psu-section">
+        <h2>Additional Content ({{ result.additional_content|length }})</h2>
+        {% for ac in result.additional_content %}
+        <div class="psu-pkg-card">
+            <h3>
+                {{ ac.name or 'AdditionalContent' }}
+                <span class="ver">{{ ac.latest.version if ac.latest else '' }}</span>
+            </h3>
+            <dl class="grid">
+                {% if ac.content_id %}<dt>Content ID</dt><dd><code>{{ ac.content_id }}</code></dd>{% endif %}
+                {% if ac.latest and ac.latest.update_size %}<dt>Size</dt><dd>{{ ac.latest.update_size }}</dd>{% endif %}
+                {% if ac.latest and ac.latest.pkg_url %}
+                    <dt>pkg URL</dt>
+                    <dd class="pkg-url-row">
+                        <a href="{{ ac.latest.pkg_url }}" target="_blank" rel="noopener">{{ ac.latest.pkg_url }}</a>
+                        <button type="button" class="copy-btn" data-copy="{{ ac.latest.pkg_url }}">copy</button>
+                    </dd>
+                {% endif %}
+            </dl>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<script>
+document.addEventListener('click', function(e) {
+    var b = e.target.closest('.copy-btn');
+    if (!b) return;
+    var v = b.getAttribute('data-copy') || '';
+    navigator.clipboard.writeText(v).then(function() {
+        b.classList.add('copied');
+        b.textContent = 'copied';
+        setTimeout(function() { b.classList.remove('copied'); b.textContent = 'copy'; }, 1400);
+    });
+});
+</script>
+
+{% endblock %}

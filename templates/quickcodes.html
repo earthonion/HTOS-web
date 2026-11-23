@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Quick Codes{% endblock %}
+{% block content %}
+<h1>Quick Codes</h1>
+<p>Apply Save Wizard-style quick codes to decrypted save files. No PS4 connection required.</p>
+
+<form method="POST" enctype="multipart/form-data" class="operation-form">
+    <label>Quick Codes
+        <textarea name="codes" rows="12" required placeholder="80010008 EA372703
+00140000 00000000
+180000E8 0000270F"></textarea>
+    </label>
+
+    <div class="file-drop">
+        <input type="file" name="files" multiple required>
+        <svg class="file-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <div class="file-drop-text">Drop save files here or <strong>browse</strong></div>
+        <div class="file-drop-hint">Decrypted save files</div>
+        <div class="file-drop-selected"></div>
+    </div>
+
+    <button type="submit">Apply Codes</button>
+</form>
+{% endblock %}

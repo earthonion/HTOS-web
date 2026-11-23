@@ -1,0 +1,2 @@
+class GDapiError(Exception):
+    pass

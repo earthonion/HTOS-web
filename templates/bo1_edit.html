@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block title %}BO1 PRF Editor{% endblock %}
+{% block extra_head %}
+<style>
+.bo1-layout { display: grid; grid-template-columns: 240px 1fr; gap: 1rem; }
+.bo1-side {
+    background: var(--surface, #161b22);
+    border: 1px solid var(--border, #30363d);
+    border-radius: 6px;
+    padding: 0.75rem;
+    font-size: 0.9rem;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+.bo1-side h3 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-3, #6e7681);
+    margin: 0 0 0.5rem;
+    font-weight: 600;
+}
+.bo1-side ul { list-style: none; margin: 0 0 1rem; padding: 0; }
+.bo1-side li { padding: 0.3rem 0.4rem; border-radius: 4px; cursor: pointer; color: var(--text-1); }
+.bo1-side li:hover { background: var(--indigo-glow, rgba(99,102,241,0.08)); }
+.bo1-side li.active { background: rgba(251,211,8,0.1); color: var(--accent, #fbd308); }
+.bo1-side li .sz { color: var(--text-3, #6e7681); font-size: 0.75rem; float: right; }
+
+.bo1-main {
+    background: var(--surface, #161b22);
+    border: 1px solid var(--border, #30363d);
+    border-radius: 6px;
+    padding: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 70vh;
+}
+.bo1-toolbar {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.6rem;
+    flex-wrap: wrap;
+}
+.bo1-toolbar select, .bo1-toolbar button {
+    font-family: inherit;
+    font-size: 0.85rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 4px;
+    border: 1px solid var(--border, #30363d);
+    background: var(--surface, #161b22);
+    color: var(--text-1);
+    cursor: pointer;
+}
+.bo1-toolbar button.primary {
+    border-color: var(--accent, #fbd308);
+    color: var(--accent, #fbd308);
+}
+.bo1-toolbar .status { color: var(--text-3, #6e7681); font-size: 0.8rem; margin-left: auto; }
+.bo1-editor {
+    flex: 1;
+    width: 100%;
+    font-family: 'Fira Code', ui-monospace, monospace;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    background: #0d1117;
+    color: var(--text-1);
+    border: 1px solid var(--border, #30363d);
+    border-radius: 4px;
+    padding: 0.8rem;
+    resize: vertical;
+    min-height: 400px;
+}
+.bo1-empty { color: var(--text-3, #6e7681); text-align: center; padding: 4rem 1rem; }
+.bo1-encrypt {
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background: rgba(251,211,8,0.06);
+    border: 1px solid rgba(251,211,8,0.25);
+    border-radius: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.bo1-encrypt p { margin: 0; font-size: 0.9rem; }
+.bo1-encrypt button {
+    font-family: inherit;
+    background: var(--accent, #fbd308);
+    color: #0d1117;
+    border: 0;
+    padding: 0.5rem 1.1rem;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+}
+@media (max-width: 640px) {
+    .bo1-layout { grid-template-columns: 1fr; }
+    .bo1-side { max-height: 200px; }
+}
+</style>
+{% endblock %}
+{% block content %}
+<h1>BO1 PRF Editor</h1>
+<p style="color: var(--text-2); margin-bottom: 1rem;">Pick a <code>.PRF</code> file to edit its <code>set key value</code> lines. Changes are staged &mdash; nothing hits the console until you hit <strong>Encrypt &amp; Download</strong>.</p>
+
+<div class="bo1-layout">
+    <aside class="bo1-side">
+        <h3>PRF files ({{ prfs|length }})</h3>
+        {% if prfs %}
+        <ul id="prf-list">
+            {% for f in prfs %}
+            <li data-rel="{{ f.rel }}"><span>{{ f.name }}</span><span class="sz">{{ f.size }}</span></li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p style="color: var(--text-3, #6e7681); font-size: 0.85rem;">No .PRF files found in this save.</p>
+        {% endif %}
+
+        {% if presets %}
+        <h3 style="margin-top: 1rem;">Presets</h3>
+        <select id="preset-select" style="width: 100%; padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border, #30363d); background: var(--surface, #161b22); color: var(--text-1); font-family: inherit;">
+            <option value="">— pick a preset —</option>
+            {% for p in presets %}
+            <option value="{{ p.slug }}">{{ p.name }}</option>
+            {% endfor %}
+        </select>
+        <p style="font-size: 0.75rem; color: var(--text-3, #6e7681); margin: 0.4rem 0 0;">Loads into the current editor. Save to apply.</p>
+        {% endif %}
+    </aside>
+
+    <section class="bo1-main">
+        <div class="bo1-toolbar" id="editor-toolbar" style="display:none;">
+            <span id="editor-rel" style="font-family: monospace; color: var(--accent, #fbd308);">—</span>
+            <button type="button" id="btn-save" class="primary">Save</button>
+            <span class="status" id="editor-status"></span>
+        </div>
+        <textarea class="bo1-editor" id="editor" spellcheck="false" style="display:none;" placeholder="Pick a PRF from the left to start editing."></textarea>
+        <div class="bo1-empty" id="editor-empty">
+            {% if prfs %}Pick a PRF from the left to start editing.{% else %}No PRFs to edit.{% endif %}
+        </div>
+    </section>
+</div>
+
+<form method="POST" action="{{ url_for('bo1.bo1_edit_encrypt', job_id=job_id) }}" class="bo1-encrypt">
+    <p>Done editing? Re-encrypt the whole tree to <code>{{ target_account_id | to_usb_id }}</code> and get your file.</p>
+    <button type="submit">Encrypt &amp; Download</button>
+</form>
+
+<script>
+(function() {
+    const JOB_ID = "{{ job_id }}";
+    const list = document.getElementById('prf-list');
+    const editor = document.getElementById('editor');
+    const empty = document.getElementById('editor-empty');
+    const toolbar = document.getElementById('editor-toolbar');
+    const relLabel = document.getElementById('editor-rel');
+    const status = document.getElementById('editor-status');
+    const saveBtn = document.getElementById('btn-save');
+    const presetSelect = document.getElementById('preset-select');
+    let current = null;
+
+    function setStatus(msg, isError) {
+        status.textContent = msg || '';
+        status.style.color = isError ? '#ff7b72' : '';
+    }
+
+    async function loadPrf(rel) {
+        setStatus('loading…');
+        try {
+            const r = await fetch(`/bo1/edit/${JOB_ID}/prf?rel=` + encodeURIComponent(rel));
+            if (!r.ok) throw new Error('load failed (' + r.status + ')');
+            const d = await r.json();
+            current = rel;
+            editor.value = d.text;
+            editor.style.display = '';
+            empty.style.display = 'none';
+            toolbar.style.display = '';
+            relLabel.textContent = rel;
+            setStatus('loaded ' + d.size + ' bytes');
+        } catch (e) {
+            setStatus('load failed', true);
+        }
+    }
+
+    async function savePrf() {
+        if (!current) return;
+        setStatus('saving…');
+        saveBtn.disabled = true;
+        try {
+            const r = await fetch(`/bo1/edit/${JOB_ID}/save`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({rel: current, text: editor.value}),
+            });
+            if (!r.ok) throw new Error('save failed (' + r.status + ')');
+            const d = await r.json();
+            setStatus('saved (' + d.size + ' bytes encrypted)');
+        } catch (e) {
+            setStatus('save failed', true);
+        } finally {
+            saveBtn.disabled = false;
+        }
+    }
+
+    async function loadPreset(slug) {
+        if (!slug) return;
+        setStatus('loading preset…');
+        try {
+            const r = await fetch(`/bo1/edit/${JOB_ID}/preset?slug=` + encodeURIComponent(slug));
+            if (!r.ok) throw new Error('preset load failed (' + r.status + ')');
+            const d = await r.json();
+            editor.value = d.text;
+            setStatus('preset loaded — hit Save to apply');
+        } catch (e) {
+            setStatus('preset load failed', true);
+        }
+    }
+
+    if (list) {
+        list.addEventListener('click', e => {
+            const li = e.target.closest('li[data-rel]');
+            if (!li) return;
+            list.querySelectorAll('li').forEach(x => x.classList.remove('active'));
+            li.classList.add('active');
+            loadPrf(li.dataset.rel);
+        });
+    }
+    saveBtn.addEventListener('click', savePrf);
+    if (presetSelect) {
+        presetSelect.addEventListener('change', () => {
+            loadPreset(presetSelect.value);
+            presetSelect.value = '';
+        });
+    }
+
+    // Save on Ctrl+S / Cmd+S when the editor has focus.
+    editor.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            savePrf();
+        }
+    });
+})();
+</script>
+{% endblock %}

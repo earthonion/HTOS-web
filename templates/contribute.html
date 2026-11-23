@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Contribute{% endblock %}
+{% block content %}
+<h1>Contribute</h1>
+<p>Run a worker on your PS4 or PS5 to help process save jobs. Generate a worker key and set it in your worker's <code>config.ini</code>.</p>
+
+{% if new_key %}
+<section class="panel" style="border-color: var(--green); background: var(--green-bg);">
+    <h2>New Worker Key</h2>
+    <p style="color: var(--text-1); margin-bottom: 0.5rem;">Copy this key now. It will not be shown again.</p>
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <code id="new-key" style="flex: 1; padding: 0.5rem 0.75rem; font-size: 0.82rem; word-break: break-all;">{{ new_key }}</code>
+        <button type="button" onclick="copyKey()" class="btn-small" style="white-space: nowrap;">Copy</button>
+    </div>
+</section>
+<section class="panel">
+    <h2>Config</h2>
+    <p style="color: var(--text-1); margin-bottom: 0.5rem;">Save as <code>/data/garlic/config.ini</code> on your console.</p>
+    <div style="position: relative;">
+        <pre id="config-worker" style="background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 1rem; font-family: 'Fira Code', monospace; font-size: 0.82rem; line-height: 1.7; color: var(--text-1); overflow-x: auto;">serverHost=garlicsaves.com
+serverPort=80
+workerKey={{ new_key }}
+pollInterval=30</pre>
+        <button type="button" onclick="copyEl('config-worker')" class="btn-small" style="position: absolute; top: 0.5rem; right: 0.5rem;">Copy</button>
+    </div>
+</section>
+<script>
+function copyKey() {
+    const key = document.getElementById('new-key').textContent;
+    navigator.clipboard.writeText(key);
+    const btn = event.target;
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+}
+function copyEl(id) {
+    const text = document.getElementById(id).textContent;
+    navigator.clipboard.writeText(text);
+    const btn = event.target;
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+}
+</script>
+{% endif %}
+
+<section class="panel">
+    <h2>Generate Key</h2>
+    {% if key_generation_enabled %}
+    <form method="POST" action="{{ url_for('contribute.contribute') }}" class="inline-form">
+        <input type="text" name="name" placeholder="Key name (e.g. My PS4)" required maxlength="64">
+        <button type="submit">Generate</button>
+    </form>
+    {% else %}
+    <p style="color: var(--text-2);">Worker key generation is currently disabled. Existing keys continue to work.</p>
+    {% endif %}
+</section>
+
+<details class="panel setup-dropdown">
+    <summary><h2>Worker Setup (PS4 &amp; PS5)</h2></summary>
+    <p><a href="https://git.earthonion.com/earthonion/garlic-worker/releases" target="_blank">Download garlic-worker</a> — grab <code>garlic-worker-ps4.elf</code> or <code>garlic-worker-ps5.elf</code> for your console.</p>
+    <ol style="color: var(--text-2); font-size: 0.85rem; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.4rem;">
+        <li>Make sure your console is jailbroken and running a payload loader — <a href="https://github.com/ps4-payload-dev/elfldr" target="_blank">PS4 elfldr</a> / <a href="https://github.com/ps5-payload-dev/elfldr" target="_blank">PS5 elfldr</a> (port 9021)</li>
+        <li>Generate a worker key above</li>
+        <li>Via FTP, create the directory <code>/data/garlic/</code></li>
+        <li>Save your config as <code>/data/garlic/config.ini</code> (or launch the worker once and it will create a default config to edit)</li>
+        <li>Send the ELF to your console: <code>cat garlic-worker-ps4.elf | nc -w 2 &lt;CONSOLE_IP&gt; 9021</code></li>
+        <li>The worker will show a notification and start polling for jobs</li>
+        <li><strong>Recommended:</strong> For PS5, add the ELF to your Y2JB <code>autoloader.txt</code>. For PS4, add it to your Vue-After-Free <code>config.json</code>. This way the worker runs automatically in the background while you play games</li>
+        <li><strong>Tip:</strong> Increase <code>pollInterval</code> in your config (e.g. 60 or 120) to reduce resource usage</li>
+        <li><strong>Tip:</strong> Go to Settings &gt; Power Save Settings and set your console to not enter rest mode automatically, so the worker stays running</li>
+    </ol>
+</details>
+
+<section class="panel">
+    <h2>Your Worker Keys</h2>
+    {% if keys %}
+    <table>
+        <thead>
+            <tr><th>Name</th><th>Status</th><th>Online</th><th>Uptime</th><th>Jobs</th><th>Success Rate</th><th>Created</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for k in keys %}
+            <tr>
+                <td>{{ k.name }}</td>
+                <td>
+                    {% if not k.is_active %}
+                    <span class="status-failed">revoked</span>
+                    {% elif k.is_suspended %}
+                    <span class="status-failed">suspended</span>
+                    {% else %}
+                    <span class="status-done">active</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if k.is_online %}
+                      {% if k.ps4_online and k.ps5_online %}
+                      <span class="status-done">PS4+PS5</span>
+                      {% elif k.ps5_online %}
+                      <span class="status-done">PS5</span>
+                      {% elif k.ps4_online %}
+                      <span class="status-done">PS4</span>
+                      {% else %}
+                      <span class="status-done">{{ k.last_platform | upper }}</span>
+                      {% endif %}
+                    {% else %}
+                    <span style="color: var(--text-2);">offline</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if k.is_online and k.online_since %}
+                    <span class="uptime" data-since="{{ k.online_since }}">—</span>
+                    {% else %}
+                    <span style="color: var(--text-3);">—</span>
+                    {% endif %}
+                </td>
+                <td>{{ k.jobs_completed or 0 }}</td>
+                <td>
+                    {% if k.stats_total > 0 %}
+                    {% set rate = (k.stats_done * 100 / k.stats_total) | round(1) %}
+                    <span style="color: {% if rate >= 90 %}var(--green){% elif rate >= 70 %}var(--amber){% else %}var(--red){% endif %};">{{ rate }}%</span>
+                    <span style="color: var(--text-3); font-size: 0.72rem;">({{ k.stats_done }}/{{ k.stats_total }})</span>
+                    {% else %}
+                    <span style="color: var(--text-3);">—</span>
+                    {% endif %}
+                </td>
+                <td>{{ k.created_at }}</td>
+                <td style="display: flex; flex-direction: column; gap: 0.25rem;">
+                    {% if k.is_suspended %}
+                    <form method="POST" action="{{ url_for('contribute.reactivate_key', key_id=k.id) }}">
+                        <button type="submit" class="btn-small">Reactivate</button>
+                    </form>
+                    {% endif %}
+                    {% if k.is_active %}
+                    <form method="POST" action="{{ url_for('contribute.revoke_key', key_id=k.id) }}">
+                        <button type="submit" class="btn-small btn-danger">Revoke</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No worker keys yet. Generate one to get started.</p>
+    {% endif %}
+</section>
+<script>
+function updateUptimes() {
+    document.querySelectorAll('.uptime[data-since]').forEach(el => {
+        const since = new Date(el.dataset.since + 'Z');
+        const diff = Math.floor((Date.now() - since.getTime()) / 1000);
+        if (diff < 0) { el.textContent = '—'; return; }
+        const d = Math.floor(diff / 86400);
+        const h = Math.floor((diff % 86400) / 3600);
+        const m = Math.floor((diff % 3600) / 60);
+        if (d > 0) el.textContent = d + 'd ' + h + 'h ' + m + 'm';
+        else if (h > 0) el.textContent = h + 'h ' + m + 'm';
+        else el.textContent = m + 'm';
+    });
+}
+updateUptimes();
+setInterval(updateUptimes, 60000);
+</script>
+{% endblock %}

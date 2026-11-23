@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Error Code Lookup — Tools{% endblock %}
+{% block extra_head %}
+<style>
+.search-box { position: relative; max-width: 500px; margin-bottom: 1rem; }
+.search-box input[type="text"] { width: 100%; padding-right: 2.5rem; }
+.search-box .search-icon {
+    position: absolute; right: 0.75rem; top: 50%;
+    transform: translateY(-50%); color: var(--text-3); pointer-events: none;
+}
+.platform-toggle {
+    display: inline-flex; gap: 0; margin-bottom: 1rem;
+    border-radius: var(--r, 8px); overflow: hidden; border: 1px solid var(--border);
+}
+.platform-toggle a {
+    padding: 0.4rem 1rem; font-size: 0.82rem; text-decoration: none;
+    color: var(--text-2); background: var(--bg-1); font-weight: 500;
+}
+.platform-toggle a.active { background: var(--indigo); color: #fff; }
+.results-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.results-table th {
+    text-align: left; font-size: 0.72rem; text-transform: uppercase;
+    color: var(--text-3); letter-spacing: 0.06em; padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+.results-table td {
+    padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); color: var(--text-1);
+}
+.results-table tr:hover td { background: var(--bg-1); }
+.code { font-family: 'Fira Code', monospace; white-space: nowrap; }
+.code-ce   { color: var(--fbd308, #fbd308); font-weight: 600; }
+.code-hex  { color: var(--cyan, #0ff); }
+.code-sce  { word-break: break-all; }
+.platform-badge {
+    display: inline-block; padding: 0.1rem 0.4rem; font-size: 0.68rem;
+    border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em;
+    font-weight: 600;
+}
+.platform-badge.ps4 { background: rgba(0, 112, 210, 0.2); color: #4aa3ff; }
+.platform-badge.ps5 { background: rgba(80, 30, 130, 0.3); color: #b47aff; }
+.result-count { font-size: 0.78rem; color: var(--text-3); margin-bottom: 0.75rem; }
+.hint { font-size: 0.8rem; color: var(--text-3); margin: 0.5rem 0 1rem; }
+.no-results { padding: 2rem; text-align: center; color: var(--text-3); font-size: 0.9rem; }
+</style>
+{% endblock %}
+{% block content %}
+<h1 style="margin-bottom: 0.3rem;">Error Code Lookup</h1>
+<p style="color: var(--text-2); margin-bottom: 1.5rem;">
+    Search {{ "{:,}".format(total) }} PlayStation error codes across PS4 &amp; PS5.
+    Match on CE-number, hex value, SCE_ constant, or description.
+</p>
+
+<div class="platform-toggle">
+    <a href="{{ url_for('tools.error_lookup', q=q, platform='all') }}"
+       class="{% if platform == 'all' %}active{% endif %}">All ({{ "{:,}".format(counts_all) }})</a>
+    <a href="{{ url_for('tools.error_lookup', q=q, platform='ps4') }}"
+       class="{% if platform == 'ps4' %}active{% endif %}">PS4 ({{ "{:,}".format(counts_ps4) }})</a>
+    <a href="{{ url_for('tools.error_lookup', q=q, platform='ps5') }}"
+       class="{% if platform == 'ps5' %}active{% endif %}">PS5 ({{ "{:,}".format(counts_ps5) }})</a>
+</div>
+
+<form method="get" action="{{ url_for('tools.error_lookup') }}" class="search-box">
+    <input type="text" name="q" id="q" value="{{ q or '' }}" placeholder="e.g. CE-33481-9, 0x80020001, SCE_KERNEL_ERROR" autocomplete="off" autofocus>
+    <span class="search-icon">🔍</span>
+    <input type="hidden" name="platform" value="{{ platform }}">
+</form>
+
+<div id="results">
+{% if q %}
+    {% if results %}
+    <p class="result-count">{{ results|length }} match{{ 'es' if results|length != 1 else '' }} for “{{ q }}”</p>
+    <table class="results-table">
+        <thead>
+            <tr>
+                <th style="width:80px;">Platform</th>
+                <th style="width:140px;">Code</th>
+                <th style="width:130px;">Hex</th>
+                <th>Symbol / Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in results %}
+            <tr>
+                <td><span class="platform-badge {{ r.platform }}">{{ r.platform }}</span></td>
+                <td class="code code-ce">{{ r.code }}</td>
+                <td class="code code-hex">{{ r.hex }}</td>
+                <td>
+                    <div class="code code-sce">{{ r.sce }}</div>
+                    {% if r.desc %}<div style="color:var(--text-2); font-size:0.82rem; margin-top:0.2rem;">{{ r.desc }}</div>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="no-results">No matches for “{{ q }}”.</div>
+    {% endif %}
+{% endif %}
+</div>
+
+<script>
+(function () {
+    const input = document.getElementById('q');
+    const resultsBox = document.getElementById('results');
+    const platform = new URL(location.href).searchParams.get('platform') || 'all';
+    let last = input.value.trim();
+    let timer = null;
+
+    function render(results, q) {
+        if (!q) { resultsBox.innerHTML = ''; return; }
+        if (!results.length) { resultsBox.innerHTML = '<div class="no-results">No matches for "' + escapeHtml(q) + '".</div>'; return; }
+        let html = '<p class="result-count">' + results.length + ' match' + (results.length !== 1 ? 'es' : '') + ' for "' + escapeHtml(q) + '"</p>';
+        html += '<table class="results-table"><thead><tr><th style="width:80px;">Platform</th><th style="width:140px;">Code</th><th style="width:130px;">Hex</th><th>Symbol / Description</th></tr></thead><tbody>';
+        for (const r of results) {
+            html += '<tr>';
+            html += '<td><span class="platform-badge ' + r.platform + '">' + r.platform + '</span></td>';
+            html += '<td class="code code-ce">' + escapeHtml(r.code) + '</td>';
+            html += '<td class="code code-hex">' + escapeHtml(r.hex) + '</td>';
+            html += '<td><div class="code code-sce">' + escapeHtml(r.sce) + '</div>';
+            if (r.desc) html += '<div style="color:var(--text-2); font-size:0.82rem; margin-top:0.2rem;">' + escapeHtml(r.desc) + '</div>';
+            html += '</td></tr>';
+        }
+        html += '</tbody></table>';
+        resultsBox.innerHTML = html;
+    }
+    function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    input.addEventListener('input', () => {
+        const q = input.value.trim();
+        if (q === last) return;
+        last = q;
+        clearTimeout(timer);
+        if (q.length < 2) { render([], q); return; }
+        timer = setTimeout(async () => {
+            const p = platform === 'all' ? '' : '&platform=' + platform;
+            const res = await fetch('/tools/api/error-search?q=' + encodeURIComponent(q) + p);
+            const data = await res.json();
+            render(data.results || [], q);
+        }, 120);
+    });
+})();
+</script>
+{% endblock %}

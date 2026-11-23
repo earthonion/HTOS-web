@@ -1,0 +1,873 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block extra_head %}
+<style>
+@keyframes flashRow { from { background: rgba(0,255,255,0.15); } to { background: transparent; } }
+tr.new-row { animation: flashRow 1.5s ease-out; }
+
+.platform-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+}
+.platform-badge.ps4 {
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--indigo-light);
+}
+.platform-badge.ps5 {
+    background: rgba(6, 182, 212, 0.15);
+    color: var(--cyan);
+}
+.platform-badge.dual {
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.18), rgba(6, 182, 212, 0.18));
+    color: var(--cyan);
+}
+.outdated-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.1rem 0.4rem;
+    margin-left: 0.3rem;
+    border-radius: 3px;
+    background: rgba(248, 81, 73, 0.18);
+    color: var(--red, #f85149);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+th.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 1.5rem !important; 
+    transition: background 0.2s;
+}
+th.sortable:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+.sort-arrows {
+    position: absolute;
+    right: 0.3rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    font-size: 0.45rem;
+    line-height: 1;
+    gap: 2px;
+}
+.sort-arrow { 
+    color: var(--text-3); 
+    transition: color 0.2s;
+}
+th[data-sort="asc"] .sort-arrow.up { color: #ffffff; }
+th[data-sort="desc"] .sort-arrow.down { color: #ffffff; }
+
+tr.has-instances { background: rgba(99, 102, 241, 0.04); }
+body.hide-offline-instances .instance-panel tr.offline-instance { display: none; }
+tr.instance-row > td { padding: 0; }
+.instance-panel {
+    padding: 0.75rem 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-left: 2px solid var(--indigo-light);
+}
+.instance-panel table { width: 100%; font-size: 0.78rem; }
+.instance-panel th { color: var(--text-2); font-weight: 500; text-align: left; padding: 0.25rem 0.5rem; }
+.instance-panel td { padding: 0.25rem 0.5rem; font-family: 'Fira Code', monospace; }
+.instance-panel .ua { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); }
+button.toggle-instances { font-family: inherit; cursor: pointer; }
+.msg-form { display: flex; flex-direction: column; gap: 0.5rem; max-width: 540px; }
+.msg-form .msg-row { display: flex; gap: 0.5rem; align-items: center; }
+.msg-form input[type="text"] { flex: 1; width: auto; }
+.msg-form select { width: auto; flex-shrink: 0; }
+.msg-form textarea { width: 100%; min-height: 80px; }
+.msg-form .msg-actions { display: flex; align-items: center; gap: 0.5rem; }
+</style>
+{% endblock %}
+{% block content %}
+<h1>Admin Dashboard <span id="refresh-countdown" style="font-size: 0.85rem; font-weight: 400; color: var(--text-2);"></span></h1>
+<div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
+    <a href="{{ url_for('admin_web.list_users') }}" class="btn-small">Users</a>
+    <a href="{{ url_for('tools.browse_entitlements') }}" class="btn-small">Entitlements DB</a>
+</div>
+
+<div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+    <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
+        <div id="queued-count" style="font-size: 2rem; font-weight: 700;">{{ queued }}</div>
+        <div style="color: var(--text-2); font-size: 0.85rem;">Queued</div>
+    </div>
+    <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
+        <div id="workers-online" style="font-size: 2rem; font-weight: 700;">{{ workers_online }}</div>
+        <div style="color: var(--text-2); font-size: 0.85rem;">Workers Online</div>
+    </div>
+    <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
+        <div id="total-users" style="font-size: 2rem; font-weight: 700;">{{ total_users }}</div>
+        <div style="color: var(--text-2); font-size: 0.85rem;">Users</div>
+    </div>
+    <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
+        <div id="online-now" style="font-size: 2rem; font-weight: 700;">{{ online_now }}</div>
+        <div style="color: var(--text-2); font-size: 0.85rem;" title="Signed-in users with a request in the last 5 minutes">Online Now</div>
+    </div>
+    <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
+        <div id="users-per-day" style="font-size: 2rem; font-weight: 700;">{{ users_per_day }}</div>
+        <div style="color: var(--text-2); font-size: 0.85rem;" title="7-day rolling average of unique active users per day">Users / day</div>
+    </div>
+    <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
+        <div id="wau" style="font-size: 2rem; font-weight: 700;">{{ wau }}</div>
+        <div style="color: var(--text-2); font-size: 0.85rem;" title="Unique users with a request in the last 7 days">Last 7 days</div>
+    </div>
+    <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
+        <div id="total-jobs" style="font-size: 2rem; font-weight: 700;">{{ stats.total }}</div>
+        <div style="color: var(--text-2); font-size: 0.85rem;">Total Jobs</div>
+    </div>
+    <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
+        <div id="saves-per-min" style="font-size: 2rem; font-weight: 700;">{{ stats.spm }}</div>
+        <div style="color: var(--text-2); font-size: 0.85rem;" title="Rolling 10-minute average of completed jobs">Saves / min</div>
+    </div>
+    <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
+        {% set pct = stats.rate %}
+        <div id="success-rate" style="font-size: 2rem; font-weight: 700; color: {% if pct != '-' and pct|replace('%','')|int >= 80 %}var(--green){% elif pct != '-' and pct|replace('%','')|int >= 50 %}var(--yellow, #fa0){% elif pct != '-' %}var(--red){% else %}inherit{% endif %};">{{ stats.rate }}</div>
+        <div style="color: var(--text-2); font-size: 0.85rem;">Success Rate</div>
+    </div>
+</div>
+
+<section class="panel" style="margin-bottom: 1.5rem;">
+    <h2>Stats by Operation</h2>
+    <div style="overflow-x: auto;">
+    <table id="op-stats-table">
+        <thead>
+            <tr><th>Operation</th><th>Done</th><th>Failed</th><th>Total</th><th>Success Rate</th></tr>
+        </thead>
+        <tbody>
+            {% for op in op_stats %}
+            <tr>
+                <td>{{ op.operation }}</td>
+                <td>{{ op.done }}</td>
+                <td>{{ op.failed }}</td>
+                <td>{{ op.total }}</td>
+                <td>
+                    {% set op_pct = op.rate %}
+                    <span style="color: {% if op_pct != '-' and op_pct|replace('%','')|int >= 80 %}var(--green){% elif op_pct != '-' and op_pct|replace('%','')|int >= 50 %}var(--yellow, #fa0){% elif op_pct != '-' %}var(--red){% else %}inherit{% endif %};">{{ op.rate }}</span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</section>
+
+<section class="panel">
+    <h2>Worker Key Generation</h2>
+    <label style="display:flex;align-items:center;gap:0.5rem;">
+        <input id="worker-key-generation-toggle" type="checkbox" {% if key_generation_enabled %}checked{% endif %}>
+        Allow users to generate new worker keys
+    </label>
+    <p id="worker-key-generation-state" style="color:var(--text-2);font-size:0.8rem;margin-top:0.5rem;">
+        {{ 'Generation enabled' if key_generation_enabled else 'Generation disabled; existing keys still work' }}
+    </p>
+</section>
+
+<section class="panel">
+    <h2 style="display:flex;align-items:center;gap:0.75rem">Worker Stats
+        <button id="toggle-offline" class="btn-small" style="font-size:0.7rem;padding:0.2rem 0.6rem;font-weight:500" onclick="toggleOfflineWorkers()">Hide offline</button>
+        <span style="font-size:0.75rem; font-weight:400; color:var(--text-2); margin-left:auto;">
+            <input id="rate-limit-search" type="search" placeholder="Search user or key name" aria-label="Search user or key name" style="width:220px; font-size:0.75rem;">
+            <span id="rate-limit-count"></span>
+        </span>
+    </h2>
+    <div style="overflow-x: auto;">
+    <table id="worker-stats-table">
+        <thead>
+            <tr>
+                <th>ID</th><th>User</th><th>Key name</th><th>Plat</th><th>Status</th><th>Uptime</th>
+                <th>Done</th><th>Fail</th><th>Total</th><th>Rate</th><th>Active</th><th>Instances</th><th>Jobs/min limit</th><th>API access</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for w in workers %}
+            {% if w.is_online or w.total > 0 or w.instances > 0 %}
+            <tr data-key-id="{{ w.id }}" data-search="{{ (w.owner_username or '') ~ ' ' ~ (w.name or '') }}" {% if w.instances > 1 %}class="has-instances"{% endif %}>
+                <td>{{ w.id }}</td>
+                <td>{{ w.owner_username or '-' }}</td>
+                <td>{{ w.name }}</td>
+                <td>
+                    {% if w.ps4_online and w.ps5_online %}
+                    <span class="platform-badge dual">PS4+PS5</span>
+                    {% elif w.ps5_online %}
+                    <span class="platform-badge ps5">PS5</span>
+                    {% elif w.ps4_online %}
+                    <span class="platform-badge ps4">PS4</span>
+                    {% elif w.last_platform %}
+                    <span class="platform-badge {{ w.last_platform | lower }}">{{ w.last_platform | upper }}</span>
+                    {% else %}
+                    -
+                    {% endif %}
+                </td>
+                <td>
+                    {% if w.is_online %}
+                    <span class="status-done">ONLINE</span>
+                    {% else %}
+                    <span style="color: var(--text-2);">OFFLINE</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if w.is_online and w.online_since %}
+                    <span class="uptime" data-since="{{ w.online_since }}">—</span>
+                    {% else %}
+                    <span style="color: var(--text-3);" data-since="0">—</span>
+                    {% endif %}
+                </td>
+                <td>{{ w.done }}</td>
+                <td>{{ w.failed }}</td>
+                <td>{{ w.total }}</td>
+                <td>
+                    {% if w.total > 0 %}
+                    {% set pct = (100 * w.done // w.total) %}
+                    <span style="color: {% if pct >= 80 %}var(--green){% elif pct >= 50 %}var(--yellow, #fa0){% else %}var(--red){% endif %};">{{ w.rate }}</span>
+                    {% else %}-{% endif %}
+                </td>
+                <td>
+                    {% if w.suspended_until %}
+                    <span class="status-failed">suspended</span>
+                    {% elif not w.is_active %}
+                    <span class="status-failed">revoked</span>
+                    {% else %}
+                    <span class="status-done">yes</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if w.instances > 0 %}
+                    <button class="btn-small toggle-instances" data-key-id="{{ w.id }}">{{ w.instances }} ▾</button>
+                    {% else %}-{% endif %}
+                </td>
+                <td style="white-space:nowrap;">
+                    <input class="rate-limit-input" data-key-id="{{ w.id }}" type="number" min="0" max="100000" value="{{ w.job_rate_limit or 0 }}" style="width:70px;font-size:0.75rem;" title="Jobs per minute; 0 is unlimited">
+                    <button class="btn-small save-rate-limit" data-key-id="{{ w.id }}">Save</button>
+                </td>
+                <td style="white-space:nowrap;font-size:0.75rem;">
+                    <label title="Allow decrypt, encrypt, resign, reregion, and createsave jobs">
+                        <input class="worker-access-toggle" data-key-id="{{ w.id }}" data-setting="api_enabled" type="checkbox" {% if w.api_enabled %}checked{% endif %}> Jobs
+                    </label>
+                    <label title="Allow ppr_derive jobs" style="margin-left:0.6rem;">
+                        <input class="worker-access-toggle" data-key-id="{{ w.id }}" data-setting="ppr_derive_enabled" type="checkbox" {% if w.ppr_derive_enabled %}checked{% endif %}> ppr_derive
+                    </label>
+                </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</section>
+
+<section class="panel">
+    <h2>Recent Jobs <span id="live-dot" style="color: var(--green); font-size: 0.7rem; vertical-align: middle;">&#9679; live</span></h2>
+    <div style="overflow-x: auto;">
+    <table id="jobs-table">
+        <thead>
+            <tr><th>ID</th><th>User</th><th>Op</th><th>Title</th><th>Status</th><th>Error</th><th>Worker</th><th>User IP</th><th>Created</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for j in jobs %}
+            <tr data-job-id="{{ j.id }}">
+                <td style="font-size: 0.75rem;">{{ j.id[:8] }}</td>
+                <td>{{ j.username }}</td>
+                <td>{{ j.operation }}</td>
+                <td style="font-size: 0.8rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ j.game_title }} {{ j.title_id }}">{% if j.game_title %}{{ j.game_title }}{% elif j.title_id %}<code>{{ j.title_id }}</code>{% else %}-{% endif %}</td>
+                <td>
+                    <span class="status-{{ j.status }}">{{ j.status }}</span>
+                </td>
+                <td style="font-size: 0.75rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ j.error or '' }}">{{ j.error or '-' }}</td>
+                <td>{{ j.worker_name or '-' }}</td>
+                <td>{{ j.user_ip or '-' }}</td>
+                <td>{{ j.created_at }}</td>
+                <td><a href="{{ url_for('jobs.job_status', job_id=j.id) }}" class="btn-small">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</section>
+
+<section class="panel">
+    <h2>ppr_derive Jobs <span style="color: var(--green); font-size: 0.7rem; vertical-align: middle;">&#9679; live</span></h2>
+    <div style="overflow-x: auto;">
+    <table id="ppr-jobs-table">
+        <thead>
+            <tr><th>ID</th><th>User</th><th>Op</th><th>Title</th><th>Status</th><th>Error</th><th>Worker</th><th>User IP</th><th>Created</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for j in ppr_jobs %}
+            <tr data-job-id="{{ j.id }}">
+                <td style="font-size: 0.75rem;">{{ j.id[:8] }}</td>
+                <td>{{ j.username }}</td>
+                <td>{{ j.operation }}</td>
+                <td style="font-size: 0.8rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ j.game_title }} {{ j.title_id }}">{% if j.game_title %}{{ j.game_title }}{% elif j.title_id %}<code>{{ j.title_id }}</code>{% else %}-{% endif %}</td>
+                <td><span class="status-{{ j.status }}">{{ j.status }}</span></td>
+                <td style="font-size: 0.75rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ j.error or '' }}">{{ j.error or '-' }}</td>
+                <td>{{ j.worker_name or '-' }}</td>
+                <td>{{ j.user_ip or '-' }}</td>
+                <td>{{ j.created_at }}</td>
+                <td><a href="{{ url_for('jobs.job_status', job_id=j.id) }}" class="btn-small">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</section>
+
+<section class="panel">
+    <h2>Send User Message</h2>
+    <p style="color: var(--text-2); font-size: 0.82rem; margin: 0 0 0.75rem;">Posts a banner at the top of every page for the target user (or <code>*</code> for everyone). Shown until they click the × dismiss button.</p>
+    <div class="msg-form">
+        <div class="msg-row">
+            <input type="text" id="msg-username" placeholder="Username (or * for all)">
+            <select id="msg-level">
+                <option value="info">info</option>
+                <option value="success">success</option>
+                <option value="warning">warning</option>
+                <option value="error">error</option>
+            </select>
+        </div>
+        <textarea id="msg-body" rows="4" placeholder="Message (max 2000 chars)"></textarea>
+        <div class="msg-actions">
+            <button class="btn-small" onclick="sendUserMessage()">Send</button>
+            <span id="msg-result" style="font-size: 0.75rem;"></span>
+        </div>
+    </div>
+    <details style="margin-top: 1rem;">
+        <summary style="cursor: pointer; font-size: 0.82rem; color: var(--text-2);">Recent messages history</summary>
+        <div id="msg-history" style="margin-top: 0.5rem; font-size: 0.78rem;">
+            <button class="btn-small" onclick="loadMsgHistory()">Load history</button>
+        </div>
+    </details>
+</section>
+
+<section class="panel">
+    <h2>Password Reset</h2>
+    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+        <input type="text" id="reset-username" placeholder="Username" style="width: 160px; font-size: 0.82rem; padding: 0.3rem 0.5rem;">
+        <button class="btn-small" onclick="generateResetLink()">Generate Reset Link</button>
+    </div>
+    <div id="reset-result" style="margin-top: 0.75rem; display: none;">
+        <input type="text" id="reset-url" readonly style="width: 100%; max-width: 500px; font-size: 0.75rem; font-family: 'Fira Code', monospace; padding: 0.3rem 0.5rem; cursor: pointer;" onclick="copyResetUrl(this)">
+        <span id="reset-copy-hint" style="color: var(--green); font-size: 0.75rem; margin-left: 0.3rem;">click to copy</span>
+    </div>
+</section>
+
+<script>
+(function() {
+    const tbody = document.querySelector('#jobs-table tbody');
+    const pprTbody = document.querySelector('#ppr-jobs-table tbody');
+    const queuedEl = document.getElementById('queued-count');
+    const es = new EventSource('/admin/feed');
+
+    function filterRateLimitRows() {
+        const query = document.getElementById('rate-limit-search').value.trim().toLowerCase();
+        let visible = 0;
+        document.querySelectorAll('#worker-stats-table tbody tr[data-key-id]').forEach(function(row) {
+            const matches = (row.dataset.search || '').toLowerCase().includes(query);
+            row.hidden = !matches;
+            if (matches) visible++;
+        });
+        document.getElementById('rate-limit-count').textContent = query ? `${visible} matching` : '';
+    }
+    document.getElementById('rate-limit-search').addEventListener('input', filterRateLimitRows);
+
+    function escapeHtml(value) {
+        return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    }
+
+    function makeRow(j) {
+        const tr = document.createElement('tr');
+        tr.className = 'new-row';
+        tr.dataset.jobId = j.id;
+        var userIp = escapeHtml(j.user_ip || '-');
+        var titleCell = '-';
+        if (j.game_title) titleCell = j.game_title;
+        else if (j.title_id) titleCell = '<code>' + j.title_id + '</code>';
+        tr.innerHTML =
+            '<td style="font-size:0.75rem;">' + j.id.substring(0,8) + '</td>' +
+            '<td>' + (j.username || '-') + '</td>' +
+            '<td>' + j.operation + '</td>' +
+            '<td style="font-size:0.8rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (j.game_title || '') + ' ' + (j.title_id || '') + '">' + titleCell + '</td>' +
+            '<td><span class="status-' + j.status + '">' + j.status + '</span></td>' +
+            '<td style="font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (j.error || '') + '">' + (j.error || '-') + '</td>' +
+            '<td>' + (j.worker_name || '-') + '</td>' +
+            '<td>' + userIp + '</td>' +
+            '<td>' + j.created_at + '</td>' +
+            '<td><a href="/jobs/' + j.id + '" class="btn-small">View</a></td>';
+        return tr;
+    }
+
+    // Stats refresh countdown (30s)
+    var refreshInterval = 30;
+    var remaining = refreshInterval;
+    var countdownEl = document.getElementById('refresh-countdown');
+
+    function rateColor(pct) {
+        if (pct === '-') return 'inherit';
+        var n = parseInt(pct);
+        if (n >= 80) return 'var(--green)';
+        if (n >= 50) return 'var(--yellow, #fa0)';
+        return 'var(--red)';
+    }
+
+    /*LIVE_STATS_HANDLER*/
+    // Live stats now come via the SSE feed (see es.onmessage below). Kept
+    // as a fallback for connections that flap; called on load + every 60s
+    // if SSE hasn't delivered anything.
+    function applyStats(d) {
+        if (d.queued !== undefined) document.getElementById('queued-count').textContent = d.queued;
+        if (d.workers_online !== undefined) document.getElementById('workers-online').textContent = d.workers_online;
+        if (d.total_users !== undefined) document.getElementById('total-users').textContent = d.total_users;
+        if (d.online_now !== undefined) document.getElementById('online-now').textContent = d.online_now;
+        if (d.users_per_day !== undefined) document.getElementById('users-per-day').textContent = d.users_per_day;
+        if (d.wau !== undefined) document.getElementById('wau').textContent = d.wau;
+        if (d.stats) {
+            document.getElementById('total-jobs').textContent = d.stats.total;
+            document.getElementById('saves-per-min').textContent = d.stats.spm;
+            var rateEl = document.getElementById('success-rate');
+            rateEl.textContent = d.stats.rate;
+            rateEl.style.color = rateColor(d.stats.rate);
+        }
+        if (d.op_stats) {
+            var opTbody = document.querySelector('#op-stats-table tbody');
+            opTbody.innerHTML = '';
+            d.op_stats.forEach(function(op) {
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td>' + op.operation + '</td><td>' + op.done + '</td><td>' + op.failed + '</td><td>' + op.total + '</td>' +
+                    '<td><span style="color:' + rateColor(op.rate) + ';">' + op.rate + '</span></td>';
+                opTbody.appendChild(tr);
+            });
+        }
+        lastStatsAt = Date.now();
+        countdownEl.textContent = 'live';
+    }
+    function refreshStats() {
+        fetch('/admin/stats').then(function(r) { return r.json(); }).then(applyStats).catch(function(){});
+    }
+    var lastStatsAt = 0;
+    refreshStats();  // initial paint
+    // Fallback: if SSE is silent for 60s, poll once.
+    setInterval(function() {
+        if (Date.now() - lastStatsAt > 60000) refreshStats();
+    }, 5000);
+
+    es.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        if (data.type === 'stats') { applyStats(data); return; }
+        if (data.queued !== undefined && queuedEl) queuedEl.textContent = data.queued;
+        if (data.type === 'new_jobs' && data.jobs) {
+            data.jobs.forEach(function(j) {
+                const target = j.operation === 'ppr_derive' ? pprTbody : tbody;
+                if (target.querySelector('[data-job-id="' + j.id + '"]')) return;
+                target.insertBefore(makeRow(j), target.firstChild);
+                while (target.children.length > 50) target.removeChild(target.lastChild);
+            });
+        }
+        if (data.type === 'updates' && data.updates) {
+            data.updates.forEach(function(u) {
+                var row = tbody.querySelector('[data-job-id="' + u.id + '"]') || pprTbody.querySelector('[data-job-id="' + u.id + '"]');
+                if (!row) return;
+                row.children[4].innerHTML = '<span class="status-' + u.status + '">' + u.status + '</span>';
+                row.children[5].textContent = u.error || '-';
+                row.children[5].title = u.error || '';
+                if (u.worker_name) row.children[6].textContent = u.worker_name;
+            });
+        }
+    };
+})();
+
+document.addEventListener('click', async function(e) {
+    const button = e.target.closest('.save-rate-limit');
+    if (!button) return;
+    const keyId = button.dataset.keyId;
+    const input = document.querySelector('.rate-limit-input[data-key-id="' + keyId + '"]');
+    const previous = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Saving…';
+    try {
+        const response = await fetch('/admin/worker-rate-limit/' + keyId, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({limit: Number(input.value || 0)}),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Could not save limit');
+        input.value = result.limit;
+        button.textContent = 'Saved';
+    } catch (error) {
+        button.textContent = 'Error';
+        alert(error.message);
+    } finally {
+        setTimeout(() => {
+            button.disabled = false;
+            button.textContent = previous;
+        }, 1200);
+    }
+});
+
+document.addEventListener('change', async function(e) {
+    const input = e.target.closest('.worker-access-toggle');
+    if (!input) return;
+    const enabled = input.checked;
+    input.disabled = true;
+    try {
+        const response = await fetch('/admin/worker-api-access/' + input.dataset.keyId, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({setting: input.dataset.setting, enabled: enabled}),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Could not save API access');
+        input.checked = result.enabled;
+    } catch (error) {
+        input.checked = !enabled;
+        alert(error.message);
+    } finally {
+        input.disabled = false;
+    }
+});
+
+document.getElementById('worker-key-generation-toggle').addEventListener('change', async function(e) {
+    const input = e.target;
+    const enabled = input.checked;
+    input.disabled = true;
+    try {
+        const response = await fetch('/admin/worker-key-generation', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({enabled: enabled}),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Could not save key generation setting');
+        input.checked = result.enabled;
+        document.getElementById('worker-key-generation-state').textContent = result.enabled
+            ? 'Generation enabled'
+            : 'Generation disabled; existing keys still work';
+    } catch (error) {
+        input.checked = !enabled;
+        alert(error.message);
+    } finally {
+        input.disabled = false;
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const workerTable = document.getElementById('worker-stats-table');
+    if (!workerTable) return;
+    
+    const ths = workerTable.querySelectorAll('thead th');
+    const tbody = workerTable.querySelector('tbody');
+    const originalRows = Array.from(tbody.querySelectorAll('tr'));
+
+    ths.forEach((th, index) => {
+        th.classList.add('sortable');
+        th.dataset.sort = 'none';
+        
+        th.innerHTML += `
+            <div class="sort-arrows">
+                <span class="sort-arrow up">&#9650;</span>
+                <span class="sort-arrow down">&#9660;</span>
+            </div>
+        `;
+
+        th.addEventListener('click', () => {
+            let currentSort = th.dataset.sort;
+
+            ths.forEach(otherTh => {
+                if (otherTh !== th) otherTh.dataset.sort = 'none';
+            });
+
+            if (currentSort === 'none') th.dataset.sort = 'asc';
+            else if (currentSort === 'asc') th.dataset.sort = 'desc';
+            else th.dataset.sort = 'none';
+
+            currentSort = th.dataset.sort;
+            let rows = Array.from(tbody.querySelectorAll('tr'));
+
+            if (currentSort === 'none') {
+                originalRows.forEach(row => tbody.appendChild(row));
+            } else {
+                rows.sort((a, b) => {
+                    let valA = a.children[index].textContent.trim().toUpperCase();
+                    let valB = b.children[index].textContent.trim().toUpperCase();
+                    let cmp = 0;
+
+                    switch(index) {
+                        case 0: // ID
+                        case 6: // Done
+                        case 7: // Fail
+                        case 8: // Total
+                            cmp = (parseInt(valA, 10) || 0) - (parseInt(valB, 10) || 0);
+                            break;
+                        case 9: // Rate
+                            let numA = valA === '-' ? -1 : parseFloat(valA);
+                            let numB = valB === '-' ? -1 : parseFloat(valB);
+                            cmp = numA - numB;
+                            break;
+                        case 3: // Plat
+                            let wPlat = { 'PS4': 1, 'PS5': 2, '-': 3 };
+                            cmp = (wPlat[valA] || 3) - (wPlat[valB] || 3);
+                            break;
+                        case 4: // Status
+                            let wStatus = { 'ONLINE': 1, 'OFFLINE': 2 };
+                            cmp = (wStatus[valA] || 3) - (wStatus[valB] || 3);
+                            break;
+                        case 5: // Uptime
+                            let getUptime = (td) => {
+                                let span = td.querySelector('span[data-since]');
+                                if (!span || span.dataset.since === "0") return -1;
+                                return Math.floor((Date.now() - new Date(span.dataset.since + 'Z').getTime()) / 1000);
+                            };
+                            cmp = getUptime(a.children[index]) - getUptime(b.children[index]);
+                            break;
+                        default: // Name, Active
+                            cmp = valA.localeCompare(valB);
+                            break;
+                    }
+
+                    return currentSort === 'asc' ? cmp : -cmp;
+                });
+                
+                rows.forEach(row => tbody.appendChild(row));
+            }
+        });
+    });
+});
+
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.toggle-instances');
+    if (!btn) return;
+    var keyId = btn.dataset.keyId;
+    var hostRow = btn.closest('tr');
+    var nextRow = hostRow.nextElementSibling;
+    if (nextRow && nextRow.classList.contains('instance-row') && nextRow.dataset.parent === keyId) {
+        nextRow.remove();
+        btn.textContent = btn.textContent.replace('▴', '▾');
+        return;
+    }
+    btn.textContent = btn.textContent.replace('▾', '▴');
+    var row = document.createElement('tr');
+    row.className = 'instance-row';
+    row.dataset.parent = keyId;
+    var td = document.createElement('td');
+    td.colSpan = hostRow.children.length;
+    td.innerHTML = '<div class="instance-panel">loading…</div>';
+    row.appendChild(td);
+    hostRow.parentNode.insertBefore(row, hostRow.nextSibling);
+    function fmtUA(ua) {
+        if (!ua) return '<span style="color:var(--text-3)">-</span>';
+        var sl = ua.match(/sonicloader-worker\/([0-9.]+)\s*\(([^)]+)\)/i);
+        if (sl) {
+            var ver = sl[1];
+            var mode = sl[2].replace(/^PS5;\s*/i, '').trim();
+            return '<span style="background:rgba(99,102,241,.18);color:var(--indigo-light);padding:1px 6px;border-radius:3px;font-weight:700;font-size:.65rem;margin-right:4px;letter-spacing:.04em">SL</span>' +
+                   '<span style="color:var(--text-2);font-size:.72rem">' + ver + ' · ' + mode + '</span>';
+        }
+        var gw = ua.match(/garlic-worker\/([0-9.]+)/i);
+        if (gw) {
+            return '<span style="background:rgba(251,211,8,.18);color:var(--accent,#fbd308);padding:1px 6px;border-radius:3px;font-weight:700;font-size:.65rem;margin-right:4px">GW</span>' +
+                   '<span style="color:var(--text-2);font-size:.72rem">' + gw[1] + '</span>';
+        }
+        return '<span style="color:var(--text-3);font-size:.72rem">' + ua.substring(0, 60) + '</span>';
+    }
+    fetch('/admin/worker-instances/' + keyId).then(function(r){return r.json();}).then(function(d) {
+        var panel = td.querySelector('.instance-panel');
+        if (!d.instances || !d.instances.length) {
+            panel.textContent = 'No instances yet.';
+            return;
+        }
+        var html = '<table><thead><tr><th>IP</th><th>Plat</th><th>Status</th>' +
+            '<th>First seen</th><th>Last seen</th><th>Done</th><th>Fail</th><th>Rate</th>' +
+            '<th title="Avg job time over last 20 done jobs — proxy for worker speed">Avg job</th>' +
+            '<th>Client</th></tr></thead><tbody>';
+        d.instances.forEach(function(i) {
+            var status = i.is_suspended
+                ? '<span class="status-failed" title="suspended until ' + (i.suspended_until || '') + '">SUSPENDED</span>'
+                : (i.is_online
+                    ? '<span class="status-done">ONLINE</span>'
+                    : '<span style="color:var(--text-2)">offline</span>');
+            var rowCls = i.is_online ? '' : ' class="offline-instance"';
+            var rateColor = 'inherit';
+            if (i.rate !== '-') {
+                var n = parseInt(i.rate);
+                rateColor = n >= 80 ? 'var(--green)' : (n >= 50 ? 'var(--yellow, #fa0)' : 'var(--red)');
+            }
+            var plat, platCls;
+            if (i.is_ps4_capable && i.is_ps5_capable) { plat = 'PS4+PS5'; platCls = 'dual'; }
+            else if (i.is_ps5_capable) { plat = 'PS5'; platCls = 'ps5'; }
+            else if (i.is_ps4_capable) { plat = 'PS4'; platCls = 'ps4'; }
+            else { plat = (i.last_platform || '-').toUpperCase(); platCls = (i.last_platform || '').toLowerCase(); }
+            // Keep this check aligned with MIN_WORKER_VERSION in routes/api.py.
+            var verMatch = /worker\/v?(\d+)\.(\d+)\.(\d+)/.exec(i.user_agent || '');
+            var versionTooLow = !verMatch || (function() {
+                var maj = +verMatch[1], min = +verMatch[2], pat = +verMatch[3];
+                if (maj !== 1) return maj < 1;
+                if (min !== 6) return min < 6;
+                return pat < 6;
+            })();
+            var outdated = versionTooLow;
+            var outdatedTitle = verMatch
+                ? 'v' + verMatch[1] + '.' + verMatch[2] + '.' + verMatch[3] + ' — < v1.6.6 (single per-save chives fallback fix, all jobs blocked)'
+                : 'no version reported — all jobs blocked';
+            var outdatedBadge = outdated
+                ? ' <span class="outdated-badge" title="' + outdatedTitle + '">⚠ OUTDATED</span>'
+                : '';
+            // Format avg job time. Color thresholds: <30s green, <90s default, >=90s yellow, >=180s red.
+            var avgStr = '-';
+            var avgColor = 'inherit';
+            if (i.avg_duration_s != null) {
+                var s = +i.avg_duration_s;
+                avgStr = s < 60 ? s.toFixed(0) + 's' : (s / 60).toFixed(1) + 'm';
+                if (s < 30) avgColor = 'var(--green)';
+                else if (s >= 180) avgColor = 'var(--red)';
+                else if (s >= 90) avgColor = 'var(--yellow, #fa0)';
+            }
+            html += '<tr' + rowCls + '>' +
+                '<td>' + i.ip + '</td>' +
+                '<td><span class="platform-badge ' + platCls + '">' + plat + '</span>' + outdatedBadge + '</td>' +
+                '<td>' + status + '</td>' +
+                '<td>' + (i.first_seen || '-') + '</td>' +
+                '<td>' + (i.last_seen || '-') + '</td>' +
+                '<td>' + i.jobs_done + '</td>' +
+                '<td>' + i.jobs_failed + '</td>' +
+                '<td><span style="color:' + rateColor + '">' + i.rate + '</span></td>' +
+                '<td><span style="color:' + avgColor + '">' + avgStr + '</span></td>' +
+                '<td class="ua" title="' + (i.user_agent || '').replace(/"/g, '&quot;') + '">' + fmtUA(i.user_agent) + '</td>' +
+            '</tr>';
+        });
+        html += '</tbody></table>';
+        panel.innerHTML = html;
+    }).catch(function() {
+        td.querySelector('.instance-panel').textContent = 'Failed to load.';
+    });
+});
+
+function updateUptimes() {
+    document.querySelectorAll('.uptime[data-since]').forEach(function(el) {
+        if (el.dataset.since === "0") return;
+        var since = new Date(el.dataset.since + 'Z');
+        var diff = Math.floor((Date.now() - since.getTime()) / 1000);
+        if (diff < 0) { el.textContent = '—'; return; }
+        var d = Math.floor(diff / 86400);
+        var h = Math.floor((diff % 86400) / 3600);
+        var m = Math.floor((diff % 3600) / 60);
+        if (d > 0) el.textContent = d + 'd ' + h + 'h ' + m + 'm';
+        else if (h > 0) el.textContent = h + 'h ' + m + 'm';
+        else el.textContent = m + 'm';
+    });
+}
+updateUptimes();
+setInterval(updateUptimes, 60000);
+
+function copyResetUrl(el) {
+    navigator.clipboard.writeText(el.value).then(function() {
+        var hint = document.getElementById('reset-copy-hint');
+        hint.textContent = 'copied!';
+        setTimeout(function() { hint.textContent = 'click to copy'; }, 2000);
+    });
+}
+
+function toggleOfflineWorkers() {
+    var btn = document.getElementById('toggle-offline');
+    var hide = btn.dataset.state !== 'hidden';
+    var rows = document.querySelectorAll('#worker-stats-table tbody tr');
+    var hiddenCount = 0;
+    rows.forEach(function(r) {
+        if (r.classList.contains('instance-row')) return;
+        var statusCell = r.children[4];
+        if (!statusCell) return;
+        var isOffline = !statusCell.querySelector('.status-done');
+        if (isOffline) {
+            r.style.display = hide ? 'none' : '';
+            if (hide) hiddenCount++;
+        }
+    });
+    // Also hide offline instance rows inside any expanded instance panel.
+    document.body.classList.toggle('hide-offline-instances', hide);
+    btn.dataset.state = hide ? 'hidden' : 'shown';
+    btn.textContent = hide ? 'Show offline (' + hiddenCount + ')' : 'Hide offline';
+    try { localStorage.setItem('admin_hide_offline_workers', hide ? '1' : '0'); } catch(e){}
+}
+// Default: hidden, unless the user explicitly toggled to "shown" earlier.
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        if (localStorage.getItem('admin_hide_offline_workers') !== '0') {
+            toggleOfflineWorkers();
+        }
+    } catch(e){ toggleOfflineWorkers(); }
+});
+
+function sendUserMessage() {
+    var username = document.getElementById('msg-username').value.trim();
+    var message  = document.getElementById('msg-body').value.trim();
+    var level    = document.getElementById('msg-level').value;
+    var result   = document.getElementById('msg-result');
+    if (!username || !message) {
+        result.textContent = 'username + message required';
+        result.style.color = 'var(--red)';
+        return;
+    }
+    fetch('/admin/send-message', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username: username, message: message, level: level}),
+    }).then(function(r){return r.json();}).then(function(d){
+        if (d.ok) {
+            result.textContent = 'sent to ' + d.target + ' (' + d.level + ')';
+            result.style.color = 'var(--green)';
+            document.getElementById('msg-body').value = '';
+        } else {
+            result.textContent = d.error || 'failed';
+            result.style.color = 'var(--red)';
+        }
+    }).catch(function(){
+        result.textContent = 'request failed';
+        result.style.color = 'var(--red)';
+    });
+}
+
+function loadMsgHistory() {
+    var box = document.getElementById('msg-history');
+    box.innerHTML = 'loading…';
+    fetch('/admin/messages').then(function(r){return r.json();}).then(function(d){
+        if (!d.messages || d.messages.length === 0) {
+            box.innerHTML = '<em style="color:var(--text-2)">No messages sent yet.</em>';
+            return;
+        }
+        var html = '<table style="font-size:0.75rem; margin-top:0.5rem"><thead><tr><th>To</th><th>Level</th><th>Message</th><th>Sent</th><th>Dismissed</th></tr></thead><tbody>';
+        d.messages.forEach(function(m){
+            var to = m.target || '<em style="color:var(--text-3)">all</em>';
+            html += '<tr><td>' + to + '</td><td><span class="status-' + m.level + '">' + m.level + '</span></td><td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (m.message || '').replace(/"/g, '&quot;') + '">' + (m.message || '') + '</td><td>' + (m.created_at || '') + '</td><td>' + (m.dismissed_at || '<span style="color:var(--text-3)">—</span>') + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        box.innerHTML = html;
+    });
+}
+
+function generateResetLink() {
+    var username = document.getElementById('reset-username').value.trim();
+    if (!username) return;
+    fetch('/admin/reset-user', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username: username})
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        var result = document.getElementById('reset-result');
+        var urlInput = document.getElementById('reset-url');
+        if (d.ok) {
+            urlInput.value = location.origin + d.url;
+            result.style.display = '';
+        } else {
+            urlInput.value = 'Error: ' + d.error;
+            result.style.display = '';
+        }
+    }).catch(function() {});
+}
+</script>
+{% endblock %}

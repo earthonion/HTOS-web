@@ -1,0 +1,206 @@
+from datetime import date
+
+from quart import Blueprint, redirect, render_template, session, url_for
+
+from auth import login_required
+from models import get_db
+from services.jobs import get_user_jobs
+from utils.extras import group_supporters
+
+main_bp = Blueprint("main", __name__)
+
+
+@main_bp.route("/")
+async def index():
+    if session.get("user_id"):
+        return redirect(url_for("main.dashboard"))
+    # Landing page stats
+    db = await get_db()
+    try:
+        # Active workers = distinct (key, IP) instances with a recent ping —
+        # not just issued keys; the global key alone backs hundreds of users.
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM worker_instances wi "
+            "JOIN worker_keys wk ON wk.id = wi.worker_key_id "
+            "WHERE wi.last_seen > datetime('now', '-300 seconds') "
+            "AND wk.is_active = 1 "
+            "AND (wi.suspended_until IS NULL OR wi.suspended_until < datetime('now')) "
+            "AND (wk.suspended_until IS NULL OR wk.suspended_until < datetime('now'))"
+        )
+        total_workers = (await cursor.fetchone())[0]
+        cursor = await db.execute(
+            "SELECT COALESCE(SUM(jobs_completed), 0) FROM worker_keys"
+        )
+        total_jobs = (await cursor.fetchone())[0]
+        cursor = await db.execute(
+            "SELECT from_name, message, type, is_public, "
+            "is_subscription_payment, tier_name, is_manual "
+            "FROM kofi_supporters "
+            'WHERE LOWER(COALESCE(from_name, "")) != "anonymous" '
+            "ORDER BY created_at DESC LIMIT 40"
+        )
+        supporters = [dict(r) for r in await cursor.fetchall()]
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM kofi_supporters "
+            'WHERE LOWER(COALESCE(from_name, "")) = "anonymous"'
+        )
+        anonymous_count = (await cursor.fetchone())[0]
+    finally:
+        await db.close()
+    template = (
+        "landing_aprilfools.html"
+        if date.today().month == 4 and date.today().day == 1
+        else "landing.html"
+    )
+    return await render_template(
+        template,
+        total_workers=total_workers,
+        total_jobs=total_jobs,
+        supporters=supporters,
+        supporters_grouped=group_supporters(supporters),
+        anonymous_count=anonymous_count,
+    )
+
+
+@main_bp.route("/dashboard")
+@login_required
+async def dashboard():
+    user_id = session["user_id"]
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT id, name, account_id FROM profiles WHERE user_id = ?", (user_id,)
+        )
+        profiles = [dict(r) for r in await cursor.fetchall()]
+    finally:
+        await db.close()
+
+    jobs = await get_user_jobs(user_id)
+
+    return await render_template(
+        "dashboard.html",
+        profiles=profiles,
+        jobs=jobs,
+        username=session.get("username", ""),
+    )
+
+
+@main_bp.route("/about")
+async def about():
+    return await render_template("about.html")
+
+
+@main_bp.route("/disclaimer")
+async def disclaimer():
+    return await render_template("disclaimer.html")
+
+
+@main_bp.route("/donate")
+async def donate():
+    supporters = []
+    anonymous_count = 0
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT from_name, is_subscription_payment, tier_name "
+            "FROM kofi_supporters "
+            "WHERE LOWER(COALESCE(from_name, '')) != 'anonymous' "
+            "ORDER BY created_at DESC LIMIT 200"
+        )
+        supporters = group_supporters([dict(r) for r in await cursor.fetchall()])
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM kofi_supporters "
+            "WHERE LOWER(COALESCE(from_name, '')) = 'anonymous'"
+        )
+        anonymous_count = (await cursor.fetchone())[0]
+    finally:
+        await db.close()
+
+    return await render_template(
+        "donate.html",
+        supporters=supporters,
+        anonymous_count=anonymous_count,
+    )
+
+
+@main_bp.route("/profiles", methods=["POST"])
+@login_required
+async def create_profile():
+    from quart import flash, request
+
+    from utils.orbis import checkid
+
+    form = await request.form
+    name = form.get("name", "").strip()
+    account_id = form.get("account_id", "").strip().lower()
+
+    if not name or not account_id:
+        await flash("Name and account ID are required.", "error")
+        return redirect(url_for("main.dashboard"))
+
+    if len(name) > 20:
+        await flash("Name must be 20 characters or less.", "error")
+        return redirect(url_for("main.dashboard"))
+
+    if not checkid(account_id):
+        await flash("Invalid account ID. Must be 16 hex characters.", "error")
+        return redirect(url_for("main.dashboard"))
+
+    # User enters account ID from USB folder (little-endian).
+    # Swap to big-endian for storage. Worker will swap back before patching SFO.
+    account_id = "".join(reversed([account_id[i : i + 2] for i in range(0, 16, 2)]))
+
+    user_id = session["user_id"]
+    db = await get_db()
+    try:
+        await db.execute(
+            "INSERT OR REPLACE INTO profiles (user_id, name, account_id) VALUES (?, ?, ?)",
+            (user_id, name, account_id),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+    await flash(f"Profile '{name}' created.", "success")
+    return redirect(url_for("main.dashboard"))
+
+
+@main_bp.route("/profiles/<int:profile_id>/swap-endian", methods=["POST"])
+@login_required
+async def swap_endian(profile_id):
+    user_id = session["user_id"]
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT account_id FROM profiles WHERE id = ? AND user_id = ?",
+            (profile_id, user_id),
+        )
+        profile = await cursor.fetchone()
+        if profile:
+            aid = profile["account_id"]
+            swapped = "".join(reversed([aid[i : i + 2] for i in range(0, len(aid), 2)]))
+            await db.execute(
+                "UPDATE profiles SET account_id = ? WHERE id = ? AND user_id = ?",
+                (swapped, profile_id, user_id),
+            )
+            await db.commit()
+    finally:
+        await db.close()
+
+    return redirect(url_for("main.dashboard"))
+
+
+@main_bp.route("/profiles/<int:profile_id>/delete", methods=["POST"])
+@login_required
+async def delete_profile(profile_id):
+    user_id = session["user_id"]
+    db = await get_db()
+    try:
+        await db.execute(
+            "DELETE FROM profiles WHERE id = ? AND user_id = ?", (profile_id, user_id)
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+    return redirect(url_for("main.dashboard"))

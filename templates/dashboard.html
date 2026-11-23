@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>Welcome, {{ username }}</h1>
+
+<section class="panel" style="overflow: visible; position: relative; z-index: 10;">
+    <h2>PS4 Profiles</h2>
+    <form method="POST" action="{{ url_for('main.create_profile') }}" class="inline-form">
+        <input type="text" name="name" placeholder="Profile name" required maxlength="20">
+        <input type="text" name="account_id" placeholder="Account ID (16 hex chars)" required pattern="[0-9a-fA-F]{16}" maxlength="16">
+        <button type="submit">Add Profile</button>
+        <span onclick="document.getElementById('accid-modal').style.display='flex'" style="cursor:pointer; color:var(--dim); font-size:0.85rem; text-decoration:underline;">How do I find my Account ID?</span>
+    </form>
+
+    {% if profiles %}
+    <table>
+        <thead>
+            <tr><th>Name</th><th>Account ID</th><th>Remote Play ID</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for p in profiles %}
+            <tr>
+                <td>{{ p.name }}</td>
+                <td><code>{{ p.account_id | to_usb_id }}</code></td>
+                <td><code class="rp-copy" style="font-size:0.8rem; cursor:pointer" title="Click to copy">{{ p.account_id | to_rp_id }}</code></td>
+                <td style="position: relative;">
+                    <span class="dots-menu-btn" onclick="var m=this.nextElementSibling;document.querySelectorAll('.dots-menu').forEach(function(x){if(x!==m)x.style.display='none'});m.style.display=m.style.display==='block'?'none':'block'" style="cursor:pointer; font-size:1.2rem; padding:0 0.5rem;">&#8942;</span>
+                    <div class="dots-menu" style="display:none; position:absolute; right:0; top:1.8rem; background:#12161f; border:1px solid #1a1f2b; border-radius:6px; z-index:20; min-width:160px; box-shadow:0 4px 12px rgba(0,0,0,0.5);">
+                        <form method="POST" action="{{ url_for('main.swap_endian', profile_id=p.id) }}">
+                            <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:0.5rem 0.8rem; cursor:pointer; color:var(--fg);">Swap Endian <span onclick="event.preventDefault();event.stopPropagation();document.getElementById('endian-modal').style.display='flex'" style="display:inline-block; width:1.1rem; height:1.1rem; line-height:1.1rem; text-align:center; border-radius:50%; border:1px solid var(--dim); color:var(--dim); font-size:0.7rem; cursor:pointer; vertical-align:middle;">?</span></button>
+                        </form>
+                        <form method="POST" action="{{ url_for('main.delete_profile', profile_id=p.id) }}">
+                            <button type="submit" style="width:100%; text-align:left; background:none; border:none; padding:0.5rem 0.8rem; cursor:pointer; color:var(--red);">Delete</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No profiles yet. Add one to get started.</p>
+    {% endif %}
+</section>
+
+<section class="panel">
+    <h2>Recent Jobs</h2>
+    {% if jobs %}
+    <table>
+        <thead>
+            <tr><th>Operation</th><th>Status</th><th>Created</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for job in jobs %}
+            <tr>
+                <td>{{ job.operation }}</td>
+                <td><span class="status-{{ job.status }}">{{ job.status }}</span></td>
+                <td>{{ job.created_at }}</td>
+                <td><a href="{{ url_for('jobs.job_status', job_id=job.id) }}">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No jobs yet.</p>
+    {% endif %}
+</section>
+
+<div id="accid-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:100; align-items:center; justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:1.5rem; max-width:480px; width:90%;">
+        <h3 style="margin-top:0;">Finding your Account ID</h3>
+        <ol style="padding-left:1.2rem; line-height:1.8;">
+            <li>Copy any encrypted save from your PS4 to a <strong>USB drive</strong></li>
+            <li>Plug the USB into your PC and navigate to:<br><code>USB:/PS4/SAVEDATA/</code></li>
+            <li>You'll see a folder with a <strong>16-character hex name</strong> — that's your Account ID</li>
+        </ol>
+        <p style="font-size:0.85rem; color:var(--dim);">Example: <code>3e338f700e51db91</code></p>
+        <button onclick="document.getElementById('accid-modal').style.display='none'" style="width:100%;">Got it</button>
+    </div>
+</div>
+
+<div id="endian-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; align-items:center; justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:1.5rem; max-width:400px; width:90%;">
+        <p style="margin-top:0;">Depending on how you derived your account ID, it could be in <a href="https://en.wikipedia.org/wiki/Endianness" target="_blank">little-endian or big-endian</a> format.</p>
+        <p>Click "Swap Endian" if you're having issues with saves showing "account belongs to a different user".</p>
+        <button onclick="document.getElementById('endian-modal').style.display='none'" style="width:100%;">OK</button>
+    </div>
+</div>
+<script>
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.dots-menu-btn') && !e.target.closest('.dots-menu')) {
+        document.querySelectorAll('.dots-menu').forEach(function(m) { m.style.display = 'none'; });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Encrypt{% endblock %}
+{% block content %}
+<h1>Encrypt</h1>
+<p>Upload a zip containing a decrypted save folder (with sce_sys). The save name and size are auto-detected from the zip.</p>
+
+<form method="POST" enctype="multipart/form-data" class="operation-form">
+    <div class="profile-select-wrap">
+        <span>Profile (Account ID)</span>
+        <div class="profile-cards">
+            {% for p in profiles %}
+            <label class="profile-card">
+                <input type="radio" name="profile_id" value="{{ p.id }}" required>
+                <span class="profile-card-dot"></span>
+                <span class="profile-card-info">
+                    <span class="profile-card-name">{{ p.name }}</span>
+                    <span class="profile-card-id">{{ p.account_id | to_usb_id }}</span>
+                    <span class="profile-card-id rp-copy" style="font-size:0.7rem; opacity:0.6; cursor:pointer" title="Click to copy">RP: {{ p.account_id | to_rp_id }}</span>
+                </span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="file-drop" id="encrypt-drop" data-folder-drop>
+        <input type="file" name="zipfile" accept=".zip" required>
+        <input type="file" name="folder_files" data-folder-input webkitdirectory mozdirectory multiple style="display:none">
+        <svg class="file-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><path d="M10 3v18"/><path d="M14 3v18"/><path d="M10 12h4"/></svg>
+        <div class="file-drop-text">Drop zip or folder here, or <strong>browse zip</strong> / <a href="#" id="browse-folder" data-browse-folder>browse folder</a></div>
+        <div class="file-drop-hint">.zip or folder containing decrypted save (with sce_sys)</div>
+        <div class="file-drop-selected"></div>
+    </div>
+
+    <button type="submit">Encrypt</button>
+</form>
+
+{% if not profiles %}
+<p class="hint">You need to <a href="{{ url_for('main.dashboard') }}">create a profile</a> first.</p>
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.querySelector('form.operation-form');
+    if (form) setupChunkedForm(form, { zipfile: 'upload_ids', folder_files: 'folder_upload_ids' });
+
+    const drop = document.getElementById('encrypt-drop');
+    const zipInput = drop.querySelector('input[name="zipfile"]');
+    const folderInput = drop.querySelector('input[name="folder_files"]');
+
+    folderInput.addEventListener('change', () => {
+        if (!folderInput.files.length) return;
+        zipInput.value = '';
+        zipInput.required = false;
+    });
+
+    zipInput.addEventListener('change', () => {
+        folderInput.value = '';
+        zipInput.required = true;
+    });
+});
+</script>
+{% endblock %}

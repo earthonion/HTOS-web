@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Console Import — {{ entry.title }}</title>
+<style>
+:root { --bg: #0f1117; --bg-1: #1a1d27; --border: #2a2d3a; --text: #e4e4e7; --text-2: #a1a1aa; --green: #22c55e; --red: #ef4444; --indigo: #6366f1; --r: 8px; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 2rem; max-width: 600px; margin: 0 auto; }
+h1 { font-size: 1.3rem; margin-bottom: 0.5rem; }
+.sub { color: var(--text-2); font-size: 0.85rem; margin-bottom: 1.5rem; }
+.panel { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--r); padding: 1.25rem; margin-bottom: 1rem; }
+.step { display: flex; gap: 0.75rem; align-items: flex-start; margin-bottom: 1rem; }
+.step-num { background: var(--indigo); color: #fff; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+.step-num.done { background: var(--green); }
+.step-num.fail { background: var(--red); }
+.step-text { font-size: 0.9rem; }
+.step-text small { color: var(--text-2); font-size: 0.78rem; display: block; margin-top: 2px; }
+#log { font-family: monospace; font-size: 0.78rem; color: var(--text-2); max-height: 200px; overflow-y: auto; margin-top: 1rem; white-space: pre-wrap; word-break: break-all; }
+input { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 0.5rem 0.75rem; width: 100%; font-size: 0.9rem; margin-bottom: 0.75rem; }
+button { background: var(--indigo); color: #fff; border: none; border-radius: var(--r); padding: 0.6rem 1.25rem; font-size: 0.9rem; cursor: pointer; width: 100%; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.status { padding: 0.5rem 0.75rem; border-radius: var(--r); font-size: 0.85rem; margin-top: 0.75rem; }
+.status.ok { background: rgba(34,197,94,0.1); color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+.status.err { background: rgba(239,68,68,0.1); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+</style>
+</head>
+<body>
+
+<h1>Send to Console</h1>
+<p class="sub"><strong>{{ entry.title }}</strong> ({{ entry.title_id }}) — {{ entry.platform | upper }}</p>
+
+<div class="panel">
+    <label style="font-size:0.8rem; color:var(--text-2); text-transform:uppercase; letter-spacing:0.05em;">Console IP (garlic-savemgr on port 8082)</label>
+    <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem;">
+        <input type="text" id="console-ip" placeholder="192.168.1.xxx" value="" style="margin-bottom:0; flex:1;">
+        <button id="scan-btn" onclick="scanNetwork()" style="width:auto; flex:none; padding:0.6rem 1rem; background:var(--bg-1); border:1px solid var(--border);">Scan</button>
+    </div>
+    <div id="scan-status" style="font-size:0.8rem; color:var(--text-2); margin-bottom:0.75rem; display:none;"></div>
+
+    <button id="start-btn" onclick="startImport()">Send to Console</button>
+
+    <div id="steps" style="margin-top:1.25rem; display:none;">
+        <div class="step"><div class="step-num" id="s1">1</div><div class="step-text">Connecting to garlic-savemgr<small id="s1-sub"></small></div></div>
+        <div class="step"><div class="step-num" id="s2">2</div><div class="step-text">Getting file list<small id="s2-sub"></small></div></div>
+        <div class="step"><div class="step-num" id="s3">3</div><div class="step-text">Creating save & uploading files<small id="s3-sub"></small></div></div>
+        <div class="step"><div class="step-num" id="s4">4</div><div class="step-text">Finalizing import<small id="s4-sub"></small></div></div>
+    </div>
+
+    <div id="result"></div>
+    <div id="log"></div>
+</div>
+
+<script>
+const ENTRY_ID = {{ entry.id }};
+const log = document.getElementById('log');
+const steps = document.getElementById('steps');
+const result = document.getElementById('result');
+
+function addLog(msg) {
+    log.textContent += msg + '\n';
+    log.scrollTop = log.scrollHeight;
+}
+
+function setStep(n, state, sub) {
+    const el = document.getElementById('s' + n);
+    const subEl = document.getElementById('s' + n + '-sub');
+    el.className = 'step-num' + (state === 'done' ? ' done' : state === 'fail' ? ' fail' : '');
+    if (sub) subEl.textContent = sub;
+}
+
+async function startImport() {
+    const ip = document.getElementById('console-ip').value.trim();
+    if (!ip) { alert('Enter the console IP'); return; }
+
+    const btn = document.getElementById('start-btn');
+    btn.disabled = true;
+    steps.style.display = 'block';
+    result.innerHTML = '';
+    log.textContent = '';
+
+    const base = 'http://' + ip + ':8082';
+
+    // Step 1: Check connection
+    addLog('Connecting to ' + base + ' ...');
+    try {
+        const r = await fetch(base + '/api/status', { mode: 'cors', signal: AbortSignal.timeout(5000) });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        setStep(1, 'done', 'Connected');
+        addLog('Connected to garlic-savemgr');
+    } catch (e) {
+        setStep(1, 'fail', 'Failed: ' + e.message);
+        addLog('Connection failed: ' + e.message);
+        result.innerHTML = '<div class="status err">Could not connect to console. Make sure <strong>garlic-savemgr</strong> is running on your PS5. Get it from <a href="https://github.com/earthonion/garlic-savemgr/releases" target="_blank" style="color:var(--indigo-light);">here</a>.</div>';
+        btn.disabled = false;
+        return;
+    }
+
+    // Step 2: Get file listing from server
+    addLog('Getting file list...');
+    let fileList;
+    try {
+        const r = await fetch('/console-import/' + ENTRY_ID + '/files');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+        if (data.error) throw new Error(data.error);
+        fileList = data.files;
+        const totalSize = fileList.reduce((s, f) => s + f.size, 0);
+        setStep(2, 'done', fileList.length + ' files, ' + (totalSize / 1024 / 1024).toFixed(1) + ' MB');
+        addLog('Found ' + fileList.length + ' files (' + totalSize + ' bytes)');
+    } catch (e) {
+        setStep(2, 'fail', 'Failed: ' + e.message);
+        addLog('File list failed: ' + e.message);
+        result.innerHTML = '<div class="status err">Failed to get file list.</div>';
+        btn.disabled = false;
+        return;
+    }
+
+    // Step 3: Create PFS on console, upload each file individually
+    addLog('Creating PFS image on console...');
+    try {
+        const totalSize = fileList.reduce((s, f) => s + f.size, 0);
+        const cr = await fetch(base + '/api/create_pfs?size=' + totalSize, { mode: 'cors' });
+        const cdata = await cr.json();
+        if (cdata.error) throw new Error('create_pfs: ' + cdata.error);
+        addLog('PFS created and mounted');
+
+        // Upload each file from server to console
+        for (let i = 0; i < fileList.length; i++) {
+            const f = fileList[i];
+            addLog('Uploading (' + (i + 1) + '/' + fileList.length + ') ' + f.name + ' (' + f.size + ' bytes)...');
+
+            // Download file from server
+            const dl = await fetch('/console-import/' + ENTRY_ID + '/file?name=' + encodeURIComponent(f.name));
+            if (!dl.ok) throw new Error('Download failed: ' + f.name);
+            const blob = await dl.blob();
+
+            // Upload to console
+            const ur = await fetch(base + '/api/upload_file?name=' + encodeURIComponent(f.name), {
+                method: 'POST',
+                mode: 'cors',
+                body: blob,
+            });
+            const udata = await ur.json();
+            if (udata.error) throw new Error('upload ' + f.name + ': ' + udata.error);
+        }
+        setStep(3, 'done', fileList.length + ' files uploaded');
+        addLog('All ' + fileList.length + ' files uploaded');
+    } catch (e) {
+        setStep(3, 'fail', 'Failed: ' + e.message);
+        addLog('Upload failed: ' + e.message);
+        result.innerHTML = '<div class="status err">Failed to upload to console.</div>';
+        try { await fetch(base + '/api/unmount', { mode: 'cors' }); } catch(x) {}
+        btn.disabled = false;
+        return;
+    }
+
+    // Step 4: Finalize import
+    addLog('Finalizing import...');
+    try {
+        // Check if save already exists
+        const chk = await fetch(base + '/api/import_check', { mode: 'cors' });
+        const chkData = await chk.json();
+        if (chkData.exists) {
+            addLog('Save already exists on console, will overwrite');
+        }
+
+        const r = await fetch(base + '/api/import_finish', { mode: 'cors' });
+        const data = await r.json();
+        if (data.error) throw new Error(data.error);
+        if (data.sfo_zeroed) {
+            addLog('SFO zeroed, retrying with force...');
+            const r2 = await fetch(base + '/api/import_finish?force=1', { mode: 'cors' });
+            const data2 = await r2.json();
+            if (data2.error) throw new Error(data2.error);
+            setStep(4, 'done', data2.title || 'Imported');
+            addLog('Import finalized: ' + JSON.stringify(data2));
+        } else {
+            setStep(4, 'done', data.title || 'Imported');
+            addLog('Import finalized: ' + JSON.stringify(data));
+        }
+        result.innerHTML = '<div class="status ok">Save imported to console!</div>';
+    } catch (e) {
+        setStep(4, 'fail', 'Failed: ' + e.message);
+        addLog('Import failed: ' + e.message);
+        result.innerHTML = '<div class="status err">Import failed: ' + e.message + '</div>';
+        try { await fetch(base + '/api/unmount', { mode: 'cors' }); } catch(x) {}
+        btn.disabled = false;
+        return;
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Done!';
+}
+
+// Try to load last used IP, then auto-scan
+const lastIP = localStorage.getItem('garlic_console_ip');
+if (lastIP) document.getElementById('console-ip').value = lastIP;
+
+document.getElementById('console-ip').addEventListener('change', function() {
+    localStorage.setItem('garlic_console_ip', this.value.trim());
+});
+
+// Auto-scan on page load
+if (!lastIP) {
+    scanNetwork();
+}
+
+function getLocalIP() {
+    return new Promise(resolve => {
+        try {
+            const pc = new RTCPeerConnection({ iceServers: [] });
+            pc.createDataChannel('');
+            pc.onicecandidate = e => {
+                if (!e || !e.candidate) return;
+                const m = e.candidate.candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
+                if (m && !m[1].startsWith('0.')) {
+                    pc.close();
+                    resolve(m[1]);
+                }
+            };
+            pc.createOffer().then(o => pc.setLocalDescription(o));
+            setTimeout(() => { pc.close(); resolve(null); }, 3000);
+        } catch (e) { resolve(null); }
+    });
+}
+
+async function scanSubnet(subnet, statusEl) {
+    const BATCH = 50;
+    for (let start = 2; start <= 254; start += BATCH) {
+        statusEl.textContent = 'Scanning ' + subnet + '.' + start + '-' + Math.min(start + BATCH - 1, 254) + ' ...';
+        const promises = [];
+        for (let i = start; i < Math.min(start + BATCH, 255); i++) {
+            const ip = subnet + '.' + i;
+            promises.push(
+                fetch('http://' + ip + ':8082/api/status', {
+                    mode: 'cors',
+                    signal: AbortSignal.timeout(1500)
+                })
+                .then(r => r.ok ? ip : null)
+                .catch(() => null)
+            );
+        }
+        const results = await Promise.all(promises);
+        const found = results.find(r => r !== null);
+        if (found) return found;
+    }
+    return null;
+}
+
+async function scanNetwork() {
+    const scanBtn = document.getElementById('scan-btn');
+    const scanStatus = document.getElementById('scan-status');
+    const ipInput = document.getElementById('console-ip');
+    scanBtn.disabled = true;
+    scanStatus.style.display = 'block';
+    scanStatus.style.color = 'var(--text-2)';
+    scanStatus.textContent = 'Detecting local network...';
+
+    // Try WebRTC to get local IP
+    const localIP = await getLocalIP();
+    let subnets = [];
+    if (localIP) {
+        const parts = localIP.split('.');
+        const mySubnet = parts[0] + '.' + parts[1] + '.' + parts[2];
+        subnets = [mySubnet];
+        scanStatus.textContent = 'Detected network: ' + mySubnet + '.x — scanning...';
+    } else {
+        subnets = ['192.168.0', '192.168.1', '192.168.2', '192.168.10', '192.168.50', '192.168.100', '10.0.0', '10.0.1'];
+        scanStatus.textContent = 'Could not detect subnet, scanning common ranges...';
+    }
+
+    let found = null;
+    for (const subnet of subnets) {
+        found = await scanSubnet(subnet, scanStatus);
+        if (found) break;
+    }
+
+    if (found) {
+        ipInput.value = found;
+        localStorage.setItem('garlic_console_ip', found);
+        scanStatus.innerHTML = 'Found garlic-savemgr at <strong>' + found + '</strong>';
+        scanStatus.style.color = 'var(--green)';
+    } else {
+        scanStatus.innerHTML = 'No console found. Make sure <strong>garlic-savemgr</strong> is running on your PS5. '
+            + 'Send the payload from <a href="https://github.com/earthonion/garlic-savemgr/releases" target="_blank" style="color:var(--indigo-light);">here</a>, then try again.';
+        scanStatus.style.color = 'var(--red)';
+    }
+    scanBtn.disabled = false;
+}
+</script>
+</body>
+</html>

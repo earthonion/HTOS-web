@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}PS4 & PS5 Save Tools{% endblock %}
+{% block supporters_footer %}{% endblock %}
+{% block extra_head %}
+<style>
+.lp-hero {
+    text-align: center;
+    padding: 6rem 0 4rem;
+    max-width: 640px;
+    margin: 0 auto;
+}
+.lp-hero h1 {
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-size: 2.4rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    margin: 0 0 1rem;
+}
+.lp-hero p {
+    font-size: 1rem;
+    color: var(--text-2);
+    line-height: 1.6;
+    margin: 0 auto 2rem;
+}
+.lp-cta {
+    display: flex;
+    gap: 0.6rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.lp-cta .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-2);
+}
+.lp-cta .btn-outline:hover {
+    border-color: var(--indigo);
+    color: var(--text-1);
+    background: var(--indigo-glow);
+    box-shadow: none;
+}
+
+.lp-section {
+    border-top: 1px solid var(--border);
+    margin: 0 auto;
+    max-width: 640px;
+}
+.lp-section > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 1rem 0.25rem;
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: var(--text-1);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    user-select: none;
+}
+.lp-section > summary::-webkit-details-marker { display: none; }
+.lp-section > summary::before {
+    content: '›';
+    color: var(--text-3);
+    font-size: 1.1rem;
+    line-height: 1;
+    transition: transform .15s;
+    flex-shrink: 0;
+    width: 0.8em;
+}
+.lp-section[open] > summary::before { transform: rotate(90deg); }
+.lp-section > summary:hover { color: var(--indigo-light); }
+.lp-body {
+    padding: 0 0 1.5rem 1.4rem;
+    color: var(--text-2);
+    font-size: 0.88rem;
+    line-height: 1.7;
+}
+.lp-body h3 {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-1);
+    margin: 0 0 0.25rem;
+}
+.lp-body p { margin: 0 0 1rem; }
+.lp-body .step { display: flex; gap: 0.9rem; margin-bottom: 1rem; }
+.lp-body .step-num {
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82rem;
+    padding-top: 0.05rem;
+    flex-shrink: 0;
+    width: 1.4em;
+}
+.lp-body .tool {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 0.55rem 0;
+    border-bottom: 1px dashed var(--border);
+    text-decoration: none; color: var(--text-1);
+}
+.lp-body .tool:last-child { border-bottom: 0; }
+.lp-body .tool:hover { color: var(--indigo-light); }
+.lp-body .tool span { color: var(--text-3); font-size: 0.8rem; }
+.lp-body details.q { margin-bottom: 0.6rem; }
+.lp-body details.q summary {
+    list-style: none; cursor: pointer; font-weight: 500;
+    color: var(--text-1); padding: 0.3rem 0;
+}
+.lp-body details.q summary::-webkit-details-marker { display: none; }
+.lp-body details.q summary::before { content: '+ '; color: var(--text-3); }
+.lp-body details.q[open] summary::before { content: '− '; }
+.lp-body details.q > div { padding: 0.3rem 0 0.8rem 1.1em; color: var(--text-2); }
+
+.lp-foot {
+    text-align: center;
+    margin: 4rem auto 2rem;
+    color: var(--text-3);
+    font-size: 0.82rem;
+}
+.lp-foot a { color: var(--text-2); text-decoration: none; border-bottom: 1px solid var(--border); }
+.lp-foot a:hover { color: var(--indigo-light); border-color: var(--indigo-light); }
+.lp-foot .dot { margin: 0 0.6rem; color: var(--border); }
+.lp-supporters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.5rem;
+    margin: 0.2rem 0 0.5rem;
+}
+.lp-supporters .name {
+    color: var(--text-1);
+    font-size: 0.88rem;
+    padding: 0.15rem 0.55rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: transparent;
+    white-space: nowrap;
+}
+.lp-supporters .name.subscriber { border-color: var(--indigo); color: var(--indigo-light); }
+.lp-supporters .anon {
+    color: var(--text-3);
+    font-size: 0.82rem;
+    align-self: center;
+}
+.lp-supporters-msg {
+    margin: 0.3rem 0 0.8rem 0;
+    color: var(--text-3);
+    font-size: 0.82rem;
+    font-style: italic;
+}
+.lp-foot .stats { color: var(--text-3); font-size: 0.75rem; margin-top: 0.5rem; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 640px) {
+    .lp-hero { padding: 3rem 0 2rem; }
+    .lp-hero h1 { font-size: 1.7rem; }
+}
+</style>
+{% endblock %}
+{% block content %}
+
+<div class="lp-hero">
+    <h1>PS4 &amp; PS5 save tools</h1>
+    <p>Decrypt, encrypt, resign, and more. Also: <a href="https://m2k7m.github.io/re-region-web/" target="_blank" rel="noopener" style="color:var(--accent, #fbd308); text-decoration:none;">Reregion &#8599;</a></p>
+    <div class="lp-cta">
+        <a href="{{ url_for('auth.register') }}" class="btn">Get started</a>
+        <a href="{{ url_for('auth.login') }}" class="btn btn-outline">Sign in</a>
+        <a href="{{ url_for('tools.tools_index') }}" class="btn btn-outline">Tools</a>
+    </div>
+</div>
+
+{% if supporters or anonymous_count %}
+<details class="lp-section" open>
+    <summary>Supporters</summary>
+    <div class="lp-body">
+        <p style="margin:0 0 0.6rem;">Huge thanks to everyone helping keep this service running. <a href="https://ko-fi.com/earthonion" target="_blank">Join them on ko-fi</a>.</p>
+        <div class="lp-supporters">
+            {% for s in supporters_grouped %}
+                <span class="name{% if s.is_subscription_payment %} subscriber{% endif %}"
+                      {% if s.is_subscription_payment and s.tier_name %}title="{{ s.tier_name }}"{% endif %}>
+                    {{ s.from_name }}{% if s.count > 1 %} <span style="opacity:0.7; font-size:0.85em;">×{{ s.count }}</span>{% endif %}
+                </span>
+            {% endfor %}
+            {% if anonymous_count %}<span class="anon">+ {{ anonymous_count }} anonymous</span>{% endif %}
+        </div>
+        {% for s in supporters %}
+            {% if s.is_public and s.message %}
+            <p class="lp-supporters-msg">"{{ s.message }}" — {{ s.from_name }}</p>
+            {% endif %}
+        {% endfor %}
+    </div>
+</details>
+{% endif %}
+
+<div class="lp-foot">
+    <a href="https://github.com/earthonion" target="_blank">open source</a>
+    <span class="dot">·</span>
+    <a href="https://discord.gg/WAjsqN5FUb" target="_blank" rel="noopener">Discord</a>
+    <span class="dot">·</span>
+    <a href="https://ko-fi.com/earthonion" target="_blank">ko-fi</a>
+    <span class="dot">·</span>
+    <a href="/.well-known/pgp.asc">pgp</a>
+    <div class="stats">{{ total_workers }} workers · {{ total_jobs }} jobs processed</div>
+</div>
+
+{% endblock %}
