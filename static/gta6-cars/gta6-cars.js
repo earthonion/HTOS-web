@@ -23,7 +23,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const VERSION = '1.4.0';
+  const VERSION = '1.8.0';
   const ITEM_LIMIT = 4095, RESERVED_ITEMS = 100;
   const PROPERTY_ID3 = 3919519363n;
   const TABLES = ['$0xfc8f2620', '$0x6ebbccb1', '$0xc500ddf4', '$0x9098d12e', '$0x1085013f'];
@@ -206,7 +206,7 @@
     garages() {
       const owned = this.ownedProperties(), occ = {};
       for (const k of this.carRows()) { const d = this.describeRow(k); if (d.garage !== '0') occ[d.garage] = d; }
-      let list = this.ownedGarages();
+      let list = this.ownedGarages().filter(h => this.findGaragePurchase(h) >= 0 || occ[h]);   // only garages the car can be linked to
       if (!list.length) list = [...owned].filter(h => this.knownGarages.has(h) || occ[h]);
       for (const h of Object.keys(occ)) if (!list.includes(h) && owned.has(h)) list.push(h);
       list.sort((a, b) => Number(a) - Number(b));
@@ -259,6 +259,30 @@
       if (r === undefined) throw new Error('This save has no purchase record of the right kind yet (buy any car in-game first).');
       return r;
     }
+    // Row (table 1) of the purchase record that belongs to a garage: garage -> intermediate -> purchase. -1 if none.
+    findGaragePurchase(garageHash) {
+      const t = TABLES[0], id1 = this.col(t, C.id1), id2 = this.col(t, C.id2), id3 = this.col(t, C.id3), par = this.col(t, C.parent);
+      const rowOf = new Map(id1.map((v, k) => [String(big(v)), k]));
+      const parentRow = k => { const id = this.reg[Number(big(par[k]))]; return id ? (rowOf.get(String(big(id))) ?? -1) : -1; };
+      const found = [];
+      id3.forEach((v, k) => {
+        if (big(v) !== 1220699669n) return;                         // purchase record
+        const inter = parentRow(k); if (inter < 0 || big(id3[inter]) !== 2372380198n) return;
+        const prop = parentRow(inter); if (prop < 0 || big(id3[prop]) !== PROPERTY_ID3) return;
+        if (String(u32(big(id2[prop]))) === String(garageHash)) found.push(k);
+      });
+      return found.length === 1 ? found[0] : -1;
+    }
+    // Register position of that purchase record (registers it if this is the garage's first car).
+    garagePurchaseIndex(garageHash) {
+      const k = this.findGaragePurchase(garageHash);
+      if (k < 0) throw new Error('This garage has no purchase record in the save yet.');
+      const id = big(this.col(TABLES[0], C.id1)[k]);
+      const r = this.reg.findIndex(v => big(v) === id);
+      if (r >= 0) return r;
+      this.reg.push(mk(id));
+      return this.reg.length - 1;
+    }
     allIds() {
       const s = new Set();
       for (const t of TABLES) if (this.inv[t]) for (const v of this.col(t, C.id1)) s.add(big(v));
@@ -292,7 +316,9 @@
       const row = Object.fromEntries(Object.entries(lc.row).map(([k, v]) => [k, parseJSON(v)]));
       row[C.carId] = mk(s32(carId));
       row[C.garage] = mk(street ? 0n : s32(BigInt(garageHash)));
-      row[C.parent] = mk(this.sourceIndexFor(lc.source));
+      // Parent = the purchase record under THIS garage (garage group -> garage -> intermediate -> purchase).
+      // That chain is what places the car in a garage in game; street cars keep the generic purchase link.
+      row[C.parent] = mk(street ? this.sourceIndexFor(lc.source) : this.garagePurchaseIndex(garageHash));
       // fresh 64-bit id, in this save's own numbering
       const ids = this.allIds(); let next = [...ids].reduce((m, x) => (x > m ? x : m), 0n) + 1000n;
       while (ids.has(next)) next++;

@@ -17,6 +17,9 @@ Changes: only the vehicle model-name and category fields were extracted, convert
 
 ## Native vehicle builder
 
+The native vehicle generator and its preset catalog (`native/native-catalog.mjs`,
+`native/native-vehicle-mint.mjs`, `native/landstalker-xl.mjs`) are by Malygos
+(https://www.saverift.com/), contributed in pull request #12.
 The browser builder and catalog tooling were written by SaveRift contributors.
 The catalog uses numeric model, inventory, configuration and part identifiers
 indexed from native vehicle definitions for interoperability. It contains no
