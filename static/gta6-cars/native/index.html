@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Build from native parts | GTA VI Car Giver</title>
+  <style>
+    :root { color-scheme: dark; --background: #0f1115; --panel: #171a21; --border: #353b48; --muted: #b0b8c8; --accent: #ff79ba; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--background); color: #e8eaf0; font: 16px/1.55 system-ui, sans-serif; }
+    main { max-width: 680px; margin: 0 auto; padding: clamp(24px, 6vw, 56px) 18px; }
+    h1 { font-size: clamp(27px, 5vw, 38px); line-height: 1.15; margin: 24px 0 8px; }
+    h2 { font-size: 19px; margin: 0 0 4px; }
+    p { margin: 0 0 14px; }
+    a { color: var(--accent); }
+    .muted { color: var(--muted); }
+    section { margin-top: 24px; padding: clamp(16px, 4vw, 24px); background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+    label { display: block; font-weight: 600; margin-top: 20px; }
+    input, select { display: block; max-width: 100%; margin: 6px 0 12px; }
+    select { width: 100%; padding: 9px 10px; color: #e8eaf0; background: #252b38; border: 1px solid var(--border); border-radius: 6px; font: inherit; }
+    details { margin-top: 18px; }
+    summary { color: var(--accent); cursor: pointer; }
+    details ul { padding-left: 20px; margin: 10px 0 0; }
+    input::file-selector-button { color: #e8eaf0; background: #252b38; border: 1px solid var(--border); padding: 7px 10px; border-radius: 6px; margin-right: 10px; }
+    button, .download { display: inline-block; background: var(--accent); color: #20101c; padding: 9px 14px; border: 0; border-radius: 7px; font: inherit; font-weight: 700; text-decoration: none; }
+    button:disabled { opacity: .52; }
+    :focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+    #status { margin: 14px 0 0; overflow-wrap: anywhere; }
+    #status[data-error] { color: #ff9b9b; }
+    #result { margin-top: 16px; }
+    [hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <a href="/gta6/cars">Back to Car Giver</a>
+    <h1>Build from native parts</h1>
+    <p class="muted">Generate a vehicle from a native preset directly in your browser. Use a decrypted GTA VI PS5 manual save.</p>
+    <section aria-labelledby="vehicle">
+      <h2 id="vehicle">Add a vehicle to a garage</h2>
+      <p class="muted">Choose a stock model and an available empty garage in your save. Each download adds one vehicle.</p>
+      <label for="vehicle-model">Vehicle</label>
+      <select id="vehicle-model" aria-describedby="vehicle-help" disabled></select>
+      <p id="vehicle-help" class="muted"></p>
+      <label for="save-file">Decrypted manual save</label>
+      <input id="save-file" type="file" aria-describedby="file-help">
+      <p id="file-help" class="muted">Choose a SARC000x file or a decrypted ZIP containing one manual save.</p>
+      <label for="garage">Destination garage</label>
+      <select id="garage" aria-describedby="garage-help" disabled></select>
+      <p id="garage-help" class="muted">Open a manual save to see its available garages.</p>
+      <button id="build" type="button" disabled>Build save</button>
+      <p id="status" role="status" aria-live="polite"></p>
+      <div id="result" hidden>
+        <a class="download" id="download">Download edited save</a>
+        <p class="muted" style="margin:12px 0 0">Put the downloaded file in its original decrypted folder before encrypting and transferring it to your PS5. Open the manual slot through Load Game.</p>
+      </div>
+      <details id="coverage" hidden>
+        <summary id="coverage-summary"></summary>
+        <ul id="coverage-list" class="muted"></ul>
+      </details>
+    </section>
+  </main>
+  <script src="../gta6-cars.js"></script>
+  <script type="module" src="./native-page.mjs"></script>
+</body>
+</html>

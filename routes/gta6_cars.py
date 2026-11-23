@@ -1,7 +1,8 @@
 import asyncio
 import json
+from posixpath import normpath
 
-from quart import Blueprint, current_app, jsonify, request, send_file
+from quart import Blueprint, abort, current_app, jsonify, request, send_file
 
 from auth import login_required
 from services.gta6_cars import (
@@ -14,12 +15,48 @@ from services.gta6_cars import (
 
 gta6_cars_bp = Blueprint("gta6_cars", __name__)
 CAR_ASSET_ROOT = APP_ROOT / "static" / "gta6-cars"
+CAR_NATIVE_ROOT = CAR_ASSET_ROOT / "native"
+CAR_NATIVE_MODULES = {
+    "native-catalog.mjs",
+    "native-page.mjs",
+    "native-vehicle-mint.mjs",
+    "landstalker-xl.mjs",
+    "manual-save.mjs",
+}
+
+
+@gta6_cars_bp.before_app_request
+async def block_public_native_files():
+    if request.endpoint == "static":
+        filename = normpath(request.view_args["filename"]).casefold()
+        if filename.startswith("gta6-cars/native/"):
+            abort(404)
 
 
 @gta6_cars_bp.route("/gta6/cars", strict_slashes=False)
 @login_required
 async def gta6_cars():
     return await send_file(CAR_ASSET_ROOT / "index.html", mimetype="text/html", cache_timeout=0)
+
+
+async def _send_native_asset(path, mimetype):
+    response = await send_file(path, mimetype=mimetype, cache_timeout=0)
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@gta6_cars_bp.route("/gta6/cars/native/")
+@login_required
+async def gta6_cars_native():
+    return await _send_native_asset(CAR_NATIVE_ROOT / "index.html", "text/html")
+
+
+@gta6_cars_bp.route("/gta6/cars/native/<asset>")
+@login_required
+async def gta6_cars_native_module(asset):
+    if asset not in CAR_NATIVE_MODULES:
+        abort(404)
+    return await _send_native_asset(CAR_NATIVE_ROOT / asset, "text/javascript")
 
 
 @gta6_cars_bp.route("/gta6/cars/gta6-cars.js")

@@ -14,3 +14,10 @@ https://github.com/SaveRift/SaveRift-Ecosystem/tree/main/ecosystem/plugins/gta-v
 
 Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
 Changes: only the vehicle model-name and category fields were extracted, converted to a model-hash lookup table.
+
+## Native vehicle builder
+
+The browser builder and catalog tooling were written by SaveRift contributors.
+The catalog uses numeric model, inventory, configuration and part identifiers
+indexed from native vehicle definitions for interoperability. It contains no
+player saves or saved donor vehicle records.
