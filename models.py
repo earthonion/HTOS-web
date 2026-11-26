@@ -37,8 +37,20 @@ CREATE TABLE IF NOT EXISTS worker_keys (
     is_active BOOLEAN DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_used TIMESTAMP,
-    last_platform TEXT DEFAULT 'ps4'
+    last_platform TEXT DEFAULT 'ps4',
+    monthly_ip_limit INTEGER NOT NULL DEFAULT 5
 );
+
+CREATE TABLE IF NOT EXISTS worker_key_ip_usage (
+    worker_key_id INTEGER NOT NULL REFERENCES worker_keys(id) ON DELETE CASCADE,
+    ip TEXT NOT NULL,
+    first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (worker_key_id, ip)
+);
+
+CREATE INDEX IF NOT EXISTS idx_worker_key_ip_usage_last_seen
+    ON worker_key_ip_usage(worker_key_id, last_seen);
 
 CREATE TABLE IF NOT EXISTS device_authorizations (
     device_code_hash TEXT PRIMARY KEY,
@@ -244,6 +256,19 @@ MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS idx_jobs_submitter_installation ON jobs(submitter_installation_id, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_device_user_code ON device_authorizations(user_code)",
     "UPDATE worker_keys SET is_shared = 1 WHERE name = 'GarlicTransfer-public'",
+    "ALTER TABLE worker_keys ADD COLUMN monthly_ip_limit INTEGER NOT NULL DEFAULT 5",
+    """CREATE TABLE IF NOT EXISTS worker_key_ip_usage (
+        worker_key_id INTEGER NOT NULL REFERENCES worker_keys(id) ON DELETE CASCADE,
+        ip TEXT NOT NULL,
+        first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (worker_key_id, ip)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_worker_key_ip_usage_last_seen ON worker_key_ip_usage(worker_key_id, last_seen)",
+    "INSERT OR IGNORE INTO worker_key_ip_usage (worker_key_id, ip, first_seen, last_seen) "
+    "SELECT submitter_key_id, submitter_ip, MIN(created_at), MAX(created_at) FROM jobs "
+    "WHERE submitter_key_id IS NOT NULL AND submitter_ip IS NOT NULL AND submitter_ip != '' "
+    "GROUP BY submitter_key_id, submitter_ip",
 ]
 
 

@@ -21,7 +21,7 @@ async def dashboard():
         # Worker stats (combine current jobs + persisted stats + instance count)
         cursor = await db.execute(
             "SELECT wk.id, wk.name, u.username as owner_username, wk.last_platform, wk.is_active, wk.jobs_completed, wk.job_rate_limit, "
-            "wk.api_enabled, wk.ppr_derive_enabled, "
+            "wk.api_enabled, wk.ppr_derive_enabled, wk.monthly_ip_limit, "
             "wk.suspended_until, wk.online_since, "
             "COALESCE(SUM(CASE WHEN j.status = 'done' THEN 1 ELSE 0 END), 0) "
             "  + COALESCE(ps.hist_done, 0) as done, "
@@ -33,7 +33,9 @@ async def dashboard():
             "COALESCE(ic.instance_count, 0) as instances, "
             "COALESCE(ic.online_count, 0) as online_instances, "
             "COALESCE(ic.ps4_online, 0) as ps4_online, "
-            "COALESCE(ic.ps5_online, 0) as ps5_online "
+            "COALESCE(ic.ps5_online, 0) as ps5_online, "
+            "(SELECT COUNT(*) FROM worker_key_ip_usage ip WHERE ip.worker_key_id = wk.id "
+            " AND ip.last_seen > datetime('now', '-30 days')) as monthly_ip_count "
             "FROM worker_keys wk "
             "LEFT JOIN users u ON wk.user_id = u.id "
             "LEFT JOIN jobs j ON j.worker_key_id = wk.id "
@@ -55,12 +57,14 @@ async def dashboard():
         workers = [dict(r) for r in await cursor.fetchall()]
         cursor = await db.execute(
             "SELECT wk.id, wk.name, u.username as owner_username, wk.installation_id, "
-            "wk.is_active, wk.api_enabled, wk.ppr_derive_enabled, wk.job_rate_limit, "
+            "wk.is_active, wk.api_enabled, wk.ppr_derive_enabled, wk.job_rate_limit, wk.monthly_ip_limit, "
             "wk.created_at, wk.last_used, wk.last_ip, "
             "COUNT(j.id) as total, "
             "COALESCE(SUM(CASE WHEN j.status = 'done' THEN 1 ELSE 0 END), 0) as done, "
             "COALESCE(SUM(CASE WHEN j.status = 'failed' THEN 1 ELSE 0 END), 0) as failed, "
-            "COALESCE(SUM(CASE WHEN j.status IN ('pending', 'queued', 'running') THEN 1 ELSE 0 END), 0) as active_jobs "
+            "COALESCE(SUM(CASE WHEN j.status IN ('pending', 'queued', 'running') THEN 1 ELSE 0 END), 0) as active_jobs, "
+            "(SELECT COUNT(*) FROM worker_key_ip_usage ip WHERE ip.worker_key_id = wk.id "
+            " AND ip.last_seen > datetime('now', '-30 days')) as monthly_ip_count "
             "FROM worker_keys wk "
             "LEFT JOIN users u ON wk.user_id = u.id "
             "LEFT JOIN jobs j ON j.submitter_key_id = wk.id "
@@ -334,6 +338,33 @@ async def set_worker_rate_limit(key_id):
     try:
         cursor = await db.execute(
             "UPDATE worker_keys SET job_rate_limit = ? WHERE id = ?", (limit, key_id)
+        )
+        await db.commit()
+        if cursor.rowcount == 0:
+            return jsonify({"ok": False, "error": "worker key not found"}), 404
+    finally:
+        await db.close()
+    return jsonify({"ok": True, "limit": limit})
+
+
+@admin_web_bp.route("/admin/worker-ip-limit/<int:key_id>", methods=["POST"])
+@admin_required
+async def set_worker_ip_limit(key_id):
+    data = await request.get_json()
+    try:
+        limit = int(data.get("limit", 5))
+    except (TypeError, ValueError):
+        return jsonify(
+            {"ok": False, "error": "limit must be a non-negative integer"}
+        ), 400
+    if limit < 0 or limit > 1000:
+        return jsonify(
+            {"ok": False, "error": "limit must be between 0 and 1000"}
+        ), 400
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "UPDATE worker_keys SET monthly_ip_limit = ? WHERE id = ?", (limit, key_id)
         )
         await db.commit()
         if cursor.rowcount == 0:

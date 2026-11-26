@@ -194,7 +194,7 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
         <thead>
             <tr>
                 <th>ID</th><th>User</th><th>Key name</th><th>Plat</th><th>Status</th><th>Uptime</th>
-                <th>Done</th><th>Fail</th><th>Total</th><th>Rate</th><th>Active</th><th>Instances</th><th>Jobs/min limit</th><th>API access</th>
+                <th>Done</th><th>Fail</th><th>Total</th><th>Rate</th><th>Active</th><th>Instances</th><th>Jobs/min limit</th><th>IPs/30d</th><th>IP limit</th><th>API access</th>
             </tr>
         </thead>
         <tbody>
@@ -258,6 +258,11 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
                     <input class="rate-limit-input" data-key-id="{{ w.id }}" type="number" min="0" max="100000" value="{{ w.job_rate_limit or 0 }}" style="width:70px;font-size:0.75rem;" title="Jobs per minute; 0 is unlimited">
                     <button class="btn-small save-rate-limit" data-key-id="{{ w.id }}">Save</button>
                 </td>
+                <td>{{ w.monthly_ip_count }}</td>
+                <td style="white-space:nowrap;">
+                    <input class="monthly-ip-limit-input" data-key-id="{{ w.id }}" type="number" min="0" max="1000" value="{{ w.monthly_ip_limit }}" style="width:55px;font-size:0.75rem;" title="Unique submitter IPs per 30 days; 0 is unlimited">
+                    <button class="btn-small save-monthly-ip-limit" data-key-id="{{ w.id }}">Save</button>
+                </td>
                 <td style="white-space:nowrap;font-size:0.75rem;">
                     <label title="Allow decrypt, encrypt, resign, reregion, and createsave jobs">
                         <input class="worker-access-toggle" data-key-id="{{ w.id }}" data-setting="api_enabled" type="checkbox" {% if w.api_enabled %}checked{% endif %}> Jobs
@@ -280,7 +285,7 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
     <div style="overflow-x:auto;">
     <table id="api-keys-table">
         <thead>
-            <tr><th>ID</th><th>User</th><th>Installation</th><th>Status</th><th>Permissions</th><th>Submitted</th><th>Done</th><th>Failed</th><th>Active</th><th>Last used</th><th>Last IP</th></tr>
+            <tr><th>ID</th><th>User</th><th>Installation</th><th>Status</th><th>Permissions</th><th>Submitted</th><th>Done</th><th>Failed</th><th>Active</th><th>IPs/30d</th><th>IP limit</th><th>Last used</th><th>Last IP</th></tr>
         </thead>
         <tbody>
             {% for k in api_keys %}
@@ -301,6 +306,11 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
                 <td>{{ k.done }}</td>
                 <td>{{ k.failed }}</td>
                 <td>{{ k.active_jobs }}</td>
+                <td>{{ k.monthly_ip_count }}</td>
+                <td style="white-space:nowrap;">
+                    <input class="monthly-ip-limit-input" data-key-id="{{ k.id }}" type="number" min="0" max="1000" value="{{ k.monthly_ip_limit }}" style="width:55px;font-size:0.75rem;" title="Unique submitter IPs per 30 days; 0 is unlimited">
+                    <button class="btn-small save-monthly-ip-limit" data-key-id="{{ k.id }}">Save</button>
+                </td>
                 <td>{{ k.last_used or '-' }}</td>
                 <td>{{ k.last_ip or '-' }}</td>
             </tr>
@@ -546,6 +556,35 @@ document.addEventListener('click', async function(e) {
         });
         const result = await response.json();
         if (!response.ok || !result.ok) throw new Error(result.error || 'Could not save limit');
+        input.value = result.limit;
+        button.textContent = 'Saved';
+    } catch (error) {
+        button.textContent = 'Error';
+        alert(error.message);
+    } finally {
+        setTimeout(() => {
+            button.disabled = false;
+            button.textContent = previous;
+        }, 1200);
+    }
+});
+
+document.addEventListener('click', async function(e) {
+    const button = e.target.closest('.save-monthly-ip-limit');
+    if (!button) return;
+    const keyId = button.dataset.keyId;
+    const input = document.querySelector('.monthly-ip-limit-input[data-key-id="' + keyId + '"]');
+    const previous = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Saving…';
+    try {
+        const response = await fetch('/admin/worker-ip-limit/' + keyId, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN},
+            body: JSON.stringify({limit: Number(input.value || 0)}),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Could not save IP limit');
         input.value = result.limit;
         button.textContent = 'Saved';
     } catch (error) {
