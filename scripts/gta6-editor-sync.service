@@ -1,0 +1,27 @@
+[Unit]
+Description=Sync GTA VI editor from Joshhooger/gta6-money-editor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/htos
+Environment=PATH=/opt/node-v22/bin:/opt/node-v22-tools/node_modules/.bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+EnvironmentFile=/etc/gta6-car-sync.conf
+EnvironmentFile=-/etc/gta6-editor-sync.conf
+ExecStartPre=/usr/bin/mkdir -p /opt/htos/workspace/gta6-editor-upstream
+ExecStart=/opt/htos/.venv/bin/python /opt/htos/scripts/sync_gta6_editor.py
+TimeoutStartSec=900
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/opt/htos/services /opt/htos/templates /opt/htos/static/gta6-cars /opt/htos/web -/opt/htos/workspace/gta6-editor-upstream /opt/htos-backups
+ReadOnlyPaths=/opt/htos/scripts /opt/htos/data /opt/htos/.venv /opt/node-v22 /opt/node-v22-tools
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+MemoryMax=512M

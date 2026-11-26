@@ -22,7 +22,8 @@ SAVES = os.path.join(BASE, "UserSaves")
 WORKSPACE = os.path.join(BASE, "workspace")
 CUTOFF = time.time() - 30 * 60
 PROTECT_PREFIXES = (os.path.join(WORKSPACE, "savedb"),
-                    os.path.join(WORKSPACE, "savedb_samples"))
+                    os.path.join(WORKSPACE, "savedb_samples"),
+                    os.path.join(WORKSPACE, "gta6-editor-upstream"))
 
 in_use = set()
 try:
@@ -76,7 +77,8 @@ PY
 
 # Recreate subdirectories that the app + bridge expect (sweep prunes empties)
 mkdir -p "$WORKSPACE/uploads" "$WORKSPACE/results" "$WORKSPACE/savedb" \
-         "$WORKSPACE/savedb_samples" "$WORKSPACE/bridge-tmp" 2>/dev/null || true
+         "$WORKSPACE/savedb_samples" "$WORKSPACE/bridge-tmp" \
+         "$WORKSPACE/gta6-editor-upstream" 2>/dev/null || true
 
 # --- DB cleanup (best-effort, failures won't block restart) ---
 
