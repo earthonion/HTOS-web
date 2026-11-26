@@ -406,6 +406,7 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
 </section>
 
 <script>
+const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
 (function() {
     const tbody = document.querySelector('#jobs-table tbody');
     const pprTbody = document.querySelector('#ppr-jobs-table tbody');
@@ -540,7 +541,7 @@ document.addEventListener('click', async function(e) {
     try {
         const response = await fetch('/admin/worker-rate-limit/' + keyId, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN},
             body: JSON.stringify({limit: Number(input.value || 0)}),
         });
         const result = await response.json();
@@ -566,7 +567,7 @@ document.addEventListener('change', async function(e) {
     try {
         const response = await fetch('/admin/worker-api-access/' + input.dataset.keyId, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN},
             body: JSON.stringify({setting: input.dataset.setting, enabled: enabled}),
         });
         const result = await response.json();
@@ -587,7 +588,7 @@ document.getElementById('worker-key-generation-toggle').addEventListener('change
     try {
         const response = await fetch('/admin/worker-key-generation', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN},
             body: JSON.stringify({enabled: enabled}),
         });
         const result = await response.json();
@@ -611,7 +612,7 @@ document.getElementById('ps5-fast-mode-toggle').addEventListener('change', async
     try {
         const response = await fetch('/admin/ps5-fast-mode', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN},
             body: JSON.stringify({enabled: enabled}),
         });
         const result = await response.json();
@@ -886,7 +887,7 @@ function sendUserMessage() {
     }
     fetch('/admin/send-message', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN},
         body: JSON.stringify({username: username, message: message, level: level}),
     }).then(function(r){return r.json();}).then(function(d){
         if (d.ok) {
@@ -926,7 +927,7 @@ function generateResetLink() {
     if (!username) return;
     fetch('/admin/reset-user', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN},
         body: JSON.stringify({username: username})
     }).then(function(r) { return r.json(); }).then(function(d) {
         var result = document.getElementById('reset-result');
