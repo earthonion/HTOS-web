@@ -85,16 +85,65 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
 .msg-form select { width: auto; flex-shrink: 0; }
 .msg-form textarea { width: 100%; min-height: 80px; }
 .msg-form .msg-actions { display: flex; align-items: center; gap: 0.5rem; }
+
+.admin-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.admin-heading h1 { margin-bottom: 0.75rem; }
+.admin-resource-links { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+.admin-tabs {
+    display: flex;
+    gap: 0.25rem;
+    overflow-x: auto;
+    margin: 0 0 1.25rem;
+    border-bottom: 1px solid var(--border, rgba(255,255,255,0.12));
+    scrollbar-width: thin;
+}
+.admin-tab {
+    appearance: none;
+    flex: 0 0 auto;
+    padding: 0.7rem 1rem;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--text-2);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.admin-tab:hover { color: var(--fg, #fff); background: rgba(255,255,255,0.04); }
+.admin-tab:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
+.admin-tab.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+.admin-tab-panel[hidden] { display: none !important; }
+.admin-tab-panel > .panel { margin-bottom: 1rem; }
+.admin-metrics { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 0.75rem !important; }
+.admin-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+.admin-settings-grid > .panel { margin: 0; }
+@media (max-width: 640px) {
+    .admin-tab { padding: 0.65rem 0.75rem; }
+    .admin-settings-grid { grid-template-columns: 1fr; }
+}
 </style>
 {% endblock %}
 {% block content %}
-<h1>Admin Dashboard <span id="refresh-countdown" style="font-size: 0.85rem; font-weight: 400; color: var(--text-2);"></span></h1>
-<div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
-    <a href="{{ url_for('admin_web.list_users') }}" class="btn-small">Users</a>
-    <a href="{{ url_for('tools.browse_entitlements') }}" class="btn-small">Entitlements DB</a>
+<div class="admin-heading">
+    <h1>Admin Dashboard <span id="refresh-countdown" style="font-size: 0.85rem; font-weight: 400; color: var(--text-2);"></span></h1>
+    <div class="admin-resource-links">
+        <a href="{{ url_for('admin_web.list_users') }}" class="btn-small">Users</a>
+        <a href="{{ url_for('tools.browse_entitlements') }}" class="btn-small">Entitlements DB</a>
+    </div>
 </div>
 
-<div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+<nav class="admin-tabs" aria-label="Admin dashboard sections" role="tablist">
+    <button type="button" class="admin-tab active" id="admin-tab-overview" role="tab" aria-selected="true" aria-controls="admin-panel-overview" data-admin-tab="overview">Overview</button>
+    <button type="button" class="admin-tab" id="admin-tab-workers" role="tab" aria-selected="false" aria-controls="admin-panel-workers" data-admin-tab="workers" tabindex="-1">Workers</button>
+    <button type="button" class="admin-tab" id="admin-tab-api-keys" role="tab" aria-selected="false" aria-controls="admin-panel-api-keys" data-admin-tab="api-keys" tabindex="-1">API Keys</button>
+    <button type="button" class="admin-tab" id="admin-tab-jobs" role="tab" aria-selected="false" aria-controls="admin-panel-jobs" data-admin-tab="jobs" tabindex="-1">Jobs</button>
+    <button type="button" class="admin-tab" id="admin-tab-settings" role="tab" aria-selected="false" aria-controls="admin-panel-settings" data-admin-tab="settings" tabindex="-1">Queue Settings</button>
+    <button type="button" class="admin-tab" id="admin-tab-user-tools" role="tab" aria-selected="false" aria-controls="admin-panel-user-tools" data-admin-tab="user-tools" tabindex="-1">User Tools</button>
+</nav>
+
+<section class="admin-tab-panel" id="admin-panel-overview" role="tabpanel" aria-labelledby="admin-tab-overview" data-admin-panel="overview">
+<div class="admin-metrics" style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
     <div class="panel" style="flex: 1; min-width: 120px; text-align: center; margin: 0;">
         <div id="queued-count" style="font-size: 2rem; font-weight: 700;">{{ queued }}</div>
         <div style="color: var(--text-2); font-size: 0.85rem;">Queued</div>
@@ -158,7 +207,10 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
     </table>
     </div>
 </section>
+</section>
 
+<section class="admin-tab-panel" id="admin-panel-settings" role="tabpanel" aria-labelledby="admin-tab-settings" data-admin-panel="settings" hidden>
+<div class="admin-settings-grid">
 <section class="panel">
     <h2>Worker Key Generation</h2>
     <label style="display:flex;align-items:center;gap:0.5rem;">
@@ -180,7 +232,10 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
         {{ 'Fast mode enabled; supported PS5 jobs use the accelerated queue' if ps5_fast_mode else 'Fast mode disabled; standard workers can also take jobs' }}
     </p>
 </section>
+</div>
+</section>
 
+<section class="admin-tab-panel" id="admin-panel-workers" role="tabpanel" aria-labelledby="admin-tab-workers" data-admin-panel="workers" hidden>
 <section class="panel">
     <h2 style="display:flex;align-items:center;gap:0.75rem">Worker Stats
         <button id="toggle-offline" class="btn-small" style="font-size:0.7rem;padding:0.2rem 0.6rem;font-weight:500" onclick="toggleOfflineWorkers()">Hide offline</button>
@@ -278,7 +333,9 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
     </table>
     </div>
 </section>
+</section>
 
+<section class="admin-tab-panel" id="admin-panel-api-keys" role="tabpanel" aria-labelledby="admin-tab-api-keys" data-admin-panel="api-keys" hidden>
 <section class="panel">
     <h2>Job Creation API Keys <span style="font-size:0.75rem;font-weight:400;color:var(--text-2)">{{ api_keys|length }} installations</span></h2>
     <p style="color:var(--text-2);font-size:0.8rem;">Device-authorized app installations used to submit jobs. These are separate from worker consoles.</p>
@@ -319,7 +376,9 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
     </table>
     </div>
 </section>
+</section>
 
+<section class="admin-tab-panel" id="admin-panel-jobs" role="tabpanel" aria-labelledby="admin-tab-jobs" data-admin-panel="jobs" hidden>
 <section class="panel">
     <h2>Recent Jobs <span id="live-dot" style="color: var(--green); font-size: 0.7rem; vertical-align: middle;">&#9679; live</span></h2>
     <div style="overflow-x: auto;">
@@ -375,7 +434,9 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
     </table>
     </div>
 </section>
+</section>
 
+<section class="admin-tab-panel" id="admin-panel-user-tools" role="tabpanel" aria-labelledby="admin-tab-user-tools" data-admin-panel="user-tools" hidden>
 <section class="panel">
     <h2>Send User Message</h2>
     <p style="color: var(--text-2); font-size: 0.82rem; margin: 0 0 0.75rem;">Posts a banner at the top of every page for the target user (or <code>*</code> for everyone). Shown until they click the × dismiss button.</p>
@@ -414,8 +475,52 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
         <span id="reset-copy-hint" style="color: var(--green); font-size: 0.75rem; margin-left: 0.3rem;">click to copy</span>
     </div>
 </section>
+</section>
 
 <script>
+(function() {
+    const tabs = Array.from(document.querySelectorAll('[data-admin-tab]'));
+    const panels = Array.from(document.querySelectorAll('[data-admin-panel]'));
+
+    function activateAdminTab(name, updateHash) {
+        if (!tabs.some(function(tab) { return tab.dataset.adminTab === name; })) return;
+        tabs.forEach(function(tab) {
+            const active = tab.dataset.adminTab === name;
+            tab.classList.toggle('active', active);
+            tab.setAttribute('aria-selected', active ? 'true' : 'false');
+            tab.tabIndex = active ? 0 : -1;
+        });
+        panels.forEach(function(panel) {
+            panel.hidden = panel.dataset.adminPanel !== name;
+        });
+        if (updateHash && window.location.hash !== '#' + name) {
+            history.replaceState(null, '', '#' + name);
+        }
+    }
+
+    tabs.forEach(function(tab, index) {
+        tab.addEventListener('click', function() {
+            activateAdminTab(tab.dataset.adminTab, true);
+        });
+        tab.addEventListener('keydown', function(event) {
+            let next = null;
+            if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+            if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
+            if (event.key === 'Home') next = 0;
+            if (event.key === 'End') next = tabs.length - 1;
+            if (next === null) return;
+            event.preventDefault();
+            tabs[next].focus();
+            activateAdminTab(tabs[next].dataset.adminTab, true);
+        });
+    });
+
+    activateAdminTab(window.location.hash.slice(1) || 'overview', false);
+    window.addEventListener('hashchange', function() {
+        activateAdminTab(window.location.hash.slice(1), false);
+    });
+})();
+
 const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
 (function() {
     const tbody = document.querySelector('#jobs-table tbody');
