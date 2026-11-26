@@ -1,0 +1,9 @@
+[Unit]
+Description=Start GTA VI editor sync on webhook
+
+[Path]
+PathChanged=/opt/htos/workspace/gta6-editor-upstream/webhook.trigger
+Unit=gta6-editor-sync.service
+
+[Install]
+WantedBy=multi-user.target
