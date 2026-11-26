@@ -1,5 +1,7 @@
 import asyncio
+import hashlib
 import json
+import secrets
 import traceback
 import uuid
 from datetime import datetime
@@ -147,15 +149,28 @@ async def create_job(
     params: dict | None = None,
     ready: bool = True,
     submitter_key_id: int | None = None,
+    submitter_installation_id: str | None = None,
+    submitter_ip: str | None = None,
 ) -> Job:
     job_id = str(uuid.uuid4())
+    if operation != "ppr_derive":
+        params = dict(params or {})
+        params.setdefault("ignore_secondlayer", False)
     params_json = json.dumps(params) if params else None
     status = "queued" if ready else "pending"
+    read_token = secrets.token_urlsafe(32)
+    read_token_hash = hashlib.sha256(read_token.encode()).hexdigest()
     db = await get_db()
     try:
         await db.execute(
-            "INSERT INTO jobs (id, user_id, operation, status, params, submitter_key_id) VALUES (?, ?, ?, ?, ?, ?)",
-            (job_id, user_id, operation, status, params_json, submitter_key_id),
+            "INSERT INTO jobs "
+            "(id, user_id, operation, status, params, submitter_key_id, "
+            " submitter_installation_id, submitter_ip, read_token_hash) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                job_id, user_id, operation, status, params_json, submitter_key_id,
+                submitter_installation_id, submitter_ip, read_token_hash,
+            ),
         )
         await db.commit()
     finally:
@@ -163,6 +178,7 @@ async def create_job(
 
     job = Job(job_id, user_id, operation, params)
     job.status = status
+    job.read_token = read_token
     _jobs[job_id] = job
 
     # Notify TCP workers that a job is available

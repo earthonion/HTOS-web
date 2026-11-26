@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Authorize GarlicTransfer{% endblock %}
+{% block content %}
+<h1>Authorize GarlicTransfer</h1>
+<section class="panel">
+    <p>Authorize a new GarlicTransfer installation for <strong>{{ session.get('username') }}</strong>. Each installation receives its own revocable credential and can access only its own jobs.</p>
+    <form method="GET" action="{{ url_for('device.authorize_device') }}">
+        <label for="device-code">Installation code</label>
+        <div class="inline-form">
+            <input id="device-code" name="code" value="{{ code }}" required maxlength="9" autocomplete="off" spellcheck="false" placeholder="XXXX-XXXX" style="text-transform:uppercase;font-family:monospace;font-size:1.3rem">
+            <button type="submit">Review</button>
+        </div>
+    </form>
+</section>
+{% if code %}
+<section class="panel">
+    <h2>Approve this installation?</h2>
+    <p>Only continue if you started this authorization in GarlicTransfer. Never approve a code supplied by another person or a third-party application.</p>
+    <p><strong>Code:</strong> <code>{{ code }}</code></p>
+    <form method="POST" action="{{ url_for('device.authorize_device') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="code" value="{{ code }}">
+        <button type="submit" name="action" value="approve">Authorize installation</button>
+        <button type="submit" name="action" value="deny" class="btn-danger" formnovalidate>Deny</button>
+    </form>
+</section>
+{% endif %}
+{% endblock %}

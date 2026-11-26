@@ -1,7 +1,10 @@
 """Public REST API v1 for programmatic save management."""
 
+import hashlib
+import hmac
 import json
 import os
+from datetime import datetime, timezone
 from functools import wraps
 
 from quart import Blueprint, jsonify, request, send_file
@@ -12,7 +15,7 @@ from services.files import (
     DangerousFileError,
     FileTooLargeError,
     InvalidSaveFilesError,
-    detect_platform_in_dir,
+    detect_platform_for_operation,
     extract_account_id,
     resolve_chunked_uploads,
     save_uploaded_files,
@@ -48,6 +51,23 @@ async def log_api_operation(job, operation):
         await db.close()
 
 
+def _shared_key_legacy_active():
+    value = os.getenv("SHARED_KEY_LEGACY_UNTIL", "").strip()
+    if not value:
+        return False
+    try:
+        cutoff = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if cutoff.tzinfo is None:
+        cutoff = cutoff.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) < cutoff
+
+
+def _shared_key_retired():
+    return bool(os.getenv("SHARED_KEY_LEGACY_UNTIL", "").strip()) and not _shared_key_legacy_active()
+
+
 def require_api_key(f):
     @wraps(f)
     async def decorated(*args, **kwargs):
@@ -57,20 +77,28 @@ def require_api_key(f):
         user_id = await validate_worker_key(key)
         if user_id is None:
             return jsonify({"error": "Invalid API key"}), 401
+        access = await get_worker_api_access(key)
+        if not access:
+            return jsonify({"error": "Invalid API key"}), 401
+        if access["is_shared"] and _shared_key_retired():
+            return jsonify({"error": "The shared API key has been retired; authorize this installation"}), 401
         kwargs["user_id"] = user_id
+        kwargs["access"] = access
         return await f(*args, **kwargs)
 
     return decorated
 
 
-async def record_submitter_ip(user_id):
-    from auth import _real_client_ip
-
+async def record_submitter_ip(user_id, key_id, client_ip):
     db = await get_db()
     try:
         await db.execute(
             "UPDATE users SET last_ip = ?, last_seen = CURRENT_TIMESTAMP WHERE id = ?",
-            (_real_client_ip(), user_id),
+            (client_ip, user_id),
+        )
+        await db.execute(
+            "UPDATE worker_keys SET last_ip = ? WHERE id = ?",
+            (client_ip, key_id),
         )
         await db.commit()
     finally:
@@ -79,20 +107,24 @@ async def record_submitter_ip(user_id):
 
 @api_v1_bp.route("/jobs", methods=["POST"])
 @require_api_key
-async def create_job_endpoint(user_id):
+async def create_job_endpoint(user_id, access):
+    from auth import _real_client_ip
+
     form = await request.form
     operation = form.get("operation", "")
-    access = await get_worker_api_access(request.headers.get("X-Worker-Key", ""))
     if operation == "ppr_derive":
-        if not access or not access["ppr_derive_enabled"]:
+        if not access["ppr_derive_enabled"]:
             return jsonify({"error": "ppr_derive is disabled for this worker key"}), 403
-    elif not access or not access["api_enabled"]:
+    elif not access["api_enabled"]:
         return jsonify(
             {"error": "API job creation is disabled for this worker key"}
         ), 403
 
+    client_ip = _real_client_ip()
     _, retry_after = await enforce_job_rate_limit(
-        request.headers.get("X-Worker-Key", "")
+        request.headers.get("X-Worker-Key", ""),
+        incoming_bytes=request.content_length or 0,
+        client_ip=client_ip,
     )
     if retry_after:
         return (
@@ -101,7 +133,8 @@ async def create_job_endpoint(user_id):
             {"Retry-After": str(retry_after)},
         )
     key_id = access["id"]
-    await record_submitter_ip(user_id)
+    installation_id = access["installation_id"]
+    await record_submitter_ip(user_id, key_id, client_ip)
     if operation == "ppr_derive":
         client_value = form.get("client_value", "").lower()
         server_value = form.get("server_value", "").lower()
@@ -123,9 +156,13 @@ async def create_job_endpoint(user_id):
             },
             ready=True,
             submitter_key_id=key_id,
+            submitter_installation_id=installation_id,
+            submitter_ip=client_ip,
         )
         await log_api_operation(job, operation)
-        return jsonify({"job_id": job.job_id, "status": "queued"}), 201
+        return jsonify({
+            "job_id": job.job_id, "status": "queued", "job_token": job.read_token,
+        }), 201
 
     if operation not in ("decrypt", "encrypt", "resign", "reregion", "createsave"):
         return jsonify({"error": f"Invalid operation: {operation}"}), 400
@@ -138,7 +175,13 @@ async def create_job_endpoint(user_id):
     # Create job for file storage
     params = {}
     job = await create_job(
-        user_id, operation, params, ready=False, submitter_key_id=key_id
+        user_id,
+        operation,
+        params,
+        ready=False,
+        submitter_key_id=key_id,
+        submitter_installation_id=installation_id,
+        submitter_ip=client_ip,
     )
 
     try:
@@ -165,9 +208,25 @@ async def create_job_endpoint(user_id):
     except DangerousFileError as e:
         return jsonify({"error": str(e)}), 400
 
-    platform = detect_platform_in_dir(upload_dir)
-    if platform == "unknown":
-        platform = "ps4"
+    uploaded_bytes = sum(
+        os.path.getsize(os.path.join(root, filename))
+        for root, _, filenames in os.walk(upload_dir)
+        for filename in filenames
+    )
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE jobs SET submitter_bytes = ? WHERE id = ?",
+            (uploaded_bytes, job.job_id),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+    try:
+        platform = detect_platform_for_operation(upload_dir, operation)
+    except InvalidSaveFilesError as e:
+        return jsonify({"error": str(e)}), 400
 
     params["upload_dir"] = upload_dir
     params["platform"] = platform
@@ -196,8 +255,6 @@ async def create_job_endpoint(user_id):
         if not account_id:
             return jsonify({"error": "Missing required field: account_id"}), 400
         params["account_id"] = account_id
-        if form.get("platform") == "ps5":
-            params["platform"] = "ps5"
         if form.get("saveblocks"):
             params["saveblocks"] = int(form["saveblocks"])
         if operation == "createsave":
@@ -250,18 +307,25 @@ async def create_job_endpoint(user_id):
     await job.set_status("queued")
     await log_api_operation(job, operation)
 
-    return jsonify({"job_id": job.job_id, "status": "queued"}), 201
+    return jsonify({
+        "job_id": job.job_id, "status": "queued", "job_token": job.read_token,
+    }), 201
 
 
 @api_v1_bp.route("/jobs", methods=["GET"])
 @require_api_key
-async def list_jobs(user_id):
+async def list_jobs(user_id, access):
+    if access["is_shared"]:
+        return jsonify({"error": "Job listing is disabled for shared credentials"}), 403
+    installation_id = access["installation_id"]
+    owner_sql = " AND submitter_installation_id = ?" if installation_id else ""
+    owner_params = (user_id, installation_id) if installation_id else (user_id,)
     db = await get_db()
     try:
         cursor = await db.execute(
             "SELECT id, operation, status, created_at FROM jobs "
-            "WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
-            (user_id,),
+            f"WHERE user_id = ?{owner_sql} ORDER BY created_at DESC LIMIT 50",
+            owner_params,
         )
         rows = await cursor.fetchall()
     finally:
@@ -279,20 +343,34 @@ async def list_jobs(user_id):
     )
 
 
+def _job_read_allowed(access, row):
+    if not access["is_shared"] or _shared_key_legacy_active():
+        return True
+    supplied = request.headers.get("X-Job-Token", "")
+    stored = row["read_token_hash"] or ""
+    if not supplied or not stored:
+        return False
+    digest = hashlib.sha256(supplied.encode()).hexdigest()
+    return hmac.compare_digest(digest, stored)
+
+
 @api_v1_bp.route("/jobs/<job_id>", methods=["GET"])
 @require_api_key
-async def get_job(user_id, job_id):
+async def get_job(user_id, access, job_id):
+    installation_id = access["installation_id"]
+    owner_sql = " AND submitter_installation_id = ?" if installation_id else ""
+    owner_params = (job_id, user_id, installation_id) if installation_id else (job_id, user_id)
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT id, operation, status, created_at, error, logs FROM jobs "
-            "WHERE id = ? AND user_id = ?",
-            (job_id, user_id),
+            "SELECT id, operation, status, created_at, error, logs, read_token_hash "
+            f"FROM jobs WHERE id = ? AND user_id = ?{owner_sql}",
+            owner_params,
         )
         row = await cursor.fetchone()
     finally:
         await db.close()
-    if not row:
+    if not row or not _job_read_allowed(access, row):
         return jsonify({"error": "Job not found"}), 404
 
     logs = []
@@ -317,17 +395,21 @@ async def get_job(user_id, job_id):
 
 @api_v1_bp.route("/jobs/<job_id>/result", methods=["GET"])
 @require_api_key
-async def get_result(user_id, job_id):
+async def get_result(user_id, access, job_id):
+    installation_id = access["installation_id"]
+    owner_sql = " AND submitter_installation_id = ?" if installation_id else ""
+    owner_params = (job_id, user_id, installation_id) if installation_id else (job_id, user_id)
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT operation, status, result_path FROM jobs WHERE id = ? AND user_id = ?",
-            (job_id, user_id),
+            "SELECT operation, status, result_path, read_token_hash FROM jobs "
+            f"WHERE id = ? AND user_id = ?{owner_sql}",
+            owner_params,
         )
         row = await cursor.fetchone()
     finally:
         await db.close()
-    if not row:
+    if not row or not _job_read_allowed(access, row):
         return jsonify({"error": "Job not found"}), 404
     if row["status"] != "done":
         return jsonify({"error": "Job not done yet"}), 400

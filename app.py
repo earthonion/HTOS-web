@@ -1,4 +1,5 @@
 import os
+import secrets
 
 from dotenv import load_dotenv
 from markupsafe import Markup
@@ -30,7 +31,12 @@ def create_app():
     from routes.convert import convert_bp
     from routes.createsave import createsave_bp
     from routes.decrypt import decrypt_bp
+    from routes.device import device_bp
     from routes.encrypt import encrypt_bp
+    from routes.gta6 import gta6_bp
+    from routes.gta6_cars import gta6_cars_bp
+    from routes.gta6_cheats import gta6_cheats_bp
+    from routes.hooks import hooks_bp
     from routes.jobs import jobs_bp
     from routes.kofi import kofi_bp
     from routes.luac0re import luac0re_bp
@@ -41,12 +47,15 @@ def create_app():
     from routes.rest_api import rest_bp
     from routes.savedb import savedb_bp
     from routes.saveeditor import saveeditor_bp
+    from routes.stats import stats_bp
     from routes.tools import tools_bp
+    from routes.xbox import xbox_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(resign_bp)
     app.register_blueprint(decrypt_bp)
+    app.register_blueprint(device_bp)
     app.register_blueprint(encrypt_bp)
     app.register_blueprint(reregion_bp)
     app.register_blueprint(createsave_bp)
@@ -64,6 +73,12 @@ def create_app():
     app.register_blueprint(savedb_bp)
     app.register_blueprint(saveeditor_bp)
     app.register_blueprint(tools_bp)
+    app.register_blueprint(xbox_bp)
+    app.register_blueprint(gta6_bp)
+    app.register_blueprint(gta6_cars_bp)
+    app.register_blueprint(gta6_cheats_bp)
+    app.register_blueprint(hooks_bp)
+    app.register_blueprint(stats_bp)
     app.register_blueprint(kofi_bp)
 
     @app.errorhandler(400)
@@ -298,30 +313,6 @@ def create_app():
         except (OSError, ValueError):
             pass
 
-        footer_supporters = []
-        footer_anonymous_count = 0
-        try:
-            db = await get_db()
-            try:
-                cursor = await db.execute(
-                    "SELECT from_name, is_subscription_payment, tier_name "
-                    "FROM kofi_supporters "
-                    "WHERE LOWER(COALESCE(from_name, '')) != 'anonymous' "
-                    "ORDER BY created_at DESC LIMIT 60"
-                )
-                footer_supporters = group_supporters(
-                    [dict(r) for r in await cursor.fetchall()]
-                )
-                cursor = await db.execute(
-                    "SELECT COUNT(*) FROM kofi_supporters "
-                    "WHERE LOWER(COALESCE(from_name, '')) = 'anonymous'"
-                )
-                footer_anonymous_count = (await cursor.fetchone())[0]
-            finally:
-                await db.close()
-        except Exception:
-            pass
-
         return dict(
             workers_online=ps4_count + ps5_count,
             ps4_workers=ps4_count,
@@ -330,9 +321,45 @@ def create_app():
             adsense_client=os.getenv("ADSENSE_CLIENT_ID", ""),
             admin_messages=admin_msgs,
             maintenance=maint,
-            footer_supporters=footer_supporters,
-            footer_anonymous_count=footer_anonymous_count,
         )
+
+    CSRF_EXEMPT_PREFIXES = (
+        "/api/worker/",
+        "/api/v1/",
+        "/api/upload/",
+        "/chunked/",
+        "/kofi/",
+        "/hooks/",
+        "/webkit-shortcut-elf",
+    )
+
+    def _csrf_token():
+        if "_csrf_token" not in session:
+            session["_csrf_token"] = secrets.token_hex(32)
+        return session["_csrf_token"]
+
+    @app.context_processor
+    async def inject_csrf():
+        return dict(csrf_token=_csrf_token)
+
+    @app.before_request
+    async def _check_csrf():
+        from quart import abort as _abort, request as _req
+        if _req.method not in ("POST", "PUT", "DELETE", "PATCH"):
+            return
+        path = _req.path
+        for prefix in CSRF_EXEMPT_PREFIXES:
+            if path.startswith(prefix):
+                return
+        if "user_id" not in session and "_csrf_token" not in session:
+            return
+        expected = session.get("_csrf_token")
+        if not expected:
+            return
+        form = await _req.form
+        got = form.get("csrf_token") or _req.headers.get("X-CSRF-Token")
+        if not got or not secrets.compare_digest(got, expected):
+            _abort(403)
 
     @app.before_serving
     async def startup():

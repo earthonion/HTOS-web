@@ -40,9 +40,28 @@ CREATE TABLE IF NOT EXISTS worker_keys (
     last_platform TEXT DEFAULT 'ps4'
 );
 
+CREATE TABLE IF NOT EXISTS device_authorizations (
+    device_code_hash TEXT PRIMARY KEY,
+    user_code TEXT UNIQUE NOT NULL,
+    device_name TEXT NOT NULL,
+    creator_ip TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    user_id INTEGER REFERENCES users(id),
+    worker_key_id INTEGER REFERENCES worker_keys(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    last_poll_at TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS pc_worker_connections (
+    id TEXT PRIMARY KEY,
+    busy INTEGER NOT NULL DEFAULT 0,
+    last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS invite_codes (
@@ -165,6 +184,7 @@ CREATE TABLE IF NOT EXISTS kofi_supporters (
 
 INSERT OR IGNORE INTO settings (key, value) VALUES ('invite_only', '0');
 INSERT OR IGNORE INTO settings (key, value) VALUES ('worker_key_generation_enabled', '0');
+INSERT OR IGNORE INTO settings (key, value) VALUES ('ps5_fast_mode', '1');
 """
 
 MIGRATIONS = [
@@ -213,6 +233,17 @@ MIGRATIONS = [
     "ALTER TABLE jobs ADD COLUMN submitter_key_id INTEGER",
     "ALTER TABLE worker_keys ADD COLUMN api_enabled INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE worker_keys ADD COLUMN ppr_derive_enabled INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE worker_keys ADD COLUMN installation_id TEXT",
+    "ALTER TABLE worker_keys ADD COLUMN last_ip TEXT",
+    "ALTER TABLE worker_keys ADD COLUMN is_shared INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE jobs ADD COLUMN submitter_installation_id TEXT",
+    "ALTER TABLE jobs ADD COLUMN submitter_ip TEXT",
+    "ALTER TABLE jobs ADD COLUMN submitter_bytes INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE jobs ADD COLUMN read_token_hash TEXT",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_keys_installation ON worker_keys(installation_id)",
+    "CREATE INDEX IF NOT EXISTS idx_jobs_submitter_installation ON jobs(submitter_installation_id, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_device_user_code ON device_authorizations(user_code)",
+    "UPDATE worker_keys SET is_shared = 1 WHERE name = 'GarlicTransfer-public'",
 ]
 
 

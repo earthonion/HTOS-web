@@ -30,6 +30,7 @@ from config import CHUNK_DIR, WORKER_KEY
 from models import get_db
 from services.jobs import get_or_create_job_logger, push_log
 from services.rate_limit import enforce_job_rate_limit
+from services.tcp_worker import pc_fast_capacity_available
 from services.titles import lookup_title
 
 api_bp = Blueprint("api", __name__, url_prefix="/api/worker")
@@ -178,8 +179,8 @@ async def get_worker_api_access(key):
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT id, api_enabled, ppr_derive_enabled FROM worker_keys "
-            "WHERE key = ? AND is_active = 1",
+            "SELECT id, user_id, api_enabled, ppr_derive_enabled, installation_id, is_shared "
+            "FROM worker_keys WHERE key = ? AND is_active = 1",
             (key,),
         )
         return await cursor.fetchone()
@@ -481,6 +482,8 @@ async def next_job():
         )
         fast_mode_row = await cursor.fetchone()
         ps5_fast_mode = fast_mode_row is not None and fast_mode_row["value"] == "1"
+        pc_capacity = await pc_fast_capacity_available(db) if ps5_fast_mode else False
+        native_overflow = int(ps5_fast_mode and not pc_capacity)
         legacy_ok = 1 if worker_platform == "ps4" else 0
         cursor = await db.execute(
             """
@@ -491,8 +494,8 @@ async def next_job():
             WHERE id = (
                 SELECT id FROM jobs
                 WHERE status = 'queued'
-                  AND (? = 1 OR ? != 'ps5' OR operation NOT IN ('decrypt', 'encrypt', 'resign', 'createsave'))
-                  AND (? != 'ps4' OR operation NOT IN ('decrypt', 'encrypt', 'resign', 'createsave')
+                  AND ((? = 1 OR ? = 1) OR ? != 'ps5' OR operation NOT IN ('decrypt', 'encrypt', 'resign', 'createsave'))
+                  AND (? = 1 OR ? != 'ps4' OR operation NOT IN ('decrypt', 'encrypt', 'resign', 'createsave')
                        OR json_extract(params, '$.platform') NOT IN ('ps5', 'unknown'))
                   AND (
                     json_extract(params, '$.worker_key_id') IS NULL
@@ -514,7 +517,9 @@ async def next_job():
                 claim_key_id,
                 claim_instance_id,
                 int(not ps5_fast_mode),
+                native_overflow,
                 worker_platform,
+                native_overflow,
                 worker_platform,
                 claim_key_id,
                 worker_platform,

@@ -52,10 +52,18 @@ def _record_attempt(ip: str):
     _login_attempts[ip].append(time.time())
 
 
+def _take_login_next():
+    target = session.pop("login_next", None)
+    if target and target.startswith("/") and not target.startswith("//") and "\\" not in target:
+        return target
+    return None
+
+
 def login_required(f):
     @wraps(f)
     async def decorated(*args, **kwargs):
         if "user_id" not in session:
+            session["login_next"] = request.full_path
             return redirect(url_for("auth.login"))
         # Check if user is banned
         db = await get_db()
@@ -108,7 +116,7 @@ async def is_invite_only():
 @auth_bp.route("/register", methods=["GET", "POST"])
 async def register():
     if "user_id" in session:
-        return redirect(url_for("main.dashboard"))
+        return redirect(_take_login_next() or url_for("main.dashboard"))
 
     invite_only = await is_invite_only()
 
@@ -184,7 +192,7 @@ async def register():
             await db.commit()
             session["user_id"] = user_id
             session["username"] = username
-            return redirect(url_for("main.dashboard"))
+            return redirect(_take_login_next() or url_for("main.dashboard"))
         finally:
             await db.close()
 
@@ -194,7 +202,7 @@ async def register():
 @auth_bp.route("/login", methods=["GET", "POST"])
 async def login():
     if "user_id" in session:
-        return redirect(url_for("main.dashboard"))
+        return redirect(_take_login_next() or url_for("main.dashboard"))
     if request.method == "POST":
         client_ip = _real_client_ip()
         if _is_rate_limited(client_ip):
@@ -224,7 +232,7 @@ async def login():
             if row["banned"]:
                 return redirect(url_for("auth.verification"))
 
-            return redirect(url_for("main.dashboard"))
+            return redirect(_take_login_next() or url_for("main.dashboard"))
         finally:
             await db.close()
 
