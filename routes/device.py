@@ -180,7 +180,7 @@ async def authorize_device():
             "INSERT INTO worker_keys "
             "(user_id, key, name, is_active, api_enabled, ppr_derive_enabled, "
             " job_rate_limit, installation_id) "
-            "VALUES (?, ?, ?, 1, 1, 1, 30, ?)",
+            "VALUES (?, ?, ?, 1, 1, 1, 120, ?)",
             (session["user_id"], worker_key, row["device_name"], installation_id),
         )
         cursor = await db.execute(
