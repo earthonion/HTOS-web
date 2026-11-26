@@ -8,6 +8,7 @@ from quart import Blueprint, Response, jsonify, render_template, request
 from auth import admin_required
 from models import get_db
 from routes.contribute import key_generation_enabled
+from services.titles import lookup_title
 
 admin_web_bp = Blueprint("admin_web", __name__)
 
@@ -47,10 +48,27 @@ async def dashboard():
             "    SUM(CASE WHEN last_seen > datetime('now','-300 seconds') AND is_ps5_capable=1 THEN 1 ELSE 0 END) as ps5_online "
             "  FROM worker_instances GROUP BY worker_key_id"
             ") ic ON ic.worker_key_id = wk.id "
+            "WHERE wk.installation_id IS NULL "
             "GROUP BY wk.id "
             "ORDER BY is_online DESC, tracked DESC, wk.last_used DESC"
         )
         workers = [dict(r) for r in await cursor.fetchall()]
+        cursor = await db.execute(
+            "SELECT wk.id, wk.name, u.username as owner_username, wk.installation_id, "
+            "wk.is_active, wk.api_enabled, wk.ppr_derive_enabled, wk.job_rate_limit, "
+            "wk.created_at, wk.last_used, wk.last_ip, "
+            "COUNT(j.id) as total, "
+            "COALESCE(SUM(CASE WHEN j.status = 'done' THEN 1 ELSE 0 END), 0) as done, "
+            "COALESCE(SUM(CASE WHEN j.status = 'failed' THEN 1 ELSE 0 END), 0) as failed, "
+            "COALESCE(SUM(CASE WHEN j.status IN ('pending', 'queued', 'running') THEN 1 ELSE 0 END), 0) as active_jobs "
+            "FROM worker_keys wk "
+            "LEFT JOIN users u ON wk.user_id = u.id "
+            "LEFT JOIN jobs j ON j.submitter_key_id = wk.id "
+            "WHERE wk.installation_id IS NOT NULL "
+            "GROUP BY wk.id "
+            "ORDER BY wk.last_used DESC, wk.created_at DESC"
+        )
+        api_keys = [dict(r) for r in await cursor.fetchall()]
 
         # Recent jobs
         cursor = await db.execute(
@@ -58,14 +76,26 @@ async def dashboard():
             "j.params, wk.name as worker_name, u.last_ip as user_ip "
             "FROM jobs j JOIN users u ON j.user_id = u.id "
             "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id "
+            "WHERE j.operation != 'ppr_derive' "
             "ORDER BY j.created_at DESC LIMIT 30"
         )
         jobs = [dict(r) for r in await cursor.fetchall()]
-        for j in jobs:
+        cursor = await db.execute(
+            "SELECT j.id, u.username, j.operation, j.status, j.created_at, j.error, "
+            "j.params, wk.name as worker_name, u.last_ip as user_ip "
+            "FROM jobs j JOIN users u ON j.user_id = u.id "
+            "LEFT JOIN worker_keys wk ON j.worker_key_id = wk.id "
+            "WHERE j.operation = 'ppr_derive' "
+            "ORDER BY j.created_at DESC LIMIT 30"
+        )
+        ppr_jobs = [dict(r) for r in await cursor.fetchall()]
+        for j in jobs + ppr_jobs:
             if j["params"]:
                 p = json.loads(j["params"])
                 j["game_title"] = p.get("game_title", "")
                 j["title_id"] = p.get("title_id", "")
+                if not j["game_title"] and j["title_id"]:
+                    j["game_title"] = await lookup_title(j["title_id"]) or ""
                 if not j["game_title"] and not j["title_id"]:
                     j["game_title"] = p.get("savename", "")
             else:
@@ -158,11 +188,20 @@ async def dashboard():
         for w in workers
         if w["is_active"] and not w["suspended_until"]
     )
+    db = await get_db()
+    try:
+        cursor = await db.execute("SELECT value FROM settings WHERE key = 'ps5_fast_mode'")
+        row = await cursor.fetchone()
+        ps5_fast_mode = row is not None and row["value"] == "1"
+    finally:
+        await db.close()
 
     return await render_template(
         "admin.html",
         workers=workers,
+        api_keys=api_keys,
         jobs=jobs,
+        ppr_jobs=ppr_jobs,
         queued=queued,
         total_users=total_users,
         online_now=online_now,
@@ -172,6 +211,7 @@ async def dashboard():
         op_stats=op_stats,
         workers_online=workers_online,
         key_generation_enabled=await key_generation_enabled(),
+        ps5_fast_mode=ps5_fast_mode,
     )
 
 
@@ -323,6 +363,26 @@ async def set_worker_key_generation():
     return jsonify({"ok": True, "enabled": enabled})
 
 
+@admin_web_bp.route("/admin/ps5-fast-mode", methods=["POST"])
+@admin_required
+async def set_ps5_fast_mode():
+    data = await request.get_json()
+    enabled = data.get("enabled")
+    if not isinstance(enabled, bool):
+        return jsonify({"ok": False, "error": "enabled must be a boolean"}), 400
+    db = await get_db()
+    try:
+        await db.execute(
+            "INSERT INTO settings (key, value) VALUES ('ps5_fast_mode', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            ("1" if enabled else "0",),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+    return jsonify({"ok": True, "enabled": enabled})
+
+
 @admin_web_bp.route("/admin/worker-api-access/<int:key_id>", methods=["POST"])
 @admin_required
 async def set_worker_api_access(key_id):
@@ -421,6 +481,8 @@ async def feed():
                             p = json.loads(nj["params"])
                             nj["game_title"] = p.get("game_title", "")
                             nj["title_id"] = p.get("title_id", "")
+                            if not nj["game_title"] and nj["title_id"]:
+                                nj["game_title"] = await lookup_title(nj["title_id"]) or ""
                             if not nj["game_title"] and not nj["title_id"]:
                                 nj["game_title"] = p.get("savename", "")
                         else:

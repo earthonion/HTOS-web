@@ -275,6 +275,42 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
 </section>
 
 <section class="panel">
+    <h2>Job Creation API Keys <span style="font-size:0.75rem;font-weight:400;color:var(--text-2)">{{ api_keys|length }} installations</span></h2>
+    <p style="color:var(--text-2);font-size:0.8rem;">Device-authorized app installations used to submit jobs. These are separate from worker consoles.</p>
+    <div style="overflow-x:auto;">
+    <table id="api-keys-table">
+        <thead>
+            <tr><th>ID</th><th>User</th><th>Installation</th><th>Status</th><th>Permissions</th><th>Submitted</th><th>Done</th><th>Failed</th><th>Active</th><th>Last used</th><th>Last IP</th></tr>
+        </thead>
+        <tbody>
+            {% for k in api_keys %}
+            <tr data-key-id="{{ k.id }}" data-search="{{ (k.owner_username or '') ~ ' ' ~ (k.name or '') }}">
+                <td>{{ k.id }}</td>
+                <td>{{ k.owner_username or '-' }}</td>
+                <td>{{ k.name }}<br><span style="color:var(--text-3);font-size:0.7rem">{{ k.installation_id[:8] }}</span></td>
+                <td><span class="status-{{ 'done' if k.is_active else 'failed' }}">{{ 'active' if k.is_active else 'revoked' }}</span></td>
+                <td style="white-space:nowrap;font-size:0.75rem;">
+                    <label title="Allow decrypt, encrypt, resign, reregion, and createsave jobs">
+                        <input class="worker-access-toggle" data-key-id="{{ k.id }}" data-setting="api_enabled" type="checkbox" {% if k.api_enabled %}checked{% endif %}> Jobs
+                    </label>
+                    <label title="Allow ppr_derive jobs" style="margin-left:0.6rem;">
+                        <input class="worker-access-toggle" data-key-id="{{ k.id }}" data-setting="ppr_derive_enabled" type="checkbox" {% if k.ppr_derive_enabled %}checked{% endif %}> ppr_derive
+                    </label>
+                </td>
+                <td>{{ k.total }}</td>
+                <td>{{ k.done }}</td>
+                <td>{{ k.failed }}</td>
+                <td>{{ k.active_jobs }}</td>
+                <td>{{ k.last_used or '-' }}</td>
+                <td>{{ k.last_ip or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</section>
+
+<section class="panel">
     <h2>Recent Jobs <span id="live-dot" style="color: var(--green); font-size: 0.7rem; vertical-align: middle;">&#9679; live</span></h2>
     <div style="overflow-x: auto;">
     <table id="jobs-table">
@@ -291,6 +327,33 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
                 <td>
                     <span class="status-{{ j.status }}">{{ j.status }}</span>
                 </td>
+                <td style="font-size: 0.75rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ j.error or '' }}">{{ j.error or '-' }}</td>
+                <td>{{ j.worker_name or '-' }}</td>
+                <td>{{ j.user_ip or '-' }}</td>
+                <td>{{ j.created_at }}</td>
+                <td><a href="{{ url_for('jobs.job_status', job_id=j.id) }}" class="btn-small">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</section>
+
+<section class="panel">
+    <h2>ppr_derive Jobs <span style="color: var(--green); font-size: 0.7rem; vertical-align: middle;">&#9679; live</span></h2>
+    <div style="overflow-x: auto;">
+    <table id="ppr-jobs-table">
+        <thead>
+            <tr><th>ID</th><th>User</th><th>Op</th><th>Title</th><th>Status</th><th>Error</th><th>Worker</th><th>User IP</th><th>Created</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for j in ppr_jobs %}
+            <tr data-job-id="{{ j.id }}">
+                <td style="font-size: 0.75rem;">{{ j.id[:8] }}</td>
+                <td>{{ j.username }}</td>
+                <td>{{ j.operation }}</td>
+                <td style="font-size: 0.8rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ j.game_title }} {{ j.title_id }}">{% if j.game_title %}{{ j.game_title }}{% elif j.title_id %}<code>{{ j.title_id }}</code>{% else %}-{% endif %}</td>
+                <td><span class="status-{{ j.status }}">{{ j.status }}</span></td>
                 <td style="font-size: 0.75rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ j.error or '' }}">{{ j.error or '-' }}</td>
                 <td>{{ j.worker_name or '-' }}</td>
                 <td>{{ j.user_ip or '-' }}</td>
@@ -345,6 +408,7 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
 <script>
 (function() {
     const tbody = document.querySelector('#jobs-table tbody');
+    const pprTbody = document.querySelector('#ppr-jobs-table tbody');
     const queuedEl = document.getElementById('queued-count');
     const es = new EventSource('/admin/feed');
 
@@ -446,14 +510,15 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
         if (data.queued !== undefined && queuedEl) queuedEl.textContent = data.queued;
         if (data.type === 'new_jobs' && data.jobs) {
             data.jobs.forEach(function(j) {
-                if (tbody.querySelector('[data-job-id="' + j.id + '"]')) return;
-                tbody.insertBefore(makeRow(j), tbody.firstChild);
-                while (tbody.children.length > 50) tbody.removeChild(tbody.lastChild);
+                const target = j.operation === 'ppr_derive' ? pprTbody : tbody;
+                if (target.querySelector('[data-job-id="' + j.id + '"]')) return;
+                target.insertBefore(makeRow(j), target.firstChild);
+                while (target.children.length > 50) target.removeChild(target.lastChild);
             });
         }
         if (data.type === 'updates' && data.updates) {
             data.updates.forEach(function(u) {
-                var row = tbody.querySelector('[data-job-id="' + u.id + '"]');
+                var row = tbody.querySelector('[data-job-id="' + u.id + '"]') || pprTbody.querySelector('[data-job-id="' + u.id + '"]');
                 if (!row) return;
                 row.children[4].innerHTML = '<span class="status-' + u.status + '">' + u.status + '</span>';
                 row.children[5].textContent = u.error || '-';
