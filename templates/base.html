@@ -25,6 +25,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=progress1">
     <link rel="pgpkey" href="/.well-known/pgp.asc">
+    {% if csrf_token %}<meta name="csrf-token" content="{{ csrf_token() }}">{% endif %}
     {% block extra_head %}{% endblock %}
     {% if not session.get('is_admin') and not no_ads and adsense_client %}
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"
@@ -39,13 +40,6 @@
     </style>
 </head>
 <body>
-<div id="kofi-banner" style="display:none; position:sticky; top:0; z-index:9999; background:#161b22; border-bottom:1px solid #30363d; color:#c9d1d9; padding:0.55rem 1rem; font-size:0.85rem; text-align:center;">
-  garlicsaves is free and ad-free. Consider
-  <a href="https://ko-fi.com/earthonion" target="_blank" rel="noopener" style="color:#fbd308; text-decoration:none; font-weight:600;">donating ☕</a> to help keep the server up.
-  <button onclick="document.getElementById('kofi-banner').style.display='none';localStorage.setItem('kofi-banner-dismissed-at',Date.now());" aria-label="dismiss" style="margin-left:0.6rem; background:none; border:0; color:#8b949e; cursor:pointer; font-size:1rem; line-height:1; padding:0 0.3rem;">&times;</button>
-</div>
-<script>(function(){var ts=parseInt(localStorage.getItem('kofi-banner-dismissed-at')||'0',10);if(!ts||Date.now()-ts>3*86400000){var b=document.getElementById('kofi-banner');if(b)b.style.display='block';}})();</script>
-
     {% if session.get('user_id') %}
     <nav class="sidebar">
         <div class="nav-header">
@@ -67,6 +61,7 @@
                 {% endif %}
                 <a href="https://m2k7m.github.io/re-region-web/" target="_blank" rel="noopener">Reregion &#8599;</a>
                 <a href="https://bucanero.github.io/apollo-patcher/" target="_blank" rel="noopener">Patch Save &#8599;</a>
+                <a href="https://github.com/earthonion/GarlicTransfer/releases/latest" target="_blank" rel="noopener">GarlicTransfer &#8599;</a>
                 <a href="{{ url_for('savedb.browse') }}">Save DB </a>
                 <div class="nav-submenu">
                     <a href="#" class="nav-submenu-toggle" onclick="event.preventDefault();this.parentElement.classList.toggle('open')">Tools <span class="nav-chevron"></span></a>
@@ -134,7 +129,7 @@
         {% if messages %}
         <div class="flash-messages">
             {% for category, message in messages %}
-            <div class="flash flash-{{ category }}">{{ message | safe }}</div>
+            <div class="flash flash-{{ category }}">{{ message }}</div>
             {% endfor %}
         </div>
         {% endif %}
@@ -183,10 +178,10 @@
 
 
     <footer>
-        {% block footer_text %}<p>garlicsaves</p>{% endblock %}
+        {% block footer_text %}<p>garlicsaves · <a href="{{ url_for('main.disclaimer') }}">Disclaimer</a></p>{% endblock %}
     </footer>
 
-    <script src="{{ url_for('static', filename='chunked-upload.js') }}?v=winpaths"></script>
+    <script src="{{ url_for('static', filename='chunked-upload.js') }}?v=parchunks"></script>
     <script>
     const hamburger = document.getElementById('hamburger');
     const navCollapse = document.getElementById('nav-collapse');
@@ -312,17 +307,7 @@
         });
     });
     </script>
-{% block supporters_footer %}
-{% if footer_supporters or footer_anonymous_count %}
-<div style="max-width:640px; margin:40px auto 8px; padding:0 16px; text-align:center;">
-    <p style="font-size:0.75rem; color:var(--text-3, #6e7681); margin-bottom:0.5rem; font-family:ui-monospace,monospace;">supporters keeping the lights on · <a href="/donate" style="color:var(--accent, #fbd308); text-decoration:none;">☕ join them</a></p>
-    <div style="display:flex; flex-wrap:wrap; gap:0.25rem 0.35rem; justify-content:center;">
-        {% for s in footer_supporters %}<span style="font-size:0.72rem; padding:0.08rem 0.45rem; border:1px solid var(--border, #30363d); border-radius:999px; color:var(--text-2);{% if s.is_subscription_payment %} border-color:var(--accent, #fbd308); color:var(--accent, #fbd308);{% endif %}"{% if s.is_subscription_payment and s.tier_name %} title="{{ s.tier_name }}"{% endif %}>{{ s.from_name }}{% if s.count and s.count > 1 %} <span style="opacity:0.7; font-size:0.85em;">×{{ s.count }}</span>{% endif %}</span>{% endfor %}
-        {% if footer_anonymous_count %}<span style="font-size:0.72rem; color:var(--text-3, #6e7681); align-self:center;">+ {{ footer_anonymous_count }} anonymous</span>{% endif %}
-    </div>
-</div>
-{% endif %}
-{% endblock %}
+{% block supporters_footer %}{% endblock %}
 <footer style="margin:40px 0 16px;color:#888;font-family:ui-monospace,monospace;font-size:11px;text-align:center">PGP: <a href="/.well-known/pgp.asc" style="color:#888">25F9 762D 2597 2627 15B9 9200 71AE 4A88 D93C C98A</a></footer>
 <script>
 document.addEventListener('click', function(e) {
@@ -336,6 +321,30 @@ document.addEventListener('click', function(e) {
         setTimeout(function() { el.textContent = orig; }, 1000);
     });
 });
+</script>
+<script>
+(function(){
+    var m=document.querySelector('meta[name="csrf-token"]');
+    if(!m)return;
+    var t=m.content;
+    document.querySelectorAll('form[method="POST"],form[method="post"]').forEach(function(f){
+        if(f.querySelector('[name="csrf_token"]'))return;
+        var i=document.createElement('input');
+        i.type='hidden';i.name='csrf_token';i.value=t;
+        f.appendChild(i);
+    });
+    var _f=window.fetch;
+    window.fetch=function(u,o){
+        o=o||{};
+        var method=(o.method||'GET').toUpperCase();
+        if(method==='POST'||method==='PUT'||method==='DELETE'||method==='PATCH'){
+            o.headers=o.headers||{};
+            if(o.headers instanceof Headers){o.headers.set('X-CSRF-Token',t)}
+            else{o.headers['X-CSRF-Token']=t}
+        }
+        return _f.call(this,u,o);
+    };
+})();
 </script>
 </body>
 </html>
