@@ -33,6 +33,23 @@ from utils.orbis import sfo_ctx_create, validate_savedirname
 encrypt_bp = Blueprint("encrypt", __name__)
 
 
+def _extract_zip_checked(zip_path, extract_dir):
+    try:
+        check_zip_safety(zip_path)
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            bad_member = zf.testzip()
+            if bad_member:
+                raise DangerousFileError(
+                    f"The ZIP file is damaged or incomplete (bad CRC in '{bad_member}'). "
+                    "Download or export it again, then retry."
+                )
+            zf.extractall(extract_dir)
+    except zipfile.BadZipFile as error:
+        raise DangerousFileError(
+            "The ZIP file is damaged or incomplete. Download or export it again, then retry."
+        ) from error
+
+
 @encrypt_bp.route("/encrypt", methods=["GET", "POST"])
 @login_required
 async def encrypt():
@@ -129,12 +146,10 @@ async def encrypt():
                 await flash("No .zip file found in upload.", "error")
                 return await render_template("encrypt.html", profiles=profiles)
             try:
-                check_zip_safety(zip_path)
+                _extract_zip_checked(zip_path, extract_dir)
             except DangerousFileError as e:
                 await flash(str(e), "error")
                 return await render_template("encrypt.html", profiles=profiles)
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(extract_dir)
         elif folder_upload_ids_json:
             # Chunked folder upload: files land assembled in the chunked_dir,
             # keeping their relative paths from the original folder pick.
@@ -162,12 +177,10 @@ async def encrypt():
             zip_path = os.path.join(upload_dir, zipfile_upload.filename)
             await zipfile_upload.save(zip_path)
             try:
-                check_zip_safety(zip_path)
+                _extract_zip_checked(zip_path, extract_dir)
             except DangerousFileError as e:
                 await flash(str(e), "error")
                 return await render_template("encrypt.html", profiles=profiles)
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(extract_dir)
 
         try:
             check_dangerous_files(extract_dir)
