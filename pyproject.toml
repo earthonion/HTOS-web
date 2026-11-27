@@ -1,7 +1,7 @@
 [project]
 name = "HTOS-web"
 version = "1.0.0"
-description = "Web interface for HTOS PS4 save management"
+description = "Web interface for HTOS PS4/PS5 save management"
 requires-python = ">=3.12"
 dependencies = [
     "quart>=0.19.0",
