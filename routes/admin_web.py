@@ -93,11 +93,15 @@ async def dashboard():
             "COUNT(*) AS installations, COUNT(DISTINCT wk.user_id) AS accounts, "
             "MAX(wk.last_used) AS last_used, COALESCE(ip.monthly_ip_count, 0) AS monthly_ip_count, "
             "COALESCE(j.total, 0) AS total, COALESCE(j.done, 0) AS done, "
-            "COALESCE(j.failed, 0) AS failed, COALESCE(j.active_jobs, 0) AS active_jobs "
+            "COALESCE(j.failed, 0) AS failed, COALESCE(j.active_jobs, 0) AS active_jobs, "
+            "COALESCE(access.api_enabled, 1) AS api_enabled, "
+            "COALESCE(access.ppr_derive_enabled, 1) AS ppr_derive_enabled "
             "FROM client_keys wk "
             "LEFT JOIN job_aggregates j ON j.name_key = wk.name_key "
             "LEFT JOIN ip_aggregates ip ON ip.name_key = wk.name_key "
-            "GROUP BY wk.name_key ORDER BY total DESC, last_used DESC"
+            "LEFT JOIN client_access access ON lower(trim(access.client_name)) = wk.name_key "
+            "GROUP BY wk.name_key, access.api_enabled, access.ppr_derive_enabled "
+            "ORDER BY total DESC, last_used DESC"
         )
         clients = [dict(r) for r in await cursor.fetchall()]
 
@@ -492,6 +496,33 @@ async def set_worker_api_access(key_id):
     finally:
         await db.close()
     return jsonify({"ok": True, "setting": setting, "enabled": enabled})
+
+
+@admin_web_bp.route("/admin/client-api-access", methods=["POST"])
+@admin_required
+async def set_client_api_access():
+    data = await request.get_json()
+    client_name = " ".join(str(data.get("client") or "").split())
+    setting = data.get("setting")
+    enabled = data.get("enabled")
+    if not client_name or len(client_name) > 128:
+        return jsonify({"ok": False, "error": "invalid client name"}), 400
+    if setting not in ("api_enabled", "ppr_derive_enabled"):
+        return jsonify({"ok": False, "error": "invalid API access setting"}), 400
+    if not isinstance(enabled, bool):
+        return jsonify({"ok": False, "error": "enabled must be a boolean"}), 400
+    db = await get_db()
+    try:
+        await db.execute(
+            f"INSERT INTO client_access (client_name, {setting}) VALUES (?, ?) "
+            f"ON CONFLICT(client_name) DO UPDATE SET {setting} = excluded.{setting}, "
+            "updated_at = CURRENT_TIMESTAMP",
+            (client_name, enabled),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+    return jsonify({"ok": True, "client": client_name, "setting": setting, "enabled": enabled})
 
 
 @admin_web_bp.route("/admin/worker-instances/<int:key_id>")

@@ -179,11 +179,24 @@ async def get_worker_api_access(key):
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT id, user_id, api_enabled, ppr_derive_enabled, installation_id, is_shared "
+            "SELECT id, user_id, name, api_enabled, ppr_derive_enabled, installation_id, is_shared "
             "FROM worker_keys WHERE key = ? AND is_active = 1",
             (key,),
         )
         return await cursor.fetchone()
+    finally:
+        await db.close()
+
+
+async def get_client_api_access(name):
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT api_enabled, ppr_derive_enabled FROM client_access WHERE client_name = ?",
+            (name,),
+        )
+        row = await cursor.fetchone()
+        return row or {"api_enabled": 1, "ppr_derive_enabled": 1}
     finally:
         await db.close()
 

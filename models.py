@@ -54,6 +54,13 @@ CREATE TABLE IF NOT EXISTS worker_key_ip_usage (
 CREATE INDEX IF NOT EXISTS idx_worker_key_ip_usage_last_seen
     ON worker_key_ip_usage(worker_key_id, last_seen);
 
+CREATE TABLE IF NOT EXISTS client_access (
+    client_name TEXT PRIMARY KEY COLLATE NOCASE,
+    api_enabled INTEGER NOT NULL DEFAULT 1,
+    ppr_derive_enabled INTEGER NOT NULL DEFAULT 1,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS device_authorizations (
     device_code_hash TEXT PRIMARY KEY,
     user_code TEXT UNIQUE NOT NULL,
@@ -275,6 +282,12 @@ MIGRATIONS = [
     "ALTER TABLE worker_key_ip_usage ADD COLUMN user_id INTEGER REFERENCES users(id)",
     "UPDATE worker_key_ip_usage SET user_id = (SELECT user_id FROM worker_keys WHERE worker_keys.id = worker_key_ip_usage.worker_key_id)",
     "CREATE INDEX IF NOT EXISTS idx_worker_key_ip_usage_user_last_seen ON worker_key_ip_usage(user_id, last_seen)",
+    """CREATE TABLE IF NOT EXISTS client_access (
+        client_name TEXT PRIMARY KEY COLLATE NOCASE,
+        api_enabled INTEGER NOT NULL DEFAULT 1,
+        ppr_derive_enabled INTEGER NOT NULL DEFAULT 1,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""",
 ]
 
 

@@ -10,7 +10,7 @@ from functools import wraps
 from quart import Blueprint, jsonify, request, send_file
 
 from models import get_db
-from routes.api import get_worker_api_access, validate_worker_key
+from routes.api import get_client_api_access, get_worker_api_access, validate_worker_key
 from services.files import (
     DangerousFileError,
     FileTooLargeError,
@@ -112,12 +112,23 @@ async def create_job_endpoint(user_id, access):
 
     form = await request.form
     operation = form.get("operation", "")
+    client_access = (
+        await get_client_api_access(access["name"])
+        if access["installation_id"]
+        else {"api_enabled": 1, "ppr_derive_enabled": 1}
+    )
     if operation == "ppr_derive":
         if not access["ppr_derive_enabled"]:
             return jsonify({"error": "ppr_derive is disabled for this worker key"}), 403
+        if not client_access["ppr_derive_enabled"]:
+            return jsonify({"error": f"ppr_derive is disabled for client '{access['name']}'"}), 403
     elif not access["api_enabled"]:
         return jsonify(
             {"error": "API job creation is disabled for this worker key"}
+        ), 403
+    elif not client_access["api_enabled"]:
+        return jsonify(
+            {"error": f"API job creation is disabled for client '{access['name']}'"}
         ), 403
 
     client_ip = _real_client_ip()

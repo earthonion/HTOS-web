@@ -406,7 +406,7 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
     <div style="overflow-x:auto;">
     <table id="clients-table">
         <thead>
-            <tr><th>Client</th><th>Installations</th><th>Accounts</th><th>IPs/30d</th><th>Submitted</th><th>Done</th><th>Failed</th><th>Active</th><th>Last used</th><th></th></tr>
+            <tr><th>Client</th><th>Installations</th><th>Accounts</th><th>IPs/30d</th><th>Submitted</th><th>Done</th><th>Failed</th><th>Active</th><th>Last used</th><th>Permissions</th><th></th></tr>
         </thead>
         <tbody>
             {% for client in clients %}
@@ -420,6 +420,14 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
                 <td>{{ client.failed }}</td>
                 <td>{{ client.active_jobs }}</td>
                 <td>{{ client.last_used or '-' }}</td>
+                <td style="white-space:nowrap;font-size:0.75rem;">
+                    <label title="Allow decrypt, encrypt, resign, reregion, and createsave jobs for every installation using this client name">
+                        <input class="client-access-toggle" data-client-name="{{ client.client_name }}" data-setting="api_enabled" type="checkbox" {% if client.api_enabled %}checked{% endif %}> Jobs
+                    </label>
+                    <label title="Allow ppr_derive jobs for every installation using this client name" style="margin-left:0.6rem;">
+                        <input class="client-access-toggle" data-client-name="{{ client.client_name }}" data-setting="ppr_derive_enabled" type="checkbox" {% if client.ppr_derive_enabled %}checked{% endif %}> ppr_derive
+                    </label>
+                </td>
                 <td><button type="button" class="btn-small client-filter" data-client-name="{{ client.client_name }}">View keys</button></td>
             </tr>
             {% endfor %}
@@ -794,6 +802,28 @@ document.addEventListener('change', async function(e) {
         });
         const result = await response.json();
         if (!response.ok || !result.ok) throw new Error(result.error || 'Could not save API access');
+        input.checked = result.enabled;
+    } catch (error) {
+        input.checked = !enabled;
+        alert(error.message);
+    } finally {
+        input.disabled = false;
+    }
+});
+
+document.addEventListener('change', async function(e) {
+    const input = e.target.closest('.client-access-toggle');
+    if (!input) return;
+    const enabled = input.checked;
+    input.disabled = true;
+    try {
+        const response = await fetch('/admin/client-api-access', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN},
+            body: JSON.stringify({client: input.dataset.clientName, setting: input.dataset.setting, enabled: enabled}),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Could not save client API access');
         input.checked = result.enabled;
     } catch (error) {
         input.checked = !enabled;
