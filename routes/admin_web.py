@@ -1,6 +1,7 @@
 import asyncio
 import json
 import secrets
+import subprocess
 
 import bcrypt
 from quart import Blueprint, Response, jsonify, render_template, request
@@ -473,6 +474,17 @@ async def set_accounts_per_ip_limit():
     finally:
         await db.close()
     return jsonify({"ok": True, "limit": limit})
+
+
+@admin_web_bp.route("/admin/quick-recover", methods=["POST"])
+@admin_required
+async def quick_recover():
+    subprocess.Popen(
+        ["/usr/bin/sudo", "/opt/htos/scripts/quick_recover.sh"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return jsonify({"ok": True, "message": "HTOS recovery started"})
 
 
 @admin_web_bp.route("/admin/worker-api-access/<int:key_id>", methods=["POST"])

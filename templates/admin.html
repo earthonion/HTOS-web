@@ -243,6 +243,13 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
     </div>
     <p style="color:var(--text-2);font-size:0.8rem;margin-top:0.5rem;">Prevents a new account from resetting API access. Existing accounts and the separate 5-IP-per-account limit still apply. Set to 0 to disable this guard.</p>
 </section>
+
+<section class="panel">
+    <h2>Quick Recovery</h2>
+    <p style="color:var(--text-2);font-size:0.8rem;">Restart HTOS after a service stall or persistent database-lock errors. Active jobs may be interrupted.</p>
+    <button id="quick-recover-btn" class="btn-small" style="background:rgba(239,68,68,0.15);color:var(--red);">Restart HTOS</button>
+    <span id="quick-recover-state" style="font-size:0.75rem;color:var(--text-2);margin-left:0.5rem;"></span>
+</section>
 </div>
 </section>
 
@@ -830,6 +837,27 @@ document.addEventListener('change', async function(e) {
         alert(error.message);
     } finally {
         input.disabled = false;
+    }
+});
+
+document.getElementById('quick-recover-btn').addEventListener('click', async function() {
+    if (!confirm('Restart HTOS now? Active jobs may be interrupted.')) return;
+    const button = this;
+    const state = document.getElementById('quick-recover-state');
+    button.disabled = true;
+    state.textContent = 'Starting recovery…';
+    try {
+        const response = await fetch('/admin/quick-recover', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN},
+            body: '{}',
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Could not start recovery');
+        state.textContent = 'Recovery started. HTOS will restart in 1 second.';
+    } catch (error) {
+        state.textContent = error.message;
+        button.disabled = false;
     }
 });
 
