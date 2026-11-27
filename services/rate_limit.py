@@ -12,11 +12,41 @@ DAILY_USER_BYTE_LIMIT = int(os.getenv("INSTALLATION_USER_DAILY_BYTE_LIMIT", str(
 MAX_DISTINCT_IPS_PER_DAY = int(os.getenv("INSTALLATION_MAX_DISTINCT_IPS_PER_DAY", "25"))
 
 
+async def get_accounts_per_ip_limit(db):
+    cursor = await db.execute(
+        "SELECT value FROM settings WHERE key = 'accounts_per_ip_limit'"
+    )
+    row = await cursor.fetchone()
+    if not row:
+        return 2
+    try:
+        return max(0, int(row["value"]))
+    except (TypeError, ValueError):
+        return 2
+
+
 async def _record_monthly_ip(db, key_id, user_id, limit, account_limit, client_ip):
     if not client_ip:
         return 0
     try:
         await db.execute("BEGIN IMMEDIATE")
+        accounts_per_ip = await get_accounts_per_ip_limit(db)
+        if accounts_per_ip and user_id is not None:
+            cursor = await db.execute(
+                "SELECT COUNT(DISTINCT user_id) FROM worker_key_ip_usage "
+                "WHERE ip = ? AND user_id IS NOT NULL AND last_seen > datetime('now', '-30 days')",
+                (client_ip,),
+            )
+            account_count = (await cursor.fetchone())[0]
+            cursor = await db.execute(
+                "SELECT 1 FROM worker_key_ip_usage WHERE ip = ? AND user_id = ? "
+                "AND last_seen > datetime('now', '-30 days') LIMIT 1",
+                (client_ip, user_id),
+            )
+            known_account = await cursor.fetchone()
+            if account_count >= accounts_per_ip and not known_account:
+                await db.rollback()
+                return 3600
         if account_limit and user_id is not None:
             cursor = await db.execute(
                 "SELECT COUNT(DISTINCT ip) FROM worker_key_ip_usage "

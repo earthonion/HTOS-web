@@ -232,6 +232,16 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
         {{ 'Fast mode enabled; supported PS5 jobs use the accelerated queue' if ps5_fast_mode else 'Fast mode disabled; standard workers can also take jobs' }}
     </p>
 </section>
+
+<section class="panel">
+    <h2>Cross-account IP guard</h2>
+    <label for="accounts-per-ip-limit">Distinct accounts allowed per IP over 30 days</label>
+    <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
+        <input id="accounts-per-ip-limit" type="number" min="0" max="1000" value="{{ accounts_per_ip_limit }}" style="width:70px;">
+        <button id="save-accounts-per-ip-limit" class="btn-small">Save</button>
+    </div>
+    <p style="color:var(--text-2);font-size:0.8rem;margin-top:0.5rem;">Prevents a new account from resetting API access. Existing accounts and the separate 5-IP-per-account limit still apply. Set to 0 to disable this guard.</p>
+</section>
 </div>
 </section>
 
@@ -770,6 +780,33 @@ document.getElementById('ps5-fast-mode-toggle').addEventListener('change', async
         alert(error.message);
     } finally {
         input.disabled = false;
+    }
+});
+
+document.getElementById('save-accounts-per-ip-limit').addEventListener('click', async function() {
+    const button = this;
+    const input = document.getElementById('accounts-per-ip-limit');
+    const previous = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Saving…';
+    try {
+        const response = await fetch('/admin/accounts-per-ip-limit', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN},
+            body: JSON.stringify({limit: Number(input.value || 0)}),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Could not save cross-account IP limit');
+        input.value = result.limit;
+        button.textContent = 'Saved';
+    } catch (error) {
+        button.textContent = 'Error';
+        alert(error.message);
+    } finally {
+        setTimeout(() => {
+            button.disabled = false;
+            button.textContent = previous;
+        }, 1200);
     }
 });
 

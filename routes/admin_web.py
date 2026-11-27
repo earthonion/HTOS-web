@@ -8,6 +8,7 @@ from quart import Blueprint, Response, jsonify, render_template, request
 from auth import admin_required
 from models import get_db
 from routes.contribute import key_generation_enabled
+from services.rate_limit import get_accounts_per_ip_limit
 from services.titles import lookup_title
 
 admin_web_bp = Blueprint("admin_web", __name__)
@@ -197,6 +198,7 @@ async def dashboard():
         cursor = await db.execute("SELECT value FROM settings WHERE key = 'ps5_fast_mode'")
         row = await cursor.fetchone()
         ps5_fast_mode = row is not None and row["value"] == "1"
+        accounts_per_ip_limit = await get_accounts_per_ip_limit(db)
     finally:
         await db.close()
 
@@ -216,6 +218,7 @@ async def dashboard():
         workers_online=workers_online,
         key_generation_enabled=await key_generation_enabled(),
         ps5_fast_mode=ps5_fast_mode,
+        accounts_per_ip_limit=accounts_per_ip_limit,
     )
 
 
@@ -412,6 +415,33 @@ async def set_ps5_fast_mode():
     finally:
         await db.close()
     return jsonify({"ok": True, "enabled": enabled})
+
+
+@admin_web_bp.route("/admin/accounts-per-ip-limit", methods=["POST"])
+@admin_required
+async def set_accounts_per_ip_limit():
+    data = await request.get_json()
+    try:
+        limit = int(data.get("limit", 2))
+    except (TypeError, ValueError):
+        return jsonify(
+            {"ok": False, "error": "limit must be a non-negative integer"}
+        ), 400
+    if limit < 0 or limit > 1000:
+        return jsonify(
+            {"ok": False, "error": "limit must be between 0 and 1000"}
+        ), 400
+    db = await get_db()
+    try:
+        await db.execute(
+            "INSERT INTO settings (key, value) VALUES ('accounts_per_ip_limit', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (str(limit),),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+    return jsonify({"ok": True, "limit": limit})
 
 
 @admin_web_bp.route("/admin/worker-api-access/<int:key_id>", methods=["POST"])
