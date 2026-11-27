@@ -4,7 +4,7 @@
 <h1>Welcome, {{ username }}</h1>
 
 <section class="panel" style="overflow: visible; position: relative; z-index: 10;">
-    <h2>PS4 Profiles</h2>
+    <h2>PS4/PS5 Profiles</h2>
     <form method="POST" action="{{ url_for('main.create_profile') }}" class="inline-form">
         <input type="text" name="name" placeholder="Profile name" required maxlength="20">
         <input type="text" name="account_id" placeholder="Account ID (16 hex chars)" required pattern="[0-9a-fA-F]{16}" maxlength="16">
