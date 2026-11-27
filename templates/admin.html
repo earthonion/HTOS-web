@@ -342,7 +342,7 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
     <div style="overflow-x:auto;">
     <table id="api-keys-table">
         <thead>
-            <tr><th>ID</th><th>User</th><th>Installation</th><th>Status</th><th>Permissions</th><th>Submitted</th><th>Done</th><th>Failed</th><th>Active</th><th>IPs/30d</th><th>IP limit</th><th>Last used</th><th>Last IP</th></tr>
+            <tr><th>ID</th><th>User</th><th>Installation</th><th>Status</th><th>Permissions</th><th>Submitted</th><th>Done</th><th>Failed</th><th>Active</th><th class="sort-ip-count" style="cursor:pointer" title="Sort by unique IPs in the last 30 days">IPs/30d ↕</th><th>IP limit</th><th>Last used</th><th>Last IP</th></tr>
         </thead>
         <tbody>
             {% for k in api_keys %}
@@ -819,6 +819,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         case 6: // Done
                         case 7: // Fail
                         case 8: // Total
+                        case 13: // IPs/30d
                             cmp = (parseInt(valA, 10) || 0) - (parseInt(valB, 10) || 0);
                             break;
                         case 9: // Rate
@@ -853,6 +854,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 rows.forEach(row => tbody.appendChild(row));
             }
         });
+    });
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const header = document.querySelector('#api-keys-table .sort-ip-count');
+    if (!header) return;
+    let direction = -1;
+    header.addEventListener('click', function() {
+        const tbody = document.querySelector('#api-keys-table tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr[data-key-id]'));
+        rows.sort(function(a, b) {
+            const countA = parseInt(a.children[9].textContent, 10) || 0;
+            const countB = parseInt(b.children[9].textContent, 10) || 0;
+            const idA = parseInt(a.dataset.keyId, 10) || 0;
+            const idB = parseInt(b.dataset.keyId, 10) || 0;
+            return ((countA - countB) || (idA - idB)) * direction;
+        });
+        rows.forEach(function(row) { tbody.appendChild(row); });
+        header.textContent = 'IPs/30d ' + (direction === 1 ? '▲' : '▼');
+        direction *= -1;
     });
 });
 

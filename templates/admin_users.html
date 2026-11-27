@@ -17,7 +17,11 @@
             <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Username</th>
             <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Status</th>
             <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Created</th>
-            <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">IPs/30d</th>
+            <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">
+                <a href="?q={{ q|urlencode }}&sort=ips&dir={{ 'asc' if ip_sort and ip_dir == 'desc' else 'desc' }}" title="Sort accounts by unique IPs in the last 30 days" style="color:inherit;text-decoration:none;">
+                    IPs/30d {% if ip_sort %}{{ '▲' if ip_dir == 'asc' else '▼' }}{% else %}↕{% endif %}
+                </a>
+            </th>
             <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Account IP limit</th>
             <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Actions</th>
         </tr>
@@ -55,11 +59,11 @@
 
 <div style="display:flex; gap:1rem; margin-top:1rem; justify-content:center;">
     {% if page > 1 %}
-    <a href="?q={{ q }}&page={{ page - 1 }}">&larr; Previous</a>
+    <a href="?q={{ q|urlencode }}&page={{ page - 1 }}{% if ip_sort %}&sort=ips&dir={{ ip_dir }}{% endif %}">&larr; Previous</a>
     {% endif %}
     <span style="color:var(--text-2); font-size:0.85rem;">Page {{ page }} / {{ total_pages }}</span>
     {% if page < total_pages %}
-    <a href="?q={{ q }}&page={{ page + 1 }}">Next &rarr;</a>
+    <a href="?q={{ q|urlencode }}&page={{ page + 1 }}{% if ip_sort %}&sort=ips&dir={{ ip_dir }}{% endif %}">Next &rarr;</a>
     {% endif %}
 </div>
 {% elif q %}

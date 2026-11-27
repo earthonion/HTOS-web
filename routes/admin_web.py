@@ -594,6 +594,11 @@ async def list_users():
     q = request.args.get("q", "").strip()
     page = int(request.args.get("page", "1"))
     per_page = 50
+    ip_sort = request.args.get("sort") == "ips"
+    ip_dir = request.args.get("dir", "desc").lower()
+    if ip_dir not in ("asc", "desc"):
+        ip_dir = "desc"
+    order_by = f"monthly_ip_count {ip_dir.upper()}, id DESC" if ip_sort else "id DESC"
 
     db = await get_db()
     try:
@@ -607,7 +612,7 @@ async def list_users():
                 "SELECT id, username, created_at, banned, monthly_ip_limit, "
                 "(SELECT COUNT(DISTINCT ip) FROM worker_key_ip_usage ip WHERE ip.user_id = users.id "
                 "AND ip.last_seen > datetime('now', '-30 days')) AS monthly_ip_count FROM users "
-                "WHERE username LIKE ? ORDER BY id DESC LIMIT ? OFFSET ?",
+                f"WHERE username LIKE ? ORDER BY {order_by} LIMIT ? OFFSET ?",
                 (like, per_page, (page - 1) * per_page),
             )
         else:
@@ -617,7 +622,7 @@ async def list_users():
                 "SELECT id, username, created_at, banned, monthly_ip_limit, "
                 "(SELECT COUNT(DISTINCT ip) FROM worker_key_ip_usage ip WHERE ip.user_id = users.id "
                 "AND ip.last_seen > datetime('now', '-30 days')) AS monthly_ip_count FROM users "
-                "ORDER BY id DESC LIMIT ? OFFSET ?",
+                f"ORDER BY {order_by} LIMIT ? OFFSET ?",
                 (per_page, (page - 1) * per_page),
             )
         users = [dict(r) for r in await cursor.fetchall()]
@@ -632,6 +637,8 @@ async def list_users():
         page=page,
         total_pages=total_pages,
         total=total,
+        ip_sort=ip_sort,
+        ip_dir=ip_dir,
     )
 
 
