@@ -604,7 +604,9 @@ async def list_users():
             )
             total = (await cursor.fetchone())[0]
             cursor = await db.execute(
-                "SELECT id, username, created_at, banned FROM users "
+                "SELECT id, username, created_at, banned, monthly_ip_limit, "
+                "(SELECT COUNT(DISTINCT ip) FROM worker_key_ip_usage ip WHERE ip.user_id = users.id "
+                "AND ip.last_seen > datetime('now', '-30 days')) AS monthly_ip_count FROM users "
                 "WHERE username LIKE ? ORDER BY id DESC LIMIT ? OFFSET ?",
                 (like, per_page, (page - 1) * per_page),
             )
@@ -612,7 +614,9 @@ async def list_users():
             cursor = await db.execute("SELECT COUNT(*) FROM users")
             total = (await cursor.fetchone())[0]
             cursor = await db.execute(
-                "SELECT id, username, created_at, banned FROM users "
+                "SELECT id, username, created_at, banned, monthly_ip_limit, "
+                "(SELECT COUNT(DISTINCT ip) FROM worker_key_ip_usage ip WHERE ip.user_id = users.id "
+                "AND ip.last_seen > datetime('now', '-30 days')) AS monthly_ip_count FROM users "
                 "ORDER BY id DESC LIMIT ? OFFSET ?",
                 (per_page, (page - 1) * per_page),
             )
@@ -629,6 +633,33 @@ async def list_users():
         total_pages=total_pages,
         total=total,
     )
+
+
+@admin_web_bp.route("/admin/user-ip-limit/<int:user_id>", methods=["POST"])
+@admin_required
+async def set_user_ip_limit(user_id):
+    data = await request.get_json()
+    try:
+        limit = int(data.get("limit", 5))
+    except (TypeError, ValueError):
+        return jsonify(
+            {"ok": False, "error": "limit must be a non-negative integer"}
+        ), 400
+    if limit < 0 or limit > 1000:
+        return jsonify(
+            {"ok": False, "error": "limit must be between 0 and 1000"}
+        ), 400
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "UPDATE users SET monthly_ip_limit = ? WHERE id = ?", (limit, user_id)
+        )
+        await db.commit()
+        if cursor.rowcount == 0:
+            return jsonify({"ok": False, "error": "user not found"}), 404
+    finally:
+        await db.close()
+    return jsonify({"ok": True, "limit": limit})
 
 
 @admin_web_bp.route("/admin/ban-user", methods=["POST"])

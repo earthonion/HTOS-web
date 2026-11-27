@@ -17,6 +17,8 @@
             <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Username</th>
             <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Status</th>
             <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Created</th>
+            <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">IPs/30d</th>
+            <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Account IP limit</th>
             <th style="text-align:left; padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; color:var(--text-3);">Actions</th>
         </tr>
     </thead>
@@ -33,6 +35,11 @@
                 {% endif %}
             </td>
             <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); font-size:0.78rem;">{{ u.created_at }}</td>
+            <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border);">{{ u.monthly_ip_count }}</td>
+            <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border); white-space:nowrap;">
+                <input class="user-monthly-ip-limit" data-user-id="{{ u.id }}" type="number" min="0" max="1000" value="{{ u.monthly_ip_limit }}" style="width:60px;font-size:0.75rem;" title="Unique IPs across all API keys for this account per 30 days; 0 is unlimited">
+                <button class="btn-small" onclick="saveUserIpLimit({{ u.id }}, this)">Save</button>
+            </td>
             <td style="padding:0.5rem 0.75rem; border-bottom:1px solid var(--border);">
                 {% if u.banned %}
                 <button class="btn-small" onclick="toggleBan('{{ u.username }}', false, this)" style="background:var(--bg-1);">Unban</button>
@@ -66,6 +73,34 @@
 </div>
 
 <script>
+const USER_ADMIN_CSRF = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+async function saveUserIpLimit(userId, button) {
+    const input = document.querySelector('.user-monthly-ip-limit[data-user-id="' + userId + '"]');
+    const previous = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Saving…';
+    try {
+        const response = await fetch('/admin/user-ip-limit/' + userId, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': USER_ADMIN_CSRF},
+            body: JSON.stringify({limit: Number(input.value || 0)}),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'Could not save account IP limit');
+        input.value = result.limit;
+        button.textContent = 'Saved';
+    } catch (error) {
+        button.textContent = 'Error';
+        alert(error.message);
+    } finally {
+        setTimeout(function() {
+            button.disabled = false;
+            button.textContent = previous;
+        }, 1200);
+    }
+}
+
 function toggleBan(username, ban, btn) {
     if (ban && !confirm('Ban user "' + username + '"? They will be logged out immediately.')) return;
     var url = ban ? '/admin/ban-user' : '/admin/unban-user';

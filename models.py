@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY,
     username TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    monthly_ip_limit INTEGER NOT NULL DEFAULT 5
 );
 
 CREATE TABLE IF NOT EXISTS profiles (
@@ -43,6 +44,7 @@ CREATE TABLE IF NOT EXISTS worker_keys (
 
 CREATE TABLE IF NOT EXISTS worker_key_ip_usage (
     worker_key_id INTEGER NOT NULL REFERENCES worker_keys(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id),
     ip TEXT NOT NULL,
     first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -269,6 +271,10 @@ MIGRATIONS = [
     "SELECT submitter_key_id, submitter_ip, MIN(created_at), MAX(created_at) FROM jobs "
     "WHERE submitter_key_id IS NOT NULL AND submitter_ip IS NOT NULL AND submitter_ip != '' "
     "GROUP BY submitter_key_id, submitter_ip",
+    "ALTER TABLE users ADD COLUMN monthly_ip_limit INTEGER NOT NULL DEFAULT 5",
+    "ALTER TABLE worker_key_ip_usage ADD COLUMN user_id INTEGER REFERENCES users(id)",
+    "UPDATE worker_key_ip_usage SET user_id = (SELECT user_id FROM worker_keys WHERE worker_keys.id = worker_key_ip_usage.worker_key_id)",
+    "CREATE INDEX IF NOT EXISTS idx_worker_key_ip_usage_user_last_seen ON worker_key_ip_usage(user_id, last_seen)",
 ]
 
 

@@ -12,11 +12,27 @@ DAILY_USER_BYTE_LIMIT = int(os.getenv("INSTALLATION_USER_DAILY_BYTE_LIMIT", str(
 MAX_DISTINCT_IPS_PER_DAY = int(os.getenv("INSTALLATION_MAX_DISTINCT_IPS_PER_DAY", "25"))
 
 
-async def _record_monthly_ip(db, key_id, limit, client_ip):
+async def _record_monthly_ip(db, key_id, user_id, limit, account_limit, client_ip):
     if not client_ip:
         return 0
     try:
         await db.execute("BEGIN IMMEDIATE")
+        if account_limit and user_id is not None:
+            cursor = await db.execute(
+                "SELECT COUNT(DISTINCT ip) FROM worker_key_ip_usage "
+                "WHERE user_id = ? AND last_seen > datetime('now', '-30 days')",
+                (user_id,),
+            )
+            account_ips = (await cursor.fetchone())[0]
+            cursor = await db.execute(
+                "SELECT 1 FROM worker_key_ip_usage WHERE user_id = ? AND ip = ? "
+                "AND last_seen > datetime('now', '-30 days') LIMIT 1",
+                (user_id, client_ip),
+            )
+            known_account_ip = await cursor.fetchone()
+            if account_ips >= account_limit and not known_account_ip:
+                await db.rollback()
+                return 3600
         if limit:
             cursor = await db.execute(
                 "SELECT COUNT(*) FROM worker_key_ip_usage "
@@ -34,9 +50,9 @@ async def _record_monthly_ip(db, key_id, limit, client_ip):
                 await db.rollback()
                 return 3600
         await db.execute(
-            "INSERT INTO worker_key_ip_usage (worker_key_id, ip) VALUES (?, ?) "
+            "INSERT INTO worker_key_ip_usage (worker_key_id, user_id, ip) VALUES (?, ?, ?) "
             "ON CONFLICT(worker_key_id, ip) DO UPDATE SET last_seen = CURRENT_TIMESTAMP",
-            (key_id, client_ip),
+            (key_id, user_id, client_ip),
         )
         await db.commit()
         return 0
@@ -49,8 +65,9 @@ async def enforce_job_rate_limit(key, incoming_bytes=0, client_ip=""):
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT id, user_id, job_rate_limit, installation_id, monthly_ip_limit "
-            "FROM worker_keys WHERE key = ?",
+            "SELECT wk.id, wk.user_id, wk.job_rate_limit, wk.installation_id, wk.monthly_ip_limit, "
+            "u.monthly_ip_limit AS account_monthly_ip_limit "
+            "FROM worker_keys wk LEFT JOIN users u ON u.id = wk.user_id WHERE wk.key = ?",
             (key,),
         )
         row = await cursor.fetchone()
@@ -68,7 +85,7 @@ async def enforce_job_rate_limit(key, incoming_bytes=0, client_ip=""):
         installation_id = row["installation_id"]
         if not installation_id:
             retry_after = await _record_monthly_ip(
-                db, key_id, row["monthly_ip_limit"], client_ip
+                db, key_id, row["user_id"], row["monthly_ip_limit"], row["account_monthly_ip_limit"], client_ip
             )
             return key_id, retry_after
 
@@ -127,7 +144,7 @@ async def enforce_job_rate_limit(key, incoming_bytes=0, client_ip=""):
                 if not await cursor.fetchone():
                     return key_id, 3600
         retry_after = await _record_monthly_ip(
-            db, key_id, row["monthly_ip_limit"], client_ip
+            db, key_id, row["user_id"], row["monthly_ip_limit"], row["account_monthly_ip_limit"], client_ip
         )
         return key_id, retry_after
     finally:
