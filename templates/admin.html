@@ -137,6 +137,7 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
     <button type="button" class="admin-tab active" id="admin-tab-overview" role="tab" aria-selected="true" aria-controls="admin-panel-overview" data-admin-tab="overview">Overview</button>
     <button type="button" class="admin-tab" id="admin-tab-workers" role="tab" aria-selected="false" aria-controls="admin-panel-workers" data-admin-tab="workers" tabindex="-1">Workers</button>
     <button type="button" class="admin-tab" id="admin-tab-api-keys" role="tab" aria-selected="false" aria-controls="admin-panel-api-keys" data-admin-tab="api-keys" tabindex="-1">API Keys</button>
+    <button type="button" class="admin-tab" id="admin-tab-clients" role="tab" aria-selected="false" aria-controls="admin-panel-clients" data-admin-tab="clients" tabindex="-1">Clients</button>
     <button type="button" class="admin-tab" id="admin-tab-jobs" role="tab" aria-selected="false" aria-controls="admin-panel-jobs" data-admin-tab="jobs" tabindex="-1">Jobs</button>
     <button type="button" class="admin-tab" id="admin-tab-settings" role="tab" aria-selected="false" aria-controls="admin-panel-settings" data-admin-tab="settings" tabindex="-1">Queue Settings</button>
     <button type="button" class="admin-tab" id="admin-tab-user-tools" role="tab" aria-selected="false" aria-controls="admin-panel-user-tools" data-admin-tab="user-tools" tabindex="-1">User Tools</button>
@@ -347,7 +348,12 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
 
 <section class="admin-tab-panel" id="admin-panel-api-keys" role="tabpanel" aria-labelledby="admin-tab-api-keys" data-admin-panel="api-keys" hidden>
 <section class="panel">
-    <h2>Job Creation API Keys <span style="font-size:0.75rem;font-weight:400;color:var(--text-2)">{{ api_keys|length }} installations</span></h2>
+    <h2 style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">Job Creation API Keys <span style="font-size:0.75rem;font-weight:400;color:var(--text-2)">{{ api_keys|length }} installations</span>
+        <span style="margin-left:auto;font-size:0.75rem;font-weight:400;color:var(--text-2);">
+            <input id="api-key-search" type="search" placeholder="Filter user or client" aria-label="Filter API keys" style="width:220px;font-size:0.75rem;">
+            <span id="api-key-count"></span>
+        </span>
+    </h2>
     <p style="color:var(--text-2);font-size:0.8rem;">Device-authorized app installations used to submit jobs. These are separate from worker consoles.</p>
     <div style="overflow-x:auto;">
     <table id="api-keys-table">
@@ -380,6 +386,41 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
                 </td>
                 <td>{{ k.last_used or '-' }}</td>
                 <td>{{ k.last_ip or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</section>
+</section>
+
+<section class="admin-tab-panel" id="admin-panel-clients" role="tabpanel" aria-labelledby="admin-tab-clients" data-admin-panel="clients" hidden>
+<section class="panel">
+    <h2 style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">Clients <span style="font-size:0.75rem;font-weight:400;color:var(--text-2)">{{ clients|length }} names</span>
+        <span style="margin-left:auto;font-size:0.75rem;font-weight:400;color:var(--text-2);">
+            <input id="client-search" type="search" placeholder="Filter client name" aria-label="Filter clients" style="width:220px;font-size:0.75rem;">
+            <span id="client-count"></span>
+        </span>
+    </h2>
+    <p style="color:var(--text-2);font-size:0.8rem;">Installations grouped by the name supplied during authorization. Use this to spot custom or rebranded clients.</p>
+    <div style="overflow-x:auto;">
+    <table id="clients-table">
+        <thead>
+            <tr><th>Client</th><th>Installations</th><th>Accounts</th><th>IPs/30d</th><th>Submitted</th><th>Done</th><th>Failed</th><th>Active</th><th>Last used</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for client in clients %}
+            <tr data-client-name="{{ client.client_name }}" data-search="{{ client.client_name }}">
+                <td><strong>{{ client.client_name }}</strong></td>
+                <td>{{ client.installations }}</td>
+                <td>{{ client.accounts }}</td>
+                <td>{{ client.monthly_ip_count }}</td>
+                <td>{{ client.total }}</td>
+                <td>{{ client.done }}</td>
+                <td>{{ client.failed }}</td>
+                <td>{{ client.active_jobs }}</td>
+                <td>{{ client.last_used or '-' }}</td>
+                <td><button type="button" class="btn-small client-filter" data-client-name="{{ client.client_name }}">View keys</button></td>
             </tr>
             {% endfor %}
         </tbody>
@@ -508,6 +549,8 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
         }
     }
 
+    window.openAdminTab = activateAdminTab;
+
     tabs.forEach(function(tab, index) {
         tab.addEventListener('click', function() {
             activateAdminTab(tab.dataset.adminTab, true);
@@ -530,6 +573,31 @@ button.toggle-instances { font-family: inherit; cursor: pointer; }
         activateAdminTab(window.location.hash.slice(1), false);
     });
 })();
+
+function filterAdminRows(tableId, inputId, countId) {
+    const query = document.getElementById(inputId).value.trim().toLowerCase();
+    let visible = 0;
+    document.querySelectorAll('#' + tableId + ' tbody tr[data-search]').forEach(function(row) {
+        const matches = (row.dataset.search || '').toLowerCase().includes(query);
+        row.hidden = !matches;
+        if (matches) visible++;
+    });
+    document.getElementById(countId).textContent = query ? `${visible} matching` : '';
+}
+
+document.getElementById('api-key-search').addEventListener('input', function() {
+    filterAdminRows('api-keys-table', 'api-key-search', 'api-key-count');
+});
+document.getElementById('client-search').addEventListener('input', function() {
+    filterAdminRows('clients-table', 'client-search', 'client-count');
+});
+document.addEventListener('click', function(event) {
+    const button = event.target.closest('.client-filter');
+    if (!button) return;
+    document.getElementById('api-key-search').value = button.dataset.clientName || '';
+    filterAdminRows('api-keys-table', 'api-key-search', 'api-key-count');
+    window.openAdminTab('api-keys', true);
+});
 
 const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
 (function() {

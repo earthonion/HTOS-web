@@ -74,6 +74,32 @@ async def dashboard():
             "ORDER BY wk.last_used DESC, wk.created_at DESC"
         )
         api_keys = [dict(r) for r in await cursor.fetchall()]
+        cursor = await db.execute(
+            "WITH client_keys AS ("
+            " SELECT id, user_id, name, installation_id, last_used, lower(trim(name)) AS name_key "
+            " FROM worker_keys WHERE installation_id IS NOT NULL"
+            "), job_aggregates AS ("
+            " SELECT wk.name_key, COUNT(j.id) AS total, "
+            " COALESCE(SUM(CASE WHEN j.status = 'done' THEN 1 ELSE 0 END), 0) AS done, "
+            " COALESCE(SUM(CASE WHEN j.status = 'failed' THEN 1 ELSE 0 END), 0) AS failed, "
+            " COALESCE(SUM(CASE WHEN j.status IN ('pending', 'queued', 'running') THEN 1 ELSE 0 END), 0) AS active_jobs "
+            " FROM client_keys wk LEFT JOIN jobs j ON j.submitter_key_id = wk.id GROUP BY wk.name_key"
+            "), ip_aggregates AS ("
+            " SELECT wk.name_key, COUNT(DISTINCT usage.ip) AS monthly_ip_count "
+            " FROM client_keys wk JOIN worker_key_ip_usage usage ON usage.worker_key_id = wk.id "
+            " WHERE usage.last_seen > datetime('now', '-30 days') GROUP BY wk.name_key"
+            ") "
+            "SELECT MIN(COALESCE(NULLIF(TRIM(wk.name), ''), 'Unnamed')) AS client_name, "
+            "COUNT(*) AS installations, COUNT(DISTINCT wk.user_id) AS accounts, "
+            "MAX(wk.last_used) AS last_used, COALESCE(ip.monthly_ip_count, 0) AS monthly_ip_count, "
+            "COALESCE(j.total, 0) AS total, COALESCE(j.done, 0) AS done, "
+            "COALESCE(j.failed, 0) AS failed, COALESCE(j.active_jobs, 0) AS active_jobs "
+            "FROM client_keys wk "
+            "LEFT JOIN job_aggregates j ON j.name_key = wk.name_key "
+            "LEFT JOIN ip_aggregates ip ON ip.name_key = wk.name_key "
+            "GROUP BY wk.name_key ORDER BY total DESC, last_used DESC"
+        )
+        clients = [dict(r) for r in await cursor.fetchall()]
 
         # Recent jobs
         cursor = await db.execute(
@@ -206,6 +232,7 @@ async def dashboard():
         "admin.html",
         workers=workers,
         api_keys=api_keys,
+        clients=clients,
         jobs=jobs,
         ppr_jobs=ppr_jobs,
         queued=queued,
